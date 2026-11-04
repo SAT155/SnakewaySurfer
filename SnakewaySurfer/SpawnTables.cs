@@ -56,6 +56,12 @@ internal static class SpawnTables
 				{
 					continue;
 				}
+				// Event-only and "everywhere" entries (late-game invasions that can turn up in any
+				// biome) aren't what lives here.
+				if (!string.IsNullOrEmpty(d.m_requiredPersistentEvent) || BiomeCount(d.m_biome) >= 4)
+				{
+					continue;
+				}
 				Character c = d.m_prefab.GetComponent<Character>();
 				if (c == null || c is Player || c.m_boss)
 				{
@@ -74,7 +80,7 @@ internal static class SpawnTables
 				}
 				if (!string.IsNullOrEmpty(d.m_requiredGlobalKey))
 				{
-					weight *= 0.6f;
+					weight *= 0.3f;
 				}
 				if (!byPrefab.TryGetValue(d.m_prefab, out SpawnEntry e))
 				{
@@ -95,6 +101,19 @@ internal static class SpawnTables
 		}
 		result.AddRange(byPrefab.Values);
 		return result;
+	}
+
+	private static int BiomeCount(Heightmap.Biome biome)
+	{
+		int n = 0;
+		foreach (Heightmap.Biome b in s_order)
+		{
+			if ((biome & b) != 0)
+			{
+				n++;
+			}
+		}
+		return n;
 	}
 
 	public static string Label(GameObject prefab)

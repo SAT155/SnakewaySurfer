@@ -68,7 +68,8 @@ and for players without the mod.
   of the ground, and in the Swamp one rises straddling the track (slide between its legs);
   attack effects such as the blob's gas show and linger in the lane; lighting and fog follow
   each biome's real daytime weather, and the fog works now; `surfprobe` console command logs
-  a spot's look for tuning; Allow Pause / Pause Key test settings.
+  a spot's look for tuning; Allow Pause / Pause Key test settings. 1.5.x: event-only and everywhere-invasion creatures
+  left out of the spawn tables.
 - **1.4**: creatures play their real attack animations with their own weapons (the classic
   stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
   monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water
