@@ -9,7 +9,7 @@ namespace SnakewaySurfer;
 // built from lifeless copies of vanilla prefabs far above the player, on a render layer only our
 // own camera draws, so nothing is networked and nothing touches the world. Other players only
 // see what PlayerHooks does to the real character (running in place, Dverger circlet).
-internal sealed class SurfGame : MonoBehaviour
+internal sealed partial class SurfGame : MonoBehaviour
 {
 	public static SurfGame? Active;
 
@@ -31,6 +31,8 @@ internal sealed class SurfGame : MonoBehaviour
 		Coin,
 		Scenery,
 		Ground,
+		// Tar: slows you down while you run through it.
+		Slow,
 	}
 
 	private sealed class Thing
@@ -83,6 +85,30 @@ internal sealed class SurfGame : MonoBehaviour
 		public bool Attacked;
 		public float Cooldown;
 		public float FireIn = -1f;
+		// Creature schemas (Schemas.cs).
+		public Schema? Schema;
+		// Gas over all three lanes: passed by jumping or sliding.
+		public bool JumpOrSlide;
+		// The attack this one does when it lands: "sweep", "gas2", "gas3", "slams", ... or "".
+		public string Move = "";
+		// Area attacks from range: "lob", "fire", "tar", "bomb", "tickdrop", or "".
+		public string Ranged = "";
+		public int[] HitLanes = new int[0];
+		public readonly List<GameObject> Markers = new();
+		public bool Switcher;
+		public float SwitchTimer;
+		public bool Crosser;
+		public bool Leaper;
+		public int Phase;
+		public float PhaseTime;
+		public float FromX;
+		public float FromY;
+		public float FromZ;
+		public float ToZ;
+		public bool Chaser;
+		public bool ChaseHigh;
+		public bool Helper;
+		public int Level = 1;
 	}
 
 	private enum Special
@@ -354,6 +380,7 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			Active = null;
 		}
+		DestroySchemaObjects();
 		if (m_mainCamera != null)
 		{
 			m_mainCamera.cullingMask = m_mainMask;
@@ -1036,7 +1063,17 @@ internal sealed class SurfGame : MonoBehaviour
 		}
 	}
 
-	private int BiomeAt(float z) => Mathf.Clamp(Mathf.FloorToInt(Mathf.Max(0f, z) / Plugin.BiomeLength.Value), 0, m_biomes.Count - 1);
+	private int BiomeAt(float z) => BiomeIndex(Mathf.FloorToInt(Mathf.Max(0f, z) / Plugin.BiomeLength.Value));
+
+	// Biomes in one lap; after it the run starts again from the Meadows with stars.
+	private int Cycle => Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
+
+	private int BiomeIndex(int stretch) => Plugin.LoopBiomes.Value <= 0
+		? Mathf.Clamp(stretch, 0, m_biomes.Count - 1)
+		: Mathf.Max(0, stretch) % Mathf.Max(1, Cycle);
+
+	// 0 on the first lap, then 1, 2 and 3 stars.
+	private int StarsAt(float z) => Plugin.LoopBiomes.Value <= 0 ? 0 : Mathf.Clamp(Mathf.FloorToInt(Mathf.Max(0f, z) / Plugin.BiomeLength.Value) / Mathf.Max(1, Cycle), 0, 3);
 
 	private static float LaneX(int lane) => (lane - 1) * LaneWidth;
 
@@ -1045,6 +1082,11 @@ internal sealed class SurfGame : MonoBehaviour
 		m_runTime += dt;
 		float biomeProgress = m_z / Plugin.BiomeLength.Value;
 		m_speed = Mathf.Min(Plugin.StartSpeed.Value + Plugin.SpeedPerBiome.Value * biomeProgress, Plugin.MaxSpeed.Value);
+		if (m_slowTime > 0f)
+		{
+			m_slowTime -= dt;
+			m_speed *= 0.6f;
+		}
 
 		bool grounded = m_y <= 0.001f;
 		if (canInput)
@@ -1123,9 +1165,11 @@ internal sealed class SurfGame : MonoBehaviour
 		if (biome != m_shownBiome)
 		{
 			m_shownBiome = biome;
-			m_banner = biome == 0 ? m_biomes[0].Def.Name : "Entering " + m_biomes[biome].Def.Name + "!";
+			int stars = StarsAt(m_z);
+			string starText = stars > 0 ? $" ({stars} star{(stars > 1 ? "s" : "")})" : "";
+			m_banner = biome == 0 && stars == 0 ? m_biomes[0].Def.Name : "Entering " + m_biomes[biome].Def.Name + starText + "!";
 			m_bannerTime = 2.5f;
-			if (biome > 0)
+			if (biome > 0 || stars > 0)
 			{
 				m_audio.Play(Sfx.Biome);
 			}
@@ -1160,8 +1204,23 @@ internal sealed class SurfGame : MonoBehaviour
 						m_things.RemoveAt(i);
 					}
 					break;
+				case Kind.Slow:
+					if (m_y < 0.5f)
+					{
+						if (m_slowTime <= 0f)
+						{
+							m_banner = "Stuck in tar!";
+							m_bannerTime = 1.2f;
+						}
+						m_slowTime = 1.2f;
+					}
+					break;
 				case Kind.Block:
 					if (t.ClearHeight > 0f && m_y > t.ClearHeight)
+					{
+						break;
+					}
+					if (t.JumpOrSlide && (m_y > 0.7f || sliding))
 					{
 						break;
 					}
@@ -1214,13 +1273,20 @@ internal sealed class SurfGame : MonoBehaviour
 				m_things.RemoveAt(i);
 				continue;
 			}
+			if (m_state == State.Running && i == m_things.Count - 1)
+			{
+				UpdateSchemaWorld(dt);
+			}
 			if (m_state == State.Running && t.Special != Special.None)
 			{
 				UpdateSetPiece(t, dt);
 			}
 			else if (m_state == State.Running && t.Info != null)
 			{
-				UpdateCreature(t, dt);
+				if (!UpdateSchema(t, dt))
+				{
+					UpdateCreature(t, dt);
+				}
 			}
 			if (m_state == State.Running && t.Speed > 0f)
 			{
@@ -1322,8 +1388,8 @@ internal sealed class SurfGame : MonoBehaviour
 	private void BiomeBlend(float z, out int a, out int b, out float blend)
 	{
 		float f = Mathf.Max(0f, z) / Plugin.BiomeLength.Value;
-		a = Mathf.Clamp(Mathf.FloorToInt(f), 0, m_biomes.Count - 1);
-		b = Mathf.Clamp(a + 1, 0, m_biomes.Count - 1);
+		a = BiomeIndex(Mathf.FloorToInt(f));
+		b = BiomeIndex(Mathf.FloorToInt(f) + 1);
 		blend = Mathf.Clamp01((f - Mathf.Floor(f)) * Plugin.BiomeLength.Value / 40f - (Plugin.BiomeLength.Value - 40f) / 40f);
 	}
 
@@ -1347,7 +1413,8 @@ internal sealed class SurfGame : MonoBehaviour
 	// Swamp so the water lies flat-ish).
 	private float RoadY(float z)
 	{
-		float biomes = Mathf.Clamp(z / Plugin.BiomeLength.Value, 0f, m_biomes.Count);
+		BiomeBlend(z, out int ba, out int bb, out float bblend);
+		float biomes = Mathf.Lerp(ba, bb, bblend) + 1.5f * StarsAt(z);
 		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value;
 		float n = (Mathf.PerlinNoise(z * 0.011f + 3.1f, 7.3f) - 0.5f) * 2f + (Mathf.PerlinNoise(z * 0.037f + 11f, 1.9f) - 0.5f) * 0.5f;
 		return amplitude * n;
@@ -1485,6 +1552,7 @@ internal sealed class SurfGame : MonoBehaviour
 
 	private void DestroyThing(Thing t)
 	{
+		ClearMarkers(t);
 		if (t.Go == null)
 		{
 			return;
@@ -1607,7 +1675,8 @@ internal sealed class SurfGame : MonoBehaviour
 			(lanes[i], lanes[j]) = (lanes[j], lanes[i]);
 		}
 
-		for (int i = 0; i < 3; i++)
+		bool formation = false;
+		for (int i = 0; i < 3 && !formation; i++)
 		{
 			int lane = lanes[i];
 			if (i >= blocked)
@@ -1637,6 +1706,12 @@ internal sealed class SurfGame : MonoBehaviour
 				case Kind.Block:
 				{
 					SpawnEntry e = SpawnTables.Pick(b.Monsters)!;
+					// Swarms, herds, lines, crossers, chasers and helpers lay out the whole row.
+					if (SpawnFormation(e, lane, z, biomeIndex, i))
+					{
+						formation = i == 0;
+						break;
+					}
 					SpawnCreature(e, lane, z, Kind.Block, 0f, biomeIndex);
 					// Pack animals (greydwarfs, wolves...) come in their groups, crowding the lane.
 					if (e.GroupMax > 1 && Random.value < 0.75f)
@@ -1668,7 +1743,7 @@ internal sealed class SurfGame : MonoBehaviour
 				{
 					if (b.Flyers.Count > 0 && (b.Logs.Count == 0 || Random.value < 0.5f))
 					{
-						SpawnCreature(SpawnTables.Pick(b.Flyers)!, lane, z, Kind.High, 1.35f, biomeIndex);
+						FlyerSchema(SpawnCreature(SpawnTables.Pick(b.Flyers)!, lane, z, Kind.High, 1.35f, biomeIndex));
 					}
 					else
 					{
@@ -1881,17 +1956,25 @@ internal sealed class SurfGame : MonoBehaviour
 	// A lane monster (or flyer) with one of its own attacks: melee ones swing as you come close,
 	// ranged ones shoot down the track toward the lane you're in. They idle until they notice
 	// you; then fast creatures charge, slow ones walk, big ones stomp in.
-	private void SpawnCreature(SpawnEntry entry, int lane, float z, Kind kind, float baseY, int biomeIndex)
+	private Thing SpawnCreature(SpawnEntry entry, int lane, float z, Kind kind, float baseY, int biomeIndex, string role = "")
 	{
 		GameObject prefab = entry.Prefab;
 		string label = entry.Label;
 		CreatureInfo info = CreatureInfo.Of(prefab);
-		int smashes = kind == Kind.Block ? SmashCount(prefab) : 0;
+		Schema? schema = Schemas.For(prefab);
+		// The attack it does this time, out of its schema's alternatives.
+		string move = schema?.PickOf("sweep", "gas2", "gas3", "smash", "slams", "lob", "fire", "tar", "bomb", "tickdrop", "shooter", "flyshooter") ?? "";
+		int smashes = kind == Kind.Block ? (schema != null ? (move == "smash" ? 1 : move == "slams" ? 3 : 0) : SmashCount(prefab)) : 0;
+		bool wantRanged = schema != null
+			? ((move == "shooter" && Random.value < 0.6f) || move == "flyshooter") && Plugin.RangedAttacks.Value
+			: info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f);
 		CreatureAttack? attack = smashes > 0 && info.Melee.Count > 0
 			? PickSmash(info)
-			: info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f)
+			: wantRanged && info.Ranged.Count > 0
 				? info.PickRanged()
-				: info.PickMelee();
+				: move == "lob" || move == "fire" || move == "tar" || move == "bomb"
+					? info.PickRanged() ?? info.PickMelee()
+					: info.PickMelee() ?? (schema != null && info.Melee.Count == 0 ? info.PickRanged() : null);
 		if (attack == null || attack.Ranged)
 		{
 			smashes = 0;
@@ -1922,10 +2005,24 @@ internal sealed class SurfGame : MonoBehaviour
 		float clear = kind == Kind.Block && height < Plugin.JumpHeight.Value * 0.75f ? height * 0.85f : 0f;
 
 		bool ranged = attack != null && attack.Ranged;
-		bool stomper = !ranged && height > 3f;
+		bool stomper = schema != null ? schema.Has("stomper") : !ranged && height > 3f;
+		if (schema != null && schema.Has("hurdle") && kind == Kind.Block)
+		{
+			// Short enough to jump, whatever its collider says.
+			clear = Mathf.Min(height * 0.85f, Plugin.JumpHeight.Value * 0.6f);
+		}
+		string gait = role.Length > 0 ? role : schema?.PickOf("charger", "waiter", "switcher") ?? "";
 		float speed = 0f;
 		float pace = 0f;
-		if (stomper || (!ranged && Random.value < (info.Fast ? 0.7f : 0.45f)))
+		if (gait == "charger" || gait == "switcher")
+		{
+			pace = info.Fast ? info.RunSpeed : Mathf.Max(info.RunSpeed * 0.8f, info.WalkSpeed);
+			speed = pace * (info.Fast ? 0.6f : 0.75f);
+		}
+		else if (gait == "waiter" || gait == "still")
+		{
+		}
+		else if (stomper || (!ranged && Random.value < (info.Fast ? 0.7f : 0.45f)))
 		{
 			pace = info.Fast ? info.RunSpeed : stomper ? Mathf.Max(info.RunSpeed, info.WalkSpeed) : info.WalkSpeed;
 			speed = pace * (info.Fast ? 0.6f : 0.8f);
@@ -1957,7 +2054,7 @@ internal sealed class SurfGame : MonoBehaviour
 				Plugin.Log.LogInfo($"{prefab.name} animator parameters: {string.Join(", ", triggers)}");
 			}
 		}
-		m_things.Add(new Thing
+		Thing thing = new Thing
 		{
 			Go = go,
 			Kind = kind,
@@ -1984,7 +2081,19 @@ internal sealed class SurfGame : MonoBehaviour
 			Side = side,
 			// A swooper isn't in any lane until it dives.
 			Collidable = !swoop,
-		});
+			Schema = schema,
+			Move = schema != null && smashes == 0 && (move == "sweep" || move == "gas2" || move == "gas3") ? move : move == "slams" ? "slams" : "",
+			Ranged = move == "lob" || move == "fire" || move == "tar" || move == "bomb" || move == "tickdrop" ? move : "",
+			Switcher = gait == "switcher",
+		};
+		if (thing.Switcher)
+		{
+			thing.FreeX = true;
+			thing.SwitchTimer = Random.Range(0.4f, 1.2f);
+		}
+		m_things.Add(thing);
+		ApplyStars(thing, StarsAt(z));
+		return thing;
 	}
 
 	private readonly HashSet<GameObject> m_loggedTriggers = new();
@@ -2131,7 +2240,15 @@ internal sealed class SurfGame : MonoBehaviour
 				else
 				{
 					AttackLands(t);
-					if (t.Smashes > 0)
+					if (t.Move == "slams" && t.Smashes > 1)
+					{
+						// The berserk smash: marked lanes first, then a shockwave.
+						LaneSlam(t);
+						t.Smashes--;
+						TriggerAttack(t);
+						t.FireIn = 0.55f;
+					}
+					else if (t.Smashes > 0)
 					{
 						Shockwave(t);
 						t.Smashes--;
@@ -2142,10 +2259,14 @@ internal sealed class SurfGame : MonoBehaviour
 							t.FireIn = 0.55f;
 						}
 					}
+					else if (t.Move.Length > 0)
+					{
+						MoveLands(t);
+					}
 				}
 			}
 		}
-		else if (t.Attack.Ranged)
+		else if (t.Attack.Ranged && t.Ranged.Length == 0)
 		{
 			if (t.Cooldown <= 0f && distance < m_speed * 2.2f + 14f && distance > m_speed * 0.8f + 5f)
 			{
@@ -2279,7 +2400,7 @@ internal sealed class SurfGame : MonoBehaviour
 			}
 			Destroy(go, 4f);
 		}
-		if (attack.Area)
+		if (attack.Area && t.Move.Length == 0)
 		{
 			GameObject cloud = new GameObject("AttackCloud");
 			cloud.transform.SetParent(m_stage, false);

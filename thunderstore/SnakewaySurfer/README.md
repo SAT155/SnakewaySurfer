@@ -60,6 +60,17 @@ and for players without the mod.
 
 ## Changes
 
+- **1.6**: every creature has its own challenge (Creature Schemas, picked by Sam creature by
+  creature): boars, necks and greylings are hurdles, deer and lox herds bolt across the track,
+  greydwarfs and fulings swarm, wolves and seekers weave between lanes, brutes, bears and seeker
+  soldiers sweep two lanes, shamans and blobs fill lanes with gas (blob gas: jump or slide through),
+  trolls lob rocks that land ahead of you, fuling shamans set lanes on fire, growths leave slowing
+  tar, the fuling berserker slams lanes then sends a shockwave, Fenrings leap into your lane,
+  stone golems wake and smash, wraiths and some deathsquitos come from behind, drakes and gjalls
+  attack from the air (gjalls also drop ticks), and dvergr stand by the track, shout their lines
+  and sometimes blast a threat ahead of you. Every lane about to be hit is marked bright orange on
+  the ground first. The run now ends its lap at the Mistlands and loops back to the Meadows with
+  1-star creatures, then 2, then 3, in the game's own star looks (Loop Biomes).
 - **1.5**: creatures come from the game's own spawn tables for each biome (the right
   creatures, as common as they really are, in their real group sizes, so greydwarfs swarm);
   real sizes from each creature's collider (no more tiny abominations or stone golems);

@@ -47,6 +47,14 @@ internal sealed class CreatureInfo
 
 	public bool Fast => RunSpeed >= 7f;
 
+	// Star looks (LevelEffects, read before the copy loses its scripts): index 0 is 1 star.
+	public string? LevelPath;
+	public string? MainRenderPath;
+	public string? BaseEnablePath;
+	public readonly List<(float scale, float hue, float saturation, float value, bool emissive, Color emission, string? enablePath)> Levels = new();
+	// What it says (NpcTalk greetings and chatter), as localization keys.
+	public readonly List<string> Talk = new();
+
 	private static readonly Dictionary<GameObject, CreatureInfo> s_cache = new();
 
 	public static CreatureInfo Of(GameObject prefab)
@@ -96,6 +104,23 @@ internal sealed class CreatureInfo
 					}
 				}
 			}
+		}
+		LevelEffects levels = prefab.GetComponentInChildren<LevelEffects>(true);
+		if (levels != null)
+		{
+			info.LevelPath = levels.transform == prefab.transform ? "" : PathOf(prefab.transform, levels.transform);
+			info.MainRenderPath = levels.m_mainRender != null ? (levels.m_mainRender.transform == prefab.transform ? "" : PathOf(prefab.transform, levels.m_mainRender.transform)) : null;
+			info.BaseEnablePath = levels.m_baseEnableObject != null ? PathOf(prefab.transform, levels.m_baseEnableObject.transform) : null;
+			foreach (LevelEffects.LevelSetup l in levels.m_levelSetups ?? new List<LevelEffects.LevelSetup>())
+			{
+				info.Levels.Add((l.m_scale, l.m_hue, l.m_saturation, l.m_value, l.m_setEmissiveColor, l.m_emissiveColor, l.m_enableObject != null ? PathOf(prefab.transform, l.m_enableObject.transform) : null));
+			}
+		}
+		NpcTalk talk = prefab.GetComponentInChildren<NpcTalk>(true);
+		if (talk != null)
+		{
+			info.Talk.AddRange(talk.m_randomGreets ?? new List<string>());
+			info.Talk.AddRange(talk.m_randomTalk ?? new List<string>());
 		}
 		VisEquipment vis = prefab.GetComponent<VisEquipment>();
 		if (vis != null)

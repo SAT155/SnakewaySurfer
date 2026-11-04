@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.5.0";
+	public const string PluginVersion = "1.6.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -62,6 +62,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<string> Swoopers = null!;
 	internal static ConfigEntry<string> Ambushers = null!;
 	internal static ConfigEntry<string> Smashers = null!;
+	internal static ConfigEntry<string> CreatureSchemas = null!;
+	internal static ConfigEntry<int> LoopBiomes = null!;
 	internal static ConfigEntry<float> GameSpeed = null!;
 	internal static ConfigEntry<bool> GameGroundTextures = null!;
 
@@ -258,6 +260,10 @@ public class Plugin : BaseUnityPlugin
 			"Creatures that lie hidden and burst up as you get close (in the lanes, and as the Swamp's straddling giant).");
 		Smashers = Config.Bind("1 - Run", "Smashers", "greydwarfbrute:1, goblinbrute:3, seekerbrute:1, stonegolem:1",
 			"Brutes that smash the ground: each blow sends a shockwave down all three lanes (jump it). The number is how many blows in a row (the goblin brute's berserk smash hits three times).");
+		CreatureSchemas = Config.Bind("1 - Run", "Creature Schemas", Schemas.Defaults,
+			"What each creature does, as \"Prefab: tags; Prefab: tags\" (a trailing * matches a name start). Tags: charger, waiter, switcher, swarm, herd, line, crosser, shooter, flyshooter, sweep, gas2, gas3, smash, slams, lob, fire, tar, bomb, tickdrop, leaper, headleap, hurdle, stomper, ambush, chaser, behind, helper, talk. Creatures not listed behave as before.");
+		LoopBiomes = Config.Bind("1 - Run", "Loop Biomes", 6,
+			new ConfigDescription("How many biomes one lap of the run has (6 = Meadows to the Mistlands). After the last one the run goes back to the Meadows with 1-star creatures, then 2, then 3. 0: no loop, the run goes through every biome and stays in the last.", new AcceptableValueRange<int>(0, 8)));
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
