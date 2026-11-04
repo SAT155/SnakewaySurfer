@@ -62,6 +62,10 @@
             <Publicize>true</Publicize>
             <Private>false</Private>
         </Reference>
+        <Reference Include="SoftReferenceableAssets">
+            <HintPath>$(ManagedDir)/SoftReferenceableAssets.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
         <Reference Include="assembly_utils">
             <HintPath>$(ManagedDir)/assembly_utils.dll</HintPath>
             <Publicize>true</Publicize>
