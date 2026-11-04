@@ -90,4 +90,12 @@ internal static class PlayerHooks
 	{
 		private static bool Prefix() => SurfGame.Active == null;
 	}
+
+	// Enter that runs "surfsup" in the console could also open the chat in the same frame, which
+	// then swallowed every key. The chat is paused while surfing.
+	[HarmonyPatch(typeof(Chat), "Update")]
+	private static class ChatPatch
+	{
+		private static bool Prefix(object __instance) => !(SurfGame.Active != null && __instance is Chat);
+	}
 }

@@ -51,6 +51,9 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<int> RenderLayer = null!;
 
 	internal static ConfigEntry<bool> DebugLog = null!;
+	internal static ConfigEntry<bool> Invincible = null!;
+	internal static ConfigEntry<float> GameSpeed = null!;
+	internal static ConfigEntry<bool> GameGroundTextures = null!;
 
 	private static ConfigEntry<string>[] s_monsters = null!;
 	private static ConfigEntry<string>[] s_flyers = null!;
@@ -195,6 +198,12 @@ public class Plugin : BaseUnityPlugin
 
 		DebugLog = Config.Bind("9 - Debug", "Log Details", false,
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
+		Invincible = Config.Bind("9 - Debug", "Invincible", false,
+			"Testing: run through everything instead of crashing (a banner says what would have got you).");
+		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
+			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
+		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
+			"Use the game's own terrain textures for the land beside the track when they can be found (else a generated texture tinted per biome).");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 	}

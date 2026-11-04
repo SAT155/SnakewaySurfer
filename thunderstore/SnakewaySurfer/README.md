@@ -69,7 +69,9 @@ and for players without the mod.
   the bone's scale), lighter swamp water. 1.4.9: monsters are their real size (only giants are shrunk to
   fit a lane; before, everything was squeezed to 2.2 m), and they make their own alert sound
   when they notice you. They stand idle until then, then charge or walk at you
-  with their own footstep sounds.
+  with their own footstep sounds. 1.4.10: the land uses the game's own terrain textures
+  when found; chat can't steal the keys any more; Invincible and Game Speed test settings
+  (off by default).
 - **1.3**: rolling hills beside the track (tallest in the Mountains); rocks and trees never
   reach over the track; the legs troll leaps in from beside the track instead of hanging in
   the air; darker track; coin sound (with fallbacks) on its own channel apart from footsteps.

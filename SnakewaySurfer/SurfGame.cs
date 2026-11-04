@@ -440,6 +440,65 @@ internal sealed class SurfGame : MonoBehaviour
 		return tex;
 	}
 
+	// The world's terrain material (from any loaded Heightmap) carries the game's ground
+	// textures; a plain 2D one whose property name fits the biome is used for our land.
+	private static Dictionary<string, Texture>? s_terrainTextures;
+
+	private static Texture? TerrainTexture(string biome)
+	{
+		if (!Plugin.GameGroundTextures.Value)
+		{
+			return null;
+		}
+		if (s_terrainTextures == null)
+		{
+			s_terrainTextures = new Dictionary<string, Texture>();
+			Heightmap hm = Object.FindObjectOfType<Heightmap>();
+			Material? mat = hm != null ? (hm.m_material != null ? hm.m_material : hm.GetComponent<MeshRenderer>()?.sharedMaterial) : null;
+			if (mat != null)
+			{
+				List<string> seen = new();
+				foreach (string prop in mat.GetTexturePropertyNames())
+				{
+					Texture tex = mat.GetTexture(prop);
+					seen.Add($"{prop}={(tex != null ? tex.GetType().Name + " " + tex.name : "none")}");
+					if (tex is Texture2D)
+					{
+						s_terrainTextures[prop.ToLowerInvariant()] = tex;
+					}
+				}
+				Plugin.Log.LogInfo($"Terrain material {mat.name} ({mat.shader?.name}) textures: {string.Join(", ", seen)}");
+			}
+			else
+			{
+				Plugin.Log.LogInfo("No terrain material found; using generated ground textures.");
+			}
+		}
+		string[] keys = biome switch
+		{
+			"Meadows" => new[] { "grass" },
+			"Black Forest" => new[] { "forest", "grass" },
+			"Swamp" => new[] { "swamp", "mud", "dirt" },
+			"Mountains" => new[] { "snow" },
+			"Plains" => new[] { "heath", "plains", "grass" },
+			"Mistlands" => new[] { "mist", "rock" },
+			"Ashlands" => new[] { "ash", "lava", "rock" },
+			"Deep North" => new[] { "ice", "snow" },
+			_ => new[] { "grass" },
+		};
+		foreach (string key in keys)
+		{
+			foreach (KeyValuePair<string, Texture> kv in s_terrainTextures)
+			{
+				if (kv.Key.Contains(key) && !kv.Key.Contains("normal") && !kv.Key.Contains("bump") && !kv.Key.Contains("mask"))
+				{
+					return kv.Value;
+				}
+			}
+		}
+		return null;
+	}
+
 	private static Material? MakeWaterMaterial()
 	{
 		Shader? shader = FindPlainShader();
@@ -469,7 +528,7 @@ internal sealed class SurfGame : MonoBehaviour
 		return mat;
 	}
 
-	private Material MakeGroundMaterial(Color color)
+	private Material MakeGroundMaterial(Color color, Texture? texture = null)
 	{
 		Shader? shader = FindPlainShader();
 		Material mat;
@@ -487,12 +546,13 @@ internal sealed class SurfGame : MonoBehaviour
 		}
 		if (mat.HasProperty("_Color"))
 		{
-			// The texture averages about 0.82, so lift the colour to keep the biome's brightness.
-			mat.color = color * 1.2f;
+			// The noise texture averages about 0.82, so lift the colour to keep the biome's
+			// brightness; the game's own terrain textures already have their colour.
+			mat.color = texture != null ? new Color(0.85f, 0.85f, 0.85f) : color * 1.2f;
 		}
-		if (m_groundTexture != null && mat.HasProperty("_MainTex"))
+		if ((texture ?? m_groundTexture) != null && mat.HasProperty("_MainTex"))
 		{
-			mat.mainTexture = m_groundTexture;
+			mat.mainTexture = texture ?? m_groundTexture;
 		}
 		if (mat.HasProperty("_Glossiness"))
 		{
@@ -508,7 +568,7 @@ internal sealed class SurfGame : MonoBehaviour
 		for (int i = 0; i < Biomes.Defaults.Length; i++)
 		{
 			BiomeDef def = Plugin.BiomeConfig(i);
-			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Fog = s_fog[Mathf.Min(i, s_fog.Length - 1)], Ground = MakeGroundMaterial(def.Ground) };
+			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Fog = s_fog[Mathf.Min(i, s_fog.Length - 1)], Ground = MakeGroundMaterial(def.Ground, TerrainTexture(def.Name)) };
 			rt.Water = Plugin.SwampWater.Value && def.Name == "Swamp" && m_waterMaterial != null;
 			foreach (string key in Pictures.SplitList(def.Giants))
 			{
@@ -736,7 +796,7 @@ internal sealed class SurfGame : MonoBehaviour
 			return;
 		}
 
-		float dt = Mathf.Min(Time.deltaTime, 0.05f);
+		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
 		m_stateTime += dt;
 		m_bannerTime -= dt;
 
@@ -915,13 +975,13 @@ internal sealed class SurfGame : MonoBehaviour
 					break;
 				case Kind.Block:
 					m_audio.Play(Sfx.HitMonster);
-					Crash(t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
+					Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
 				case Kind.Low:
 					if (m_y < 0.75f)
 					{
 						m_audio.Play(Sfx.HitLog);
-						Crash($"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
+						Hit(t, $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 						return;
 					}
 					break;
@@ -929,7 +989,7 @@ internal sealed class SurfGame : MonoBehaviour
 					if (!sliding)
 					{
 						m_audio.Play(string.IsNullOrEmpty(t.Label) ? Sfx.HitLog : Sfx.HitMonster);
-						Crash(t.CrashText.Length > 0 ? t.CrashText : string.IsNullOrEmpty(t.Label)
+						Hit(t, t.CrashText.Length > 0 ? t.CrashText : string.IsNullOrEmpty(t.Label)
 							? $"You ran into a hanging log in the {m_biomes[BiomeAt(m_z)].Def.Name}!"
 							: $"A {t.Label} swooped into you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 						return;
@@ -937,6 +997,19 @@ internal sealed class SurfGame : MonoBehaviour
 					break;
 			}
 		}
+	}
+
+	// A crash, unless the Invincible test setting is on: then the thing is just passed through.
+	private void Hit(Thing t, string why)
+	{
+		if (Plugin.Invincible.Value)
+		{
+			t.Collidable = false;
+			m_banner = "(invincible) " + why;
+			m_bannerTime = 1.2f;
+			return;
+		}
+		Crash(why);
 	}
 
 	private void UpdateThings(float dt)
@@ -1116,7 +1189,8 @@ internal sealed class SurfGame : MonoBehaviour
 				uvs[iz * nx + ix] = trackUv ? new Vector2((x / halfWidth + 1f), (centerZ + lz) / 4f) : new Vector2(x / 10f, (centerZ + lz) / 10f);
 			}
 		}
-		int[] tris = new int[(nx - 1) * (nz - 1) * 6];
+		// Both faces, so it shows however it's looked at (the track went see-through in 1.4.6).
+		int[] tris = new int[(nx - 1) * (nz - 1) * 12];
 		int k = 0;
 		for (int iz = 0; iz < nz - 1; iz++)
 		{
@@ -1128,6 +1202,8 @@ internal sealed class SurfGame : MonoBehaviour
 				int d = c + 1;
 				tris[k++] = a; tris[k++] = c; tris[k++] = d;
 				tris[k++] = a; tris[k++] = d; tris[k++] = b;
+				tris[k++] = a; tris[k++] = d; tris[k++] = c;
+				tris[k++] = a; tris[k++] = b; tris[k++] = d;
 			}
 		}
 		Mesh mesh = new Mesh { name = "SurfStrip" };
