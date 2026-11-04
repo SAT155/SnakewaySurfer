@@ -12,6 +12,8 @@ internal sealed class CreatureAttack
 	public Attack.AttackType Type;
 	public GameObject? Projectile;
 	public GameObject? Attach;
+	// The weapon's size in the item prefab; VisEquipment keeps it when parenting to the hand.
+	public Vector3 AttachScale = Vector3.one;
 	public bool LeftHand;
 	public int AnimationState;
 	public string Sound = "";
@@ -91,6 +93,7 @@ internal sealed class CreatureInfo
 					Type = attack.m_attackType,
 					Projectile = attack.m_attackType == Attack.AttackType.Projectile ? attack.m_attackProjectile : null,
 					Attach = attach != null ? attach.gameObject : null,
+					AttachScale = attach != null ? attach.lossyScale : Vector3.one,
 					LeftHand = shared.m_itemType == ItemDrop.ItemData.ItemType.Bow,
 					AnimationState = (int)shared.m_animationState,
 					Sound = FirstSound(attack.m_startEffect) ?? FirstSound(attack.m_triggerEffect) ?? "",

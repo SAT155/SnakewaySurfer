@@ -444,7 +444,7 @@ internal sealed class SurfGame : MonoBehaviour
 		Material mat = new Material(shader) { name = "SurfWater" };
 		if (mat.HasProperty("_Color"))
 		{
-			mat.color = new Color(0.17f, 0.21f, 0.13f, 0.78f);
+			mat.color = new Color(0.32f, 0.38f, 0.26f, 0.7f);
 		}
 		if (shader.name == "Standard")
 		{
@@ -1625,6 +1625,14 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject weapon = Instantiate(Picture(attack.Attach), hand, false);
 		weapon.transform.localPosition = Vector3.zero;
 		weapon.transform.localRotation = Quaternion.identity;
+		// VisEquipment parents with the world size kept, so bone scale (rigs are often scaled
+		// 100x) doesn't apply. Keep the item's own size times our fit scale instead.
+		Vector3 want = attack.AttachScale * wrapper.transform.localScale.x;
+		Vector3 bone = hand.lossyScale;
+		weapon.transform.localScale = new Vector3(
+			want.x / Mathf.Max(1e-4f, Mathf.Abs(bone.x)),
+			want.y / Mathf.Max(1e-4f, Mathf.Abs(bone.y)),
+			want.z / Mathf.Max(1e-4f, Mathf.Abs(bone.z)));
 		return true;
 	}
 
@@ -1715,7 +1723,7 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			visual.transform.position += wrapper.transform.position - bounds.center;
 			float biggest = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
-			wrapper.transform.localScale = Vector3.one * Mathf.Clamp(1.3f / biggest, 0.3f, 2f);
+			wrapper.transform.localScale = Vector3.one * Mathf.Clamp(0.9f / biggest, 0.05f, 2f);
 		}
 		// A small glow so it shows through the fog.
 		Light glow = new GameObject("Glow").AddComponent<Light>();
