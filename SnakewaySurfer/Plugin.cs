@@ -136,8 +136,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Chance that a row of obstacles is a troll set piece instead, in biomes that have Giants (the Black Forest by default).", new AcceptableValueRange<float>(0f, 1f)));
 		LightIntensity = Config.Bind("3 - Look", "Light Intensity", 0.45f,
 			new ConfigDescription("Brightness of the minigame's own sun.", new AcceptableValueRange<float>(0f, 4f)));
-		MonsterHeight = Config.Bind("3 - Look", "Monster Height", 2.2f,
-			new ConfigDescription("Monsters are resized to be at most this tall (and 2.2 m wide), so trolls and lox fit in a lane.", new AcceptableValueRange<float>(1f, 6f)));
+		MonsterHeight = Config.Bind("3 - Look", "Monster Height", 4.2f,
+			new ConfigDescription("Monsters in the lanes are their real size, but anything taller than this (or much wider than a lane) is shrunk to fit.", new AcceptableValueRange<float>(1f, 8f)));
 		SceneryDensity = Config.Bind("3 - Look", "Scenery Density", 1f,
 			new ConfigDescription("How many trees and rocks line the track. Lower it if the minigame runs slowly.", new AcceptableValueRange<float>(0.2f, 3f)));
 		TrackPiece = Config.Bind("3 - Look", "Track Piece", "stone_floor_2x2",
@@ -182,6 +182,15 @@ public class Plugin : BaseUnityPlugin
 				RunLevelsPerBiome.Value = 0.25f;
 			}
 			balance.Value = 1;
+		}
+		if (balance.Value < 2)
+		{
+			// 1.4.9: monsters keep their real size instead of all being squeezed to 2.2 m.
+			if (Mathf.Approximately(MonsterHeight.Value, 2.2f))
+			{
+				MonsterHeight.Value = 4.2f;
+			}
+			balance.Value = 2;
 		}
 
 		DebugLog = Config.Bind("9 - Debug", "Log Details", false,

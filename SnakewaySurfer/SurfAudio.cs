@@ -25,7 +25,7 @@ internal sealed class SurfAudio
 
 	public SurfAudio(GameObject host)
 	{
-		m_sources = new AudioSource[6];
+		m_sources = new AudioSource[10];
 		for (int i = 0; i < m_sources.Length; i++)
 		{
 			AudioSource source = host.AddComponent<AudioSource>();

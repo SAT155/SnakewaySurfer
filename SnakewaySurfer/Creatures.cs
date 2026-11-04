@@ -32,6 +32,10 @@ internal sealed class CreatureInfo
 	public bool Flying;
 	public string? RightHand;
 	public string? LeftHand;
+	// The sound it makes when it notices you (BaseAI.m_alertedEffects), else its idle sound.
+	public string AlertSound = "";
+	// First footstep sound of its FootStep component.
+	public string StepSound = "";
 
 	public bool Fast => RunSpeed >= 7f;
 
@@ -50,6 +54,30 @@ internal sealed class CreatureInfo
 			info.WalkSpeed = character.m_walkSpeed;
 			info.RunSpeed = character.m_runSpeed;
 			info.Flying = character.m_flying;
+		}
+		BaseAI ai = prefab.GetComponent<BaseAI>();
+		if (ai != null)
+		{
+			info.AlertSound = FirstSound(ai.m_alertedEffects) ?? FirstSound(ai.m_idleSound) ?? "";
+		}
+		FootStep steps = prefab.GetComponentInChildren<FootStep>(true);
+		if (steps != null && steps.m_effects != null)
+		{
+			foreach (FootStep.StepEffect step in steps.m_effects)
+			{
+				if (info.StepSound.Length > 0)
+				{
+					break;
+				}
+				foreach (GameObject fx in step?.m_effectPrefabs ?? new GameObject[0])
+				{
+					if (fx != null && fx.GetComponentInChildren<ZSFX>(true) != null)
+					{
+						info.StepSound = fx.name;
+						break;
+					}
+				}
+			}
 		}
 		VisEquipment vis = prefab.GetComponent<VisEquipment>();
 		if (vis != null)
@@ -118,7 +146,7 @@ internal sealed class CreatureInfo
 		}
 		if (Plugin.DebugLog.Value)
 		{
-			Plugin.Log.LogInfo($"{prefab.name}: walk {info.WalkSpeed:0.0}, run {info.RunSpeed:0.0}, melee [{string.Join(", ", info.Melee.ConvertAll(a => $"{a.Item}:{a.Animation}{(a.Attach != null ? "+attach" : "")}"))}], ranged [{string.Join(", ", info.Ranged.ConvertAll(a => $"{a.Item}:{a.Animation}->{a.Projectile!.name}"))}]");
+			Plugin.Log.LogInfo($"{prefab.name}: walk {info.WalkSpeed:0.0}, run {info.RunSpeed:0.0}, alert '{info.AlertSound}', step '{info.StepSound}', melee [{string.Join(", ", info.Melee.ConvertAll(a => $"{a.Item}:{a.Animation}{(a.Attach != null ? "+attach" : "")}"))}], ranged [{string.Join(", ", info.Ranged.ConvertAll(a => $"{a.Item}:{a.Animation}->{a.Projectile!.name}"))}]");
 		}
 		s_cache[prefab] = info;
 		return info;

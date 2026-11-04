@@ -62,6 +62,12 @@ internal sealed class SurfGame : MonoBehaviour
 		// Creatures: their own attack, played when you come close.
 		public Animator? Anim;
 		public CreatureAttack? Attack;
+		public CreatureInfo? Info;
+		public bool Alerted;
+		// Speed and animation pace once it notices you (it idles until then).
+		public float MoveSpeed;
+		public float Pace;
+		public float StepTimer;
 		public bool Attacked;
 		public float Cooldown;
 		public float FireIn = -1f;
@@ -948,7 +954,7 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				UpdateSetPiece(t, dt);
 			}
-			else if (m_state == State.Running && t.Attack != null)
+			else if (m_state == State.Running && t.Info != null)
 			{
 				UpdateCreature(t, dt);
 			}
@@ -1248,7 +1254,7 @@ internal sealed class SurfGame : MonoBehaviour
 
 	// Puts a picture in a world-aligned wrapper and scales the wrapper to fit `size`
 	// (per axis, or uniformly within it), standing on y = 0 of the wrapper.
-	private GameObject Fitted(GameObject template, Quaternion rotation, Vector3 size, bool uniform)
+	private GameObject Fitted(GameObject template, Quaternion rotation, Vector3 size, bool uniform, float maxScale = float.MaxValue)
 	{
 		GameObject wrapper = new GameObject(template.name + "_Fit");
 		wrapper.layer = m_layer;
@@ -1261,7 +1267,7 @@ internal sealed class SurfGame : MonoBehaviour
 			Vector3 scale = new Vector3(size.x / bounds.size.x, size.y / bounds.size.y, size.z / bounds.size.z);
 			if (uniform)
 			{
-				float s = Mathf.Min(scale.x, Mathf.Min(scale.y, scale.z));
+				float s = Mathf.Min(maxScale, Mathf.Min(scale.x, Mathf.Min(scale.y, scale.z)));
 				scale = Vector3.one * s;
 			}
 			Vector3 offset = wrapper.transform.position - bounds.center;
@@ -1329,7 +1335,7 @@ internal sealed class SurfGame : MonoBehaviour
 				case Kind.Block:
 				{
 					(GameObject prefab, string label) = b.Monsters[Random.Range(0, b.Monsters.Count)];
-					SpawnCreature(prefab, label, lane, z, Kind.Block, 0f, new Vector3(2.2f, Plugin.MonsterHeight.Value, 3f), biomeIndex);
+					SpawnCreature(prefab, label, lane, z, Kind.Block, 0f, new Vector3(LaneWidth * 1.4f, Plugin.MonsterHeight.Value, 6f), biomeIndex);
 					break;
 				}
 				case Kind.Low:
@@ -1352,7 +1358,7 @@ internal sealed class SurfGame : MonoBehaviour
 					if (b.Flyers.Count > 0 && (b.Logs.Count == 0 || Random.value < 0.5f))
 					{
 						(GameObject prefab, string label) = b.Flyers[Random.Range(0, b.Flyers.Count)];
-						SpawnCreature(prefab, label, lane, z, Kind.High, 1.35f, new Vector3(2.0f, 1.0f, 2.0f), biomeIndex);
+						SpawnCreature(prefab, label, lane, z, Kind.High, 1.35f, new Vector3(LaneWidth * 1.2f, 1.4f, 4f), biomeIndex);
 					}
 					else
 					{
@@ -1557,7 +1563,8 @@ internal sealed class SurfGame : MonoBehaviour
 		CreatureAttack? attack = info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f)
 			? info.PickRanged()
 			: info.PickMelee();
-		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), size, true);
+		// Real size; only creatures too big for the lane are shrunk.
+		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), size, true, 1f);
 		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + baseY, z);
 		Animator anim = go.GetComponentInChildren<Animator>();
 		if (attack != null)
@@ -1581,7 +1588,7 @@ internal sealed class SurfGame : MonoBehaviour
 		speed = Mathf.Min(speed * Mathf.Clamp(0.5f + 0.12f * biomeIndex, 0.5f, 1.2f) * Plugin.MonsterMove.Value, 9f);
 		if (anim != null)
 		{
-			SetParam(anim, "forward_speed", speed > 0.1f ? pace : 0f);
+			SetParam(anim, "forward_speed", 0f);
 			if (!info.Flying)
 			{
 				SetParam(anim, "onGround", true);
@@ -1595,10 +1602,12 @@ internal sealed class SurfGame : MonoBehaviour
 			Z = z,
 			BaseY = baseY,
 			HalfLength = kind == Kind.Block ? 0.9f : 0.8f,
-			Speed = speed,
+			MoveSpeed = speed,
+			Pace = speed > 0.1f ? pace : 0f,
 			Label = label,
 			Anim = anim,
 			Attack = attack,
+			Info = info,
 			Cooldown = Random.Range(0f, 0.8f),
 		});
 	}
@@ -1653,7 +1662,37 @@ internal sealed class SurfGame : MonoBehaviour
 	private void UpdateCreature(Thing t, float dt)
 	{
 		float distance = t.Z - m_z;
-		if (distance < -1f || t.Attack == null)
+		if (distance < -1f)
+		{
+			return;
+		}
+		if (!t.Alerted && t.Info != null && distance < m_speed * 2.5f + 12f)
+		{
+			// It noticed you: the same sound it makes in the game when it aggroes.
+			t.Alerted = true;
+			if (t.Info.AlertSound.Length > 0)
+			{
+				m_audio.Play(t.Info.AlertSound, Mathf.Clamp01(1.1f - distance / 50f));
+			}
+			if (t.MoveSpeed > 0f)
+			{
+				t.Speed = t.MoveSpeed;
+				if (t.Anim != null)
+				{
+					SetParam(t.Anim, "forward_speed", t.Pace);
+				}
+			}
+		}
+		if (t.Speed > 0f && t.Info != null && t.Info.StepSound.Length > 0 && distance < 35f)
+		{
+			t.StepTimer -= dt;
+			if (t.StepTimer <= 0f)
+			{
+				t.StepTimer = Mathf.Clamp(2.4f / Mathf.Max(1f, t.Pace), 0.18f, 0.6f);
+				m_audio.Play(t.Info.StepSound, Mathf.Clamp01(0.8f - distance / 45f));
+			}
+		}
+		if (t.Attack == null)
 		{
 			return;
 		}
