@@ -233,6 +233,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float m_nextSceneryZ;
 	private float m_nextGroundZ;
 	private int m_shownBiome = -1;
+	private int m_lives = 3;
+	private float m_hurtTime;
+	private Renderer[] m_avatarRenderers = new Renderer[0];
 	private string m_banner = "";
 	private float m_bannerTime;
 	private string m_crashText = "";
@@ -933,6 +936,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		avatar.transform.localScale = Vector3.one;
 		m_avatar = avatar;
 		m_avatarAnim = avatar.GetComponent<Animator>() ?? avatar.GetComponentInChildren<Animator>();
+		// Only the ones that show (hidden gear stays hidden when the blink ends).
+		m_avatarRenderers = System.Array.FindAll(avatar.GetComponentsInChildren<Renderer>(true), r => r.enabled);
 		m_avatarParams.Clear();
 		if (m_avatarAnim != null)
 		{
@@ -975,6 +980,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_envPlaced = false;
 		m_lastTick = 0;
 		m_lastLandmarkZ = -999f;
+		m_lives = Plugin.Lives.Value;
+		m_hurtTime = 0f;
+		m_aimTime = 0f;
 		if (!m_explicitStart && m_player != null)
 		{
 			// Again from the latest checkpoint (a boss beaten this run moves it on).
@@ -1098,7 +1106,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 				break;
 			}
 			case State.Running:
-				UpdateRun(dt, canInput);
+				if (m_aimTime > 0f)
+				{
+					UpdateAim(dt, canInput);
+				}
+				else
+				{
+					UpdateRun(dt, canInput);
+				}
 				break;
 			case State.Crashed:
 				if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
@@ -1108,7 +1123,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 				break;
 		}
 
-		UpdateThings(dt);
+		if (m_aimTime <= 0f)
+		{
+			// Aiming the ballista stops the run, and everything on the track with it.
+			UpdateThings(dt);
+		}
 		PlaceAvatar(dt);
 		PlaceCamera(dt);
 	}
@@ -1225,6 +1244,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			m_slide = Mathf.Max(0f, m_slide - dt);
 		}
+		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
 		m_x = Mathf.MoveTowards(m_x, LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
 		m_z += m_speed * dt;
 
@@ -1288,7 +1308,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
 						// These change the run (and the list), so stop looking this frame.
-						if (hit)
+						if (hit && m_boss != null && m_boss.Aim)
+						{
+							StartAim();
+						}
+						else if (hit)
 						{
 							BossHit();
 						}
@@ -1352,6 +1376,23 @@ internal sealed partial class SurfGame : MonoBehaviour
 			t.Collidable = false;
 			m_banner = "(invincible) " + why;
 			m_bannerTime = 1.2f;
+			return;
+		}
+		if (m_hurtTime > 0f)
+		{
+			return;
+		}
+		if (m_lives > 1)
+		{
+			// Three strikes and you're out: a hit costs a life and a moment to recover.
+			m_lives--;
+			m_hurtTime = 1.6f;
+			t.Collidable = false;
+			m_shake = Mathf.Max(m_shake, 0.35f);
+			SetTrigger("stagger");
+			m_audio.Play(Sfx.HitMonster, 1f, 0.9f);
+			m_banner = $"Ouch! {m_lives} {(m_lives == 1 ? "life" : "lives")} left";
+			m_bannerTime = 1.5f;
 			return;
 		}
 		Crash(why);
@@ -2702,9 +2743,18 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		m_avatar.transform.localPosition = new Vector3(m_x, RoadY(m_z) + m_y, m_z);
+		// Blink while recovering from a hit.
+		bool show = m_hurtTime <= 0f || Mathf.FloorToInt(m_hurtTime * 12f) % 2 == 0;
+		foreach (Renderer r in m_avatarRenderers)
+		{
+			if (r != null)
+			{
+				r.enabled = show;
+			}
+		}
 		float lean = (LaneX(m_lane) - m_x) * -6f;
 		m_avatar.transform.localRotation = Quaternion.Euler(0f, 0f, m_state == State.Running ? lean : 0f);
-		bool running = m_state == State.Running;
+		bool running = m_state == State.Running && m_aimTime <= 0f;
 		AvatarFloat("forward_speed", running ? m_runAnimSpeed : 0f);
 		AvatarFloat("sideway_speed", 0f);
 		AvatarBool("onGround", m_y <= 0.05f);
@@ -2751,12 +2801,20 @@ internal sealed partial class SurfGame : MonoBehaviour
 			k = 1f;
 			m_envPlaced = true;
 		}
-		m_camera.backgroundColor = Color.Lerp(m_camera.backgroundColor, b.Sky, k);
-		m_fogNow = Mathf.Lerp(m_fogNow, b.Fog * Plugin.FogStrength.Value, k);
-		m_fogColorNow = Color.Lerp(m_fogColorNow, b.FogColor, k);
-		m_ambientNow = Color.Lerp(m_ambientNow, b.Ambient, k);
-		m_light.color = Color.Lerp(m_light.color, b.SunColor, k);
-		m_light.intensity = Mathf.Lerp(m_light.intensity, b.SunIntensity, k);
+		// A boss arena darkens and takes on the boss's colour.
+		Color tint = Color.white;
+		float arena = 0f;
+		if (SegAt(m_z + 30f).Boss && Progress.BossOf(BiomeAt(m_z + 30f)) is BossDef bd)
+		{
+			tint = bd.Tint;
+			arena = m_bossSink >= 0f ? 0.3f : 1f;
+		}
+		m_camera.backgroundColor = Color.Lerp(m_camera.backgroundColor, Color.Lerp(b.Sky, b.Sky * 0.55f + tint * 0.2f, arena), k);
+		m_fogNow = Mathf.Lerp(m_fogNow, b.Fog * Plugin.FogStrength.Value * (1f + 0.5f * arena), k);
+		m_fogColorNow = Color.Lerp(m_fogColorNow, Color.Lerp(b.FogColor, b.FogColor * 0.6f + tint * 0.25f, arena), k);
+		m_ambientNow = Color.Lerp(m_ambientNow, b.Ambient * (1f - 0.25f * arena), k);
+		m_light.color = Color.Lerp(m_light.color, Color.Lerp(b.SunColor, Color.Lerp(b.SunColor, tint, 0.3f), arena), k);
+		m_light.intensity = Mathf.Lerp(m_light.intensity, b.SunIntensity * (1f - 0.3f * arena), k);
 	}
 
 	public Color SkyColor => m_camera != null ? m_camera.backgroundColor : s_sky[0];
@@ -2793,7 +2851,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_small!.fontSize = Mathf.RoundToInt(26 * k);
 
 		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z)) : "";
-		string stretch = m_biomes.Count > 0 ? StretchHud() : "";
+		string stretch = (m_biomes.Count > 0 ? StretchHud() : "") + (Plugin.Lives.Value > 1 ? $"   ·   lives {m_lives}" : "");
 		Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k),
 			$"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}", m_small);
 
@@ -2810,7 +2868,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 				break;
 			}
 			case State.Running:
-				if (m_bannerTime > 0f)
+				if (m_aimTime > 0f)
+				{
+					AimGui(k, w, h);
+				}
+				else if (m_bannerTime > 0f)
 				{
 					Shadowed(new Rect(0, h * 0.2f, w, 120 * k), m_banner, m_big);
 				}

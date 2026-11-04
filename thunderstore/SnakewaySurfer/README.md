@@ -21,7 +21,8 @@ opens the next biome. Some coins become the boss's summoning item, in the game's
 (2 deer trophies, 3 ancient seeds, 10 withered bones, 3 dragon eggs, 5 fuling totems, 3
 sealbreaker fragments). You stay in the biome until you hold them all, then the boss fights
 you: every attack marks the lanes it will hit first, and you hurt it by grabbing what it fears
-(thunder stones, surtling cores, maces, bolts, frost arrows, bombs) from the track. Three hits
+(thunder stones, surtling cores, maces, bolts, frost arrows, bombs) from the track (for Moder
+the run stops and you aim the ballista yourself). Three hits
 wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
 `surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
 
@@ -75,6 +76,11 @@ game's normal syncing, so they work on a vanilla dedicated server, with or witho
 and for players without the mod.
 
 ## Changes
+
+- **1.8**: three strikes and you're out (Lives, default 3; you blink for a moment after a hit);
+  Moder's bolts stop the run so you aim the ballista yourself (A/D/W/S, Space to fire; a miss
+  wastes the bolt); boss arenas take on the boss's colour, fog and light; standing bosses rise
+  out of the ground when they move on.
 
 - **1.7**: boss fights at the end of each biome (one fight per boss, three hits each) with the
   game's summoning items replacing some coins, checkpoints (`surfsup [biome] [stars]`), the run

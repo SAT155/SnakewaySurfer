@@ -59,12 +59,18 @@ internal sealed partial class SurfGame
 	private const int BossHitsNeeded = 3;
 
 	private float m_lastLandmarkZ = -999f;
+	private int m_furthestBoss = -1;
+	private readonly Dictionary<string, bool> m_bossFound = new();
+	// 1 = just moved on and still under the ground, rising to 0.
+	private float m_bossRise;
 
 	// ---------------------------------------------------------------- stretches
 
 	private void ResetSegments()
 	{
 		m_segments.Clear();
+		// Read once per run: the world's keys don't change while you surf.
+		m_furthestBoss = Plugin.IgnoreBossGate.Value ? Progress.Bosses.Length - 1 : Progress.FurthestBoss();
 		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
 		m_lapBiomes = Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
 		int biome = Mathf.Clamp(m_startBiome, 0, m_lapBiomes - 1);
@@ -94,11 +100,16 @@ internal sealed partial class SurfGame
 			return null;
 		}
 		BossDef? boss = Progress.BossOf(s.Biome);
-		if (boss == null || (!Plugin.IgnoreBossGate.Value && s.Biome > Progress.FurthestBoss()))
+		if (boss == null || s.Biome > m_furthestBoss)
 		{
 			return null;
 		}
-		return Pictures.Prefab(boss.Prefab) != null ? boss : null;
+		if (!m_bossFound.TryGetValue(boss.Prefab, out bool found))
+		{
+			found = Pictures.Prefab(boss.Prefab) != null;
+			m_bossFound[boss.Prefab] = found;
+		}
+		return found ? boss : null;
 	}
 
 	private Segment Following(Segment s)
@@ -429,6 +440,7 @@ internal sealed partial class SurfGame
 				if (m_bossZ - m_z < def.Distance * 0.45f)
 				{
 					m_bossZ = m_z + def.Distance;
+					m_bossRise = 1f;
 				}
 				if (m_bossIntro < 1f)
 				{
@@ -440,7 +452,9 @@ internal sealed partial class SurfGame
 				break;
 		}
 		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 6f) : 0f;
-		Vector3 pos = new Vector3(Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + def.Fly, m_bossZ);
+		// After moving on it comes up out of the ground.
+		m_bossRise = Mathf.Max(0f, m_bossRise - dt * 1.4f);
+		Vector3 pos = new Vector3(Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + def.Fly - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
 		m_bossGo.transform.localPosition = pos;
 		m_bossThing.Z = m_bossZ;
 
@@ -941,5 +955,89 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_things.Add(new Thing { Go = go, Kind = Kind.Scenery, Z = z, HalfLength = 2f });
+	}
+
+	// ---------------------------------------------------------------- the ballista (Moder)
+
+	private float m_aimTime;
+	private Vector2 m_aim;
+	private float m_aimClock;
+	private const float AimSeconds = 3.5f;
+
+	// Grabbing a bolt stops the run: a few seconds to aim the ballista at Moder as she weaves.
+	// Miss and the bolt is gone; grab another.
+	private void StartAim()
+	{
+		m_aimTime = AimSeconds;
+		m_aim = new Vector2(0.5f, 0.6f);
+		m_speed = 0f;
+		m_audio.Play(Sfx.ClubSwing, 0.8f, 0.6f);
+	}
+
+	private void UpdateAim(float dt, bool canInput)
+	{
+		m_aimTime -= dt;
+		m_aimClock += dt;
+		m_speed = 0f;
+		if (m_bossGo != null && m_boss != null)
+		{
+			// She weaves about over the track while you aim.
+			float x = Mathf.Sin(m_aimClock * 1.7f) * 7f;
+			float y = m_boss.Fly + 1.5f + Mathf.Sin(m_aimClock * 2.6f) * 2.2f;
+			m_bossZ = m_z + m_boss.Distance;
+			m_bossGo.transform.localPosition = Vector3.Lerp(m_bossGo.transform.localPosition, new Vector3(x, RoadY(m_bossZ) + y, m_bossZ), dt * 4f);
+			m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.Euler(0f, 180f, 0f), 360f * dt);
+		}
+		if (canInput)
+		{
+			float sx = (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
+			float sy = (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
+			m_aim += new Vector2(sx * 0.55f, sy * 0.55f * Screen.width / Mathf.Max(1f, Screen.height)) * dt;
+			m_aim = new Vector2(Mathf.Clamp01(m_aim.x), Mathf.Clamp01(m_aim.y));
+			if (m_aimTime < AimSeconds - 0.3f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter, KeyCode.Mouse0))
+			{
+				FireBallista();
+				return;
+			}
+		}
+		if (m_aimTime <= 0f)
+		{
+			FireBallista();
+		}
+	}
+
+	private void FireBallista()
+	{
+		m_aimTime = 0f;
+		m_audio.Play(Sfx.ClubSwing, 1f, 0.8f);
+		if (m_bossGo == null || m_camera == null)
+		{
+			return;
+		}
+		// Hit if the crosshair is on her body (screen-space distance to her centre, scaled by
+		// how big she looks).
+		Vector3 centre = m_bossGo.transform.position + Vector3.up * (m_boss != null ? m_boss.MaxHeight * 0.4f : 2f);
+		Vector3 sp = m_camera.WorldToScreenPoint(centre);
+		Vector3 top = m_camera.WorldToScreenPoint(centre + m_camera.transform.up * (m_boss != null ? m_boss.MaxHeight * 0.5f : 2f));
+		float radius = Mathf.Max(Screen.height * 0.05f, Vector2.Distance(sp, top));
+		Vector2 aim = new Vector2(m_aim.x * Screen.width, m_aim.y * Screen.height);
+		if (sp.z > 0f && Vector2.Distance(aim, sp) <= radius)
+		{
+			BossHit();
+		}
+		else
+		{
+			m_banner = "Missed! Grab another bolt.";
+			m_bannerTime = 1.8f;
+		}
+	}
+
+	private void AimGui(float k, float w, float h)
+	{
+		float x = m_aim.x * w;
+		float y = (1f - m_aim.y) * h;
+		Shadowed(new Rect(x - 60 * k, y - 60 * k, 120 * k, 120 * k), "+", m_big!);
+		Shadowed(new Rect(w * 0.1f, h * 0.12f, w * 0.8f, 100 * k),
+			$"Aim the ballista!  A/D/W/S to aim, Space to fire  ({Mathf.Max(0f, m_aimTime):0.0} s)", m_mid!);
 	}
 }

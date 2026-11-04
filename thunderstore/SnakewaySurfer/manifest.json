@@ -1,7 +1,7 @@
 {
   "name": "SnakewaySurfer",
   "author": "SAT",
-  "version_number": "1.7.0",
+  "version_number": "1.8.0",
   "website_url": "https://github.com/SAT155/SnakewaySurfer",
   "description": "Type surfsup in the console to play a 3-lane endless runner through every biome while you wait at the longhouse. Earn Run XP and a biome food. Others just see you running in place in a Dverger circlet.",
   "dependencies": [

@@ -26,6 +26,8 @@ internal sealed class BossDef
 	public float MaxHeight = 8f;
 	// A creature it calls in, for "minions".
 	public string Minion = "";
+	// Hits are aimed: grabbing the weapon stops the run and you aim it at the boss.
+	public bool Aim;
 	// Its moves in each of the three phases (one more phase per hit taken).
 	public string[][] Moves = new string[0][];
 	public Color Tint = new Color(1f, 0.3f, 0.1f);
@@ -74,7 +76,7 @@ internal static class Progress
 		new BossDef
 		{
 			Biome = 3, Name = "Moder", Prefab = "Dragon", Key = "defeated_dragon", Item = "DragonEgg", Amount = 3,
-			HitItem = "BoltIron|BoltBone|ArrowIron", HitVerb = "The bolt strikes", Mode = "fly", Distance = 30f, Fly = 7f, MaxHeight = 6f,
+			HitItem = "BoltIron|BoltBone|ArrowIron", HitVerb = "The ballista bolt strikes", Mode = "fly", Distance = 30f, Fly = 7f, MaxHeight = 6f, Aim = true,
 			Tint = new Color(0.6f, 0.85f, 1f),
 			Moves = new[]
 			{
