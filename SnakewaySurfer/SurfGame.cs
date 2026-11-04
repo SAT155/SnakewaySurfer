@@ -63,6 +63,8 @@ internal sealed class SurfGame : MonoBehaviour
 		public Animator? Anim;
 		public CreatureAttack? Attack;
 		public CreatureInfo? Info;
+		// Short creatures can be jumped over: you clear them above this height (0 = can't).
+		public float ClearHeight;
 		public bool Alerted;
 		// Speed and animation pace once it notices you (it idles until then).
 		public float MoveSpeed;
@@ -974,6 +976,10 @@ internal sealed class SurfGame : MonoBehaviour
 					}
 					break;
 				case Kind.Block:
+					if (t.ClearHeight > 0f && m_y > t.ClearHeight)
+					{
+						break;
+					}
 					m_audio.Play(Sfx.HitMonster);
 					Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
@@ -1647,6 +1653,12 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			Arm(go, info, attack, anim);
 		}
+		// Anything shorter than about three quarters of a jump can be jumped over.
+		float clear = 0f;
+		if (kind == Kind.Block && Pictures.MeshBounds(go, out Bounds body) && body.size.y < Plugin.JumpHeight.Value * 0.75f)
+		{
+			clear = body.size.y * 0.8f;
+		}
 
 		bool ranged = attack != null && attack.Ranged;
 		float speed = 0f;
@@ -1684,6 +1696,7 @@ internal sealed class SurfGame : MonoBehaviour
 			Anim = anim,
 			Attack = attack,
 			Info = info,
+			ClearHeight = clear,
 			Cooldown = Random.Range(0f, 0.8f),
 		});
 	}
