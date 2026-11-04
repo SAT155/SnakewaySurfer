@@ -69,7 +69,10 @@ and for players without the mod.
   attack effects such as the blob's gas show and linger in the lane; lighting and fog follow
   each biome's real daytime weather, and the fog works now; `surfprobe` console command logs
   a spot's look for tuning; Allow Pause / Pause Key test settings. 1.5.x: event-only and everywhere-invasion creatures
-  left out of the spawn tables.
+  left out of the spawn tables. Later 1.5.x: the minigame is drawn through the game's own
+  camera (its haze, bloom and colour grading; Use Game Camera off goes back to the old
+  camera), and the land uses the game's real terrain shader with each biome's ground, with
+  the track as a dirt path (Game Terrain, Track Style dirt/paved/stone).
 - **1.4**: creatures play their real attack animations with their own weapons (the classic
   stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
   monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water

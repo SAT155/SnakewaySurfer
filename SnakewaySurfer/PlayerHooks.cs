@@ -98,4 +98,10 @@ internal static class PlayerHooks
 	{
 		private static bool Prefix(object __instance) => !(SurfGame.Active != null && __instance is Chat);
 	}
+
+	[HarmonyPatch(typeof(GameCamera), "LateUpdate")]
+	private static class GameCameraPatch
+	{
+		private static void Postfix() => SurfGame.Active?.ApplyGameCamera();
+	}
 }

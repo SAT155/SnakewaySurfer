@@ -142,6 +142,29 @@ internal sealed class SurfGame : MonoBehaviour
 	private Camera m_camera = null!;
 	private Light m_light = null!;
 	private Camera? m_mainCamera;
+	private Camera? m_ownCamera;
+	private bool m_usingGameCamera;
+	private SurfCameraFog? m_mainFog;
+	private Color m_mainBackground;
+	private float[] m_mainCullDistances = new float[32];
+	private Vector3 m_camFinal;
+	private Quaternion m_camFinalRot = Quaternion.identity;
+
+	// GameCamera.LateUpdate moves the main camera every frame; put it back on our track.
+	public void ApplyGameCamera()
+	{
+		if (!m_usingGameCamera || m_mainCamera == null)
+		{
+			return;
+		}
+		m_mainCamera.transform.SetPositionAndRotation(m_camFinal, m_camFinalRot);
+		m_mainCamera.fieldOfView = Plugin.CameraFov.Value;
+		if (GameCamera.instance != null && GameCamera.instance.m_skyCamera != null)
+		{
+			GameCamera.instance.m_skyCamera.fieldOfView = Plugin.CameraFov.Value;
+			GameCamera.instance.m_skyCamera.transform.rotation = m_camFinalRot;
+		}
+	}
 	private int m_mainMask;
 	private GameObject? m_hudRoot;
 	private bool m_hudWasActive;
@@ -275,8 +298,31 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			m_camera.depth = m_mainCamera.depth + 10f;
 			m_mainMask = m_mainCamera.cullingMask;
-			// The world isn't on screen anyway; this saves drawing it twice.
-			m_mainCamera.cullingMask = 0;
+			m_mainBackground = m_mainCamera.backgroundColor;
+			m_mainCullDistances = m_mainCamera.layerCullDistances;
+			if (Plugin.UseGameCamera.Value)
+			{
+				// Draw through the game's own camera, so its post effects (bloom, colour
+				// grading, ambient occlusion, haze) and sky apply like in the real world.
+				m_ownCamera = m_camera;
+				m_ownCamera.enabled = false;
+				m_camera = m_mainCamera;
+				m_usingGameCamera = true;
+				m_mainCamera.cullingMask = 1 << m_layer;
+				float[] distances = (float[])m_mainCullDistances.Clone();
+				if (m_layer < distances.Length)
+				{
+					distances[m_layer] = 0f;
+				}
+				m_mainCamera.layerCullDistances = distances;
+				m_mainFog = m_mainCamera.gameObject.AddComponent<SurfCameraFog>();
+				m_mainFog.Game = this;
+			}
+			else
+			{
+				// The world isn't on screen anyway; this saves drawing it twice.
+				m_mainCamera.cullingMask = 0;
+			}
 		}
 
 		GameObject lightGo = new GameObject("SurfSun");
@@ -309,6 +355,15 @@ internal sealed class SurfGame : MonoBehaviour
 		if (m_mainCamera != null)
 		{
 			m_mainCamera.cullingMask = m_mainMask;
+			if (m_usingGameCamera)
+			{
+				m_mainCamera.layerCullDistances = m_mainCullDistances;
+				m_mainCamera.backgroundColor = m_mainBackground;
+			}
+		}
+		if (m_mainFog != null)
+		{
+			Destroy(m_mainFog);
 		}
 		if (m_hudRoot != null)
 		{
@@ -325,6 +380,13 @@ internal sealed class SurfGame : MonoBehaviour
 		if (m_groundTexture != null)
 		{
 			Destroy(m_groundTexture);
+		}
+		foreach (Object o in new Object?[] { m_terrainLand, m_terrainTrack, m_landMask, m_trackMask })
+		{
+			if (o != null)
+			{
+				Destroy(o);
+			}
 		}
 		Plugin.Log.LogInfo("Surf's over.");
 	}
@@ -397,6 +459,7 @@ internal sealed class SurfGame : MonoBehaviour
 			Destroy(borrowed);
 		}
 		m_groundTexture = MakeGroundTexture();
+		MakeTerrainMaterials();
 		m_waterMaterial = MakeWaterMaterial();
 	}
 
@@ -512,6 +575,54 @@ internal sealed class SurfGame : MonoBehaviour
 			}
 		}
 		return null;
+	}
+
+	private Material? m_terrainLand;
+	private Material? m_terrainTrack;
+	private Texture2D? m_landMask;
+	private Texture2D? m_trackMask;
+
+	// The game's own terrain material (from any loaded Heightmap): real biome ground textures,
+	// and the track becomes a path painted into it through the "cleared" mask, like a hoed or
+	// paved path in the world. The mask channels: red dirt, green cultivated, blue paved.
+	private void MakeTerrainMaterials()
+	{
+		if (!Plugin.GameTerrain.Value)
+		{
+			return;
+		}
+		Heightmap hm = Object.FindObjectOfType<Heightmap>();
+		Material? source = hm != null ? hm.m_material : null;
+		if (source == null)
+		{
+			Plugin.Log.LogInfo("No terrain material found; using the minigame's own ground.");
+			return;
+		}
+		m_landMask = MaskTexture(new Color(0f, 0f, 0f, 1f), new Color(0f, 0f, 0f, 1f));
+		m_terrainLand = new Material(source) { name = "SurfTerrain" };
+		m_terrainLand.SetTexture("_ClearedMaskTex", m_landMask);
+		string style = Plugin.TrackStyle.Value.Trim().ToLowerInvariant();
+		if (style != "stone")
+		{
+			Color path = style == "paved" ? new Color(0f, 0f, 1f, 1f) : new Color(1f, 0f, 0f, 1f);
+			m_trackMask = MaskTexture(new Color(0f, 0f, 0f, 1f), path);
+			m_terrainTrack = new Material(source) { name = "SurfTerrainPath" };
+			m_terrainTrack.SetTexture("_ClearedMaskTex", m_trackMask);
+		}
+		Plugin.Log.LogInfo($"Using the game's terrain material '{source.name}' ({source.shader.name}) for the land{(m_terrainTrack != null ? " and a " + style + " path" : "")}.");
+	}
+
+	// 16 x 1: the edges are the plain ground, the middle the path colour, faded between.
+	private static Texture2D MaskTexture(Color edge, Color middle)
+	{
+		Texture2D tex = new Texture2D(16, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear, name = "SurfMask" };
+		for (int x = 0; x < 16; x++)
+		{
+			float d = Mathf.Abs((x + 0.5f) / 16f - 0.5f) * 2f;
+			tex.SetPixel(x, 0, Color.Lerp(middle, edge, Mathf.SmoothStep(0f, 1f, (d - 0.7f) / 0.3f)));
+		}
+		tex.Apply();
+		return tex;
 	}
 
 	private static Material? MakeWaterMaterial()
@@ -1153,7 +1264,7 @@ internal sealed class SurfGame : MonoBehaviour
 		track.transform.SetParent(root.transform, false);
 		track.AddComponent<MeshFilter>().sharedMesh = StripMesh(centerZ, trackWidth * 0.5f, 2f, 1, 0f, true);
 		MeshRenderer tr = track.AddComponent<MeshRenderer>();
-		tr.sharedMaterial = m_trackMaterial ?? b.Ground;
+		tr.sharedMaterial = m_terrainTrack ?? m_trackMaterial ?? b.Ground;
 		tr.receiveShadows = true;
 		if (b.Water && m_waterMaterial != null)
 		{
@@ -1172,7 +1283,7 @@ internal sealed class SurfGame : MonoBehaviour
 			land.transform.SetParent(root.transform, false);
 			land.AddComponent<MeshFilter>().sharedMesh = HillMesh(centerZ, side);
 			MeshRenderer r = land.AddComponent<MeshRenderer>();
-			r.sharedMaterial = b.Ground;
+			r.sharedMaterial = m_terrainLand ?? b.Ground;
 			r.receiveShadows = true;
 		}
 		m_things.Add(new Thing { Go = root, Kind = Kind.Ground, Z = centerZ, HalfLength = GroundTile * 0.5f });
@@ -1233,6 +1344,21 @@ internal sealed class SurfGame : MonoBehaviour
 	}
 
 	// A flat strip that follows the road: the track itself, or the swamp water's surface.
+	// The game's terrain shader picks each biome's ground textures from the vertex colour
+	// (Heightmap.GetBiomeColor), so our meshes carry it too, blended at biome borders.
+	private Color32[] BiomeColors(Vector3[] verts, float centerZ)
+	{
+		Color32[] colors = new Color32[verts.Length];
+		for (int i = 0; i < verts.Length; i++)
+		{
+			BiomeBlend(centerZ + verts[i].z, out int a, out int b, out float blend);
+			Color32 ca = Heightmap.GetBiomeColor(SpawnTables.s_order[Mathf.Min(a, SpawnTables.s_order.Length - 1)]);
+			Color32 cb = Heightmap.GetBiomeColor(SpawnTables.s_order[Mathf.Min(b, SpawnTables.s_order.Length - 1)]);
+			colors[i] = Color32.Lerp(ca, cb, blend);
+		}
+		return colors;
+	}
+
 	private Mesh StripMesh(float centerZ, float halfWidth, float step, int across, float lift, bool trackUv)
 	{
 		int nz = Mathf.CeilToInt(GroundTile / step) + 1;
@@ -1247,7 +1373,7 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				float x = -halfWidth + 2f * halfWidth * ix / across;
 				verts[iz * nx + ix] = new Vector3(x, y, lz);
-				uvs[iz * nx + ix] = trackUv ? new Vector2((x / halfWidth + 1f), (centerZ + lz) / 4f) : new Vector2(x / 10f, (centerZ + lz) / 10f);
+				uvs[iz * nx + ix] = trackUv ? new Vector2((x / halfWidth + 1f) * 0.5f, (centerZ + lz) / 4f) : new Vector2(x / 10f, (centerZ + lz) / 10f);
 			}
 		}
 		// One face only: back faces sharing these vertices cancel out the normals (black track
@@ -1269,12 +1395,7 @@ internal sealed class SurfGame : MonoBehaviour
 		Mesh mesh = new Mesh { name = "SurfStrip" };
 		mesh.vertices = verts;
 		mesh.uv = uvs;
-		Color[] colors = new Color[verts.Length];
-		for (int i = 0; i < colors.Length; i++)
-		{
-			colors[i] = Color.white;
-		}
-		mesh.colors = colors;
+		mesh.colors32 = BiomeColors(verts, centerZ);
 		mesh.triangles = tris;
 		mesh.RecalculateNormals();
 		mesh.RecalculateBounds();
@@ -1326,12 +1447,7 @@ internal sealed class SurfGame : MonoBehaviour
 		Mesh mesh = new Mesh { name = "SurfHills" };
 		mesh.vertices = verts;
 		mesh.uv = uvs;
-		Color[] colors = new Color[verts.Length];
-		for (int i = 0; i < colors.Length; i++)
-		{
-			colors[i] = Color.white;
-		}
-		mesh.colors = colors;
+		mesh.colors32 = BiomeColors(verts, centerZ);
 		mesh.triangles = tris;
 		mesh.RecalculateNormals();
 		mesh.RecalculateBounds();
@@ -2226,6 +2342,8 @@ internal sealed class SurfGame : MonoBehaviour
 		m_shake = Mathf.MoveTowards(m_shake, 0f, dt * 0.8f);
 		m_camera.transform.position = m_camPos + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake : Vector3.zero);
 		m_camera.transform.rotation = Quaternion.LookRotation(look - m_camPos);
+		m_camFinal = m_camera.transform.position;
+		m_camFinalRot = m_camera.transform.rotation;
 
 		if (m_biomes.Count == 0)
 		{

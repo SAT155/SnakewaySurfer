@@ -54,6 +54,9 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> Invincible = null!;
 	internal static ConfigEntry<bool> AllowPause = null!;
 	internal static ConfigEntry<bool> GameLighting = null!;
+	internal static ConfigEntry<bool> UseGameCamera = null!;
+	internal static ConfigEntry<bool> GameTerrain = null!;
+	internal static ConfigEntry<string> TrackStyle = null!;
 	internal static ConfigEntry<float> GameLightScale = null!;
 	internal static ConfigEntry<KeyCode> PauseKey = null!;
 	internal static ConfigEntry<string> Swoopers = null!;
@@ -230,6 +233,12 @@ public class Plugin : BaseUnityPlugin
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
 		Invincible = Config.Bind("9 - Debug", "Invincible", false,
 			"Testing: run through everything instead of crashing (a banner says what would have got you).");
+		GameTerrain = Config.Bind("3 - Look", "Game Terrain", true,
+			"Use the game's own terrain material for the land beside the track (real biome ground textures). Off: a generated texture tinted per biome.");
+		TrackStyle = Config.Bind("3 - Look", "Track Style", "dirt",
+			"With Game Terrain: \"dirt\" (a dirt path like a hoed one), \"paved\" (like the hoe's paved road) or \"stone\" (the Track Piece's stone floor).");
+		UseGameCamera = Config.Bind("3 - Look", "Use Game Camera", true,
+			"Draw the minigame through the game's own camera, with its post effects (bloom, colour grading, ambient occlusion) and sky. Off: the minigame's own plain camera.");
 		GameLighting = Config.Bind("3 - Look", "Game Lighting", true,
 			"Light and fog each biome the way the game's own daytime weather for that biome does (fog density and colour, ambient light, sun). Off: the minigame's own simpler values (Fog Strength, Ambient Light and Light Intensity).");
 		GameLightScale = Config.Bind("3 - Look", "Game Light Scale", 0.8f,

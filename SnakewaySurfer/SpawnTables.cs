@@ -22,7 +22,7 @@ internal sealed class SpawnEntry
 // creatures the game really spawns there, as often as it spawns them, in its group sizes.
 internal static class SpawnTables
 {
-	private static readonly Heightmap.Biome[] s_order =
+	internal static readonly Heightmap.Biome[] s_order =
 	{
 		Heightmap.Biome.Meadows,
 		Heightmap.Biome.BlackForest,
