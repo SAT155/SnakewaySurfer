@@ -106,7 +106,13 @@ internal static class Probe
 					CapsuleCollider cap = c.GetComponent<CapsuleCollider>();
 					Bounds b = default;
 					bool any = Pictures.MeshBounds(c.gameObject, out b);
-					sb.AppendLine($"creature {Utils.GetPrefabName(c.gameObject)} '{c.m_name}' level {c.GetLevel()} scale {c.transform.localScale} collider h {(cap != null ? cap.height : 0f):0.00} r {(cap != null ? cap.radius : 0f):0.00} render h {(any ? b.size.y : 0f):0.00} walk {c.m_walkSpeed} run {c.m_runSpeed} anim '{c.GetComponentInChildren<Animator>()?.GetCurrentAnimatorClipInfo(0) is AnimatorClipInfo[] ci && ci.Length > 0 ? ci[0].clip.name : ""}'");
+					Animator? anim = c.GetComponentInChildren<Animator>();
+					AnimatorClipInfo[] clips = anim != null ? anim.GetCurrentAnimatorClipInfo(0) : new AnimatorClipInfo[0];
+					string clip = clips.Length > 0 && clips[0].clip != null ? clips[0].clip.name : "";
+					float colH = cap != null ? cap.height : 0f;
+					float colR = cap != null ? cap.radius : 0f;
+					float renderH = any ? b.size.y : 0f;
+					sb.AppendLine($"creature {Utils.GetPrefabName(c.gameObject)} '{c.m_name}' level {c.GetLevel()} scale {c.transform.localScale} collider h {colH:0.00} r {colR:0.00} render h {renderH:0.00} walk {c.m_walkSpeed} run {c.m_runSpeed} anim '{clip}'");
 				}
 			}
 		}
