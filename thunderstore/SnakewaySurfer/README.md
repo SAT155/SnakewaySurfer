@@ -59,6 +59,9 @@ and for players without the mod.
 
 ## Changes
 
+- **1.3**: rolling hills beside the track (tallest in the Mountains); rocks and trees never
+  reach over the track; the legs troll leaps in from beside the track instead of hanging in
+  the air; darker track; coin sound (with fallbacks) on its own channel apart from footsteps.
 - **1.2**: Black Forest troll set pieces (log slam, slide between the legs); darker lighting
   and thicker per-biome fog (Swamp and Mistlands thickest); fog strength and ambient light
   settings.

@@ -21,7 +21,7 @@ internal sealed class SurfAudio
 	private static Dictionary<string, ZSFX>? s_byName;
 	private readonly Dictionary<string, Sound?> m_sounds = new();
 	private readonly AudioSource[] m_sources;
-	private int m_next;
+	private int m_next = 1;
 
 	public SurfAudio(GameObject host)
 	{
@@ -102,19 +102,37 @@ internal sealed class SurfAudio
 		return sound;
 	}
 
-	public void Play(string name, float volume = 1f, float pitch = 1f)
+	// Footsteps get their own source so they never cut off other sounds.
+	public void Play(string name, float volume = 1f, float pitch = 1f, bool step = false)
 	{
 		if (!Plugin.Sounds.Value || string.IsNullOrEmpty(name))
 		{
 			return;
 		}
-		Sound? sound = Load(name);
+		// "a|b|c": the first one this game version has.
+		Sound? sound = null;
+		foreach (string option in name.Split('|'))
+		{
+			sound = Load(option);
+			if (sound != null)
+			{
+				break;
+			}
+		}
 		if (sound == null)
 		{
 			return;
 		}
-		AudioSource source = m_sources[m_next];
-		m_next = (m_next + 1) % m_sources.Length;
+		AudioSource source;
+		if (step)
+		{
+			source = m_sources[0];
+		}
+		else
+		{
+			source = m_sources[m_next];
+			m_next = m_next + 1 >= m_sources.Length ? 1 : m_next + 1;
+		}
 		source.Stop();
 		source.outputAudioMixerGroup = sound.Mixer;
 		source.clip = sound.Clips[Random.Range(0, sound.Clips.Length)];

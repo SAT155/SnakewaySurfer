@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.2.0";
+	public const string PluginVersion = "1.3.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -58,6 +58,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
+	internal static ConfigEntry<float> HillHeight = null!;
+	internal static ConfigEntry<float> TrackBrightness = null!;
 
 	private void Awake()
 	{
@@ -117,6 +119,10 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How thick the minigame's fog is (each biome has its own; the Swamp and Mistlands are thickest). 0 turns it off.", new AcceptableValueRange<float>(0f, 4f)));
 		AmbientLight = Config.Bind("3 - Look", "Ambient Light", 0.45f,
 			new ConfigDescription("Brightness of the light that comes from the sky colour everywhere (shadows get darker as it goes down).", new AcceptableValueRange<float>(0f, 2f)));
+		HillHeight = Config.Bind("3 - Look", "Hill Height", 1f,
+			new ConfigDescription("How tall the hills beside the track are (each biome has its own; Mountains are highest). 0 makes the land flat.", new AcceptableValueRange<float>(0f, 3f)));
+		TrackBrightness = Config.Bind("3 - Look", "Track Brightness", 0.6f,
+			new ConfigDescription("Darkens the paved track (1 = the build piece's own colour, which looked washed out).", new AcceptableValueRange<float>(0.1f, 1.5f)));
 		GiantChance = Config.Bind("1 - Run", "Giant Chance", 0.22f,
 			new ConfigDescription("Chance that a row of obstacles is a troll set piece instead, in biomes that have Giants (the Black Forest by default).", new AcceptableValueRange<float>(0f, 1f)));
 		LightIntensity = Config.Bind("3 - Look", "Light Intensity", 0.45f,

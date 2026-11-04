@@ -90,6 +90,10 @@ internal sealed class SurfGame : MonoBehaviour
 	private static readonly float[] s_fog = { 0.011f, 0.017f, 0.026f, 0.013f, 0.009f, 0.04f, 0.02f, 0.022f };
 
 	private const float LaneWidth = 2.6f;
+	private const float TrackHalf = LaneWidth * 1.5f + 0.4f;
+	private const float StraddleStartX = TrackHalf + 7f;
+	// Height of the hills beside the track, per biome.
+	private static readonly float[] s_hills = { 3.5f, 7f, 1.5f, 16f, 2.5f, 10f, 6f, 12f };
 	private const float Gravity = 32f;
 	private const float GroundTile = 40f;
 	private const float AheadDistance = 150f;
@@ -325,6 +329,10 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			m_trackMaterial.mainTextureScale = new Vector2(2f, GroundTile / 4f);
 		}
+		if (m_trackMaterial != null && m_trackMaterial.HasProperty("_Color"))
+		{
+			m_trackMaterial.color = m_trackMaterial.color * Plugin.TrackBrightness.Value;
+		}
 	}
 
 	private Material MakeGroundMaterial(Color color)
@@ -487,10 +495,7 @@ internal sealed class SurfGame : MonoBehaviour
 	{
 		foreach (Thing t in m_things)
 		{
-			if (t.Go != null)
-			{
-				Destroy(t.Go);
-			}
+			DestroyThing(t);
 		}
 		m_things.Clear();
 		m_state = State.Countdown;
@@ -716,7 +721,7 @@ internal sealed class SurfGame : MonoBehaviour
 			if (m_stepTimer <= 0f)
 			{
 				m_stepTimer = Mathf.Clamp(3.2f / Mathf.Max(1f, m_speed), 0.14f, 0.4f);
-				m_audio.Play(Sfx.Step(m_biomes[BiomeAt(m_z)].Def.Name), 0.35f);
+				m_audio.Play(Sfx.Step(m_biomes[BiomeAt(m_z)].Def.Name), 0.35f, 1f, true);
 			}
 		}
 		if (m_y <= 0.001f)
@@ -763,7 +768,7 @@ internal sealed class SurfGame : MonoBehaviour
 					if (m_y < 2.6f)
 					{
 						m_coins++;
-						m_audio.Play(Sfx.Coin, 0.6f, 1f + 0.03f * (m_coins % 5));
+						m_audio.Play(Sfx.Coin, 1f, 1f + 0.03f * (m_coins % 5));
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
 					}
@@ -822,7 +827,7 @@ internal sealed class SurfGame : MonoBehaviour
 			float end = t.Kind == Kind.Ground ? t.Z + GroundTile * 0.5f : t.Z + t.HalfLength;
 			if (end < behind)
 			{
-				Destroy(t.Go);
+				DestroyThing(t);
 				m_things.RemoveAt(i);
 			}
 		}
@@ -878,14 +883,110 @@ internal sealed class SurfGame : MonoBehaviour
 		track.transform.SetParent(root.transform, false);
 		track.transform.localPosition = new Vector3(0f, -0.1f, 0f);
 		track.transform.localScale = new Vector3(trackWidth, 0.2f, GroundTile + 0.02f);
-		foreach (float side in new[] { -1f, 1f })
+		foreach (int side in new[] { -1, 1 })
 		{
-			GameObject land = Box("Land", b.Ground, Vector3.zero, Vector3.one);
+			GameObject land = new GameObject("Land");
+			land.layer = m_layer;
 			land.transform.SetParent(root.transform, false);
-			land.transform.localPosition = new Vector3(side * (trackWidth * 0.5f + 40f), -0.15f, 0f);
-			land.transform.localScale = new Vector3(80f, 0.2f, GroundTile + 0.02f);
+			land.AddComponent<MeshFilter>().sharedMesh = HillMesh(centerZ, side);
+			MeshRenderer r = land.AddComponent<MeshRenderer>();
+			r.sharedMaterial = b.Ground;
+			r.receiveShadows = true;
 		}
 		m_things.Add(new Thing { Go = root, Kind = Kind.Ground, Z = centerZ, HalfLength = GroundTile * 0.5f });
+	}
+
+	private float HillAmplitude(float z)
+	{
+		// Blend between biomes over 40 m so the hills don't jump at a border.
+		float f = Mathf.Max(0f, z) / Plugin.BiomeLength.Value;
+		int a = Mathf.Clamp(Mathf.FloorToInt(f), 0, m_biomes.Count - 1);
+		int b = Mathf.Clamp(a + 1, 0, m_biomes.Count - 1);
+		float blend = Mathf.Clamp01((f - Mathf.Floor(f)) * Plugin.BiomeLength.Value / 40f - (Plugin.BiomeLength.Value - 40f) / 40f);
+		return Mathf.Lerp(s_hills[Mathf.Min(a, s_hills.Length - 1)], s_hills[Mathf.Min(b, s_hills.Length - 1)], blend) * Plugin.HillHeight.Value;
+	}
+
+	// Ground height beside the track: flat at the edge, rolling hills further out.
+	private float HillHeight(float x, float z)
+	{
+		float out_ = Mathf.Abs(x) - TrackHalf;
+		if (out_ <= 0f)
+		{
+			return -0.05f;
+		}
+		float ramp = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((out_ - 2.5f) / 22f));
+		float n = Mathf.PerlinNoise((x + 500f) * 0.035f, z * 0.035f) * 0.75f + Mathf.PerlinNoise(x * 0.11f + 91f, z * 0.11f) * 0.25f;
+		return -0.05f + ramp * HillAmplitude(z) * (0.25f + n);
+	}
+
+	private const float LandWidth = 90f;
+	private const float LandStep = 3f;
+
+	private Mesh HillMesh(float centerZ, int side)
+	{
+		int nx = Mathf.CeilToInt(LandWidth / LandStep) + 1;
+		int nz = Mathf.CeilToInt(GroundTile / LandStep) + 1;
+		Vector3[] verts = new Vector3[nx * nz];
+		Vector2[] uvs = new Vector2[verts.Length];
+		for (int iz = 0; iz < nz; iz++)
+		{
+			float lz = -GroundTile * 0.5f + GroundTile * iz / (nz - 1);
+			for (int ix = 0; ix < nx; ix++)
+			{
+				float x = side * (TrackHalf - 0.2f + ix * LandStep);
+				verts[iz * nx + ix] = new Vector3(x, HillHeight(x, centerZ + lz), lz);
+				uvs[iz * nx + ix] = new Vector2(x / 8f, (centerZ + lz) / 8f);
+			}
+		}
+		int[] tris = new int[(nx - 1) * (nz - 1) * 6];
+		int k = 0;
+		for (int iz = 0; iz < nz - 1; iz++)
+		{
+			for (int ix = 0; ix < nx - 1; ix++)
+			{
+				int a = iz * nx + ix;
+				int b = a + 1;
+				int c = a + nx;
+				int d = c + 1;
+				// Wind so the faces point up on both sides of the track.
+				if (side > 0)
+				{
+					tris[k++] = a; tris[k++] = c; tris[k++] = b;
+					tris[k++] = b; tris[k++] = c; tris[k++] = d;
+				}
+				else
+				{
+					tris[k++] = a; tris[k++] = b; tris[k++] = c;
+					tris[k++] = b; tris[k++] = d; tris[k++] = c;
+				}
+			}
+		}
+		Mesh mesh = new Mesh { name = "SurfHills" };
+		mesh.vertices = verts;
+		mesh.uv = uvs;
+		mesh.triangles = tris;
+		mesh.RecalculateNormals();
+		mesh.RecalculateBounds();
+		return mesh;
+	}
+
+	private void DestroyThing(Thing t)
+	{
+		if (t.Go == null)
+		{
+			return;
+		}
+		if (t.Kind == Kind.Ground)
+		{
+			foreach (MeshFilter f in t.Go.GetComponentsInChildren<MeshFilter>())
+			{
+				if (f.sharedMesh != null && f.sharedMesh != m_cube)
+				{
+					Destroy(f.sharedMesh);
+				}
+			}
+		}
+		Destroy(t.Go);
 	}
 
 	private void SpawnScenery(float z, int side)
@@ -898,9 +999,24 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject prefab = b.Scenery[Random.Range(0, b.Scenery.Count)];
 		GameObject go = Instantiate(Picture(prefab), m_stage, false);
 		float x = side * (LaneWidth * 1.5f + Random.Range(3f, 26f));
-		go.transform.localPosition = new Vector3(x, 0f, z);
+		go.transform.localPosition = new Vector3(x, HillHeight(x, z) - 0.3f, z);
 		go.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 		go.transform.localScale = Vector3.one * Random.Range(0.85f, 1.15f);
+		// Big rocks can be 20 m across: push anything that reaches over the track back out,
+		// with a margin so it never blocks the view of the lanes.
+		if (Pictures.MeshBounds(go, out Bounds bounds))
+		{
+			float inner = (side < 0 ? bounds.max.x : bounds.min.x) - m_stage.position.x;
+			float limit = side * (TrackHalf + 1.5f);
+			float push = side < 0 ? Mathf.Min(0f, limit - inner) : Mathf.Max(0f, limit - inner);
+			if (push != 0f)
+			{
+				Vector3 p = go.transform.localPosition;
+				p.x += push;
+				p.y = HillHeight(p.x, z) - 0.3f;
+				go.transform.localPosition = p;
+			}
+		}
 		m_things.Add(new Thing { Go = go, Kind = Kind.Scenery, Z = z, HalfLength = 2f });
 	}
 
@@ -1103,7 +1219,8 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject body = new GameObject("Body");
 		body.layer = m_layer;
 		body.transform.SetParent(root.transform, false);
-		body.transform.localPosition = new Vector3(0f, 9f, 0f);
+		int side = Random.value < 0.5f ? -1 : 1;
+		body.transform.localPosition = new Vector3(side * StraddleStartX, 0f, 0f);
 		// Stretched sideways so its feet land in the outer lanes.
 		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(LaneWidth * 3f + 0.4f, 4.2f, 3f), false);
 		troll.transform.SetParent(body.transform, false);
@@ -1121,6 +1238,7 @@ internal sealed class SurfGame : MonoBehaviour
 			CrashText = legs,
 			Special = Special.Drop,
 			Moving = body.transform,
+			Side = side,
 		});
 		foreach ((int lane, Kind kind, string text) in new[]
 		{
@@ -1144,7 +1262,7 @@ internal sealed class SurfGame : MonoBehaviour
 		float distance = t.Z - m_z;
 		if (!t.Triggered)
 		{
-			float trigger = t.Special == Special.Swing ? m_speed * 0.5f + 2.5f : m_speed * 1.3f + 8f;
+			float trigger = t.Special == Special.Swing ? m_speed * 0.5f + 2.5f : m_speed * 1.6f + 10f;
 			if (distance > trigger)
 			{
 				return;
@@ -1156,7 +1274,7 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		float duration = t.Special == Special.Swing ? 0.22f : 0.35f;
+		float duration = t.Special == Special.Swing ? 0.22f : 0.5f;
 		t.Progress = Mathf.Min(1f, t.Progress + dt / duration);
 		float e = t.Progress * t.Progress;
 		if (t.Special == Special.Swing)
@@ -1169,7 +1287,9 @@ internal sealed class SurfGame : MonoBehaviour
 		}
 		else
 		{
-			t.Moving.localPosition = new Vector3(0f, Mathf.Lerp(9f, 0f, e), 0f);
+			// A leap from beside the track onto it.
+			float p = t.Progress;
+			t.Moving.localPosition = new Vector3(t.Side * StraddleStartX * (1f - p), 5f * Mathf.Sin(p * Mathf.PI), 0f);
 		}
 		if (t.Progress >= 1f)
 		{
@@ -1408,7 +1528,7 @@ internal static class Sfx
 	public const string Land = "sfx_land";
 	public const string Slide = "sfx_dodge";
 	public const string Lane = "sfx_unarmed_swing";
-	public const string Coin = "sfx_pickup";
+	public const string Coin = "sfx_pickup|sfx_pickable_pick|sfx_gui_button";
 	public const string Biome = "sfx_levelup";
 	public const string HitMonster = "sfx_hit";
 	public const string HitLog = "sfx_wood_hit";
