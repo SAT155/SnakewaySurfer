@@ -64,7 +64,8 @@ and for players without the mod.
   stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
   monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water
   to run through; textured ground; Run XP lowered to 0.25 levels per biome (an untouched old
-  setting of 1 is changed once).
+  setting of 1 is changed once). 1.4.7: the track was invisible (or glaring white); it now uses
+  the floor piece's texture on a plain shader.
 - **1.3**: rolling hills beside the track (tallest in the Mountains); rocks and trees never
   reach over the track; the legs troll leaps in from beside the track instead of hanging in
   the air; darker track; coin sound (with fallbacks) on its own channel apart from footsteps.

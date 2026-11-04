@@ -346,14 +346,34 @@ internal sealed class SurfGame : MonoBehaviour
 		m_cube = Instantiate(cube.GetComponent<MeshFilter>().sharedMesh);
 		Destroy(cube);
 
-		m_trackMaterial = BorrowMaterial(Plugin.TrackPiece.Value) ?? BorrowMaterial("stone_floor_2x2") ?? BorrowMaterial("wood_floor");
-		if (m_trackMaterial != null && m_trackMaterial.HasProperty("_MainTex"))
+		// The build piece's own shader didn't draw on our generated track mesh (1.4.6: invisible
+		// from most angles, glaring white otherwise), so only its texture is borrowed, onto the
+		// plain shader the land uses.
+		Material? borrowed = BorrowMaterial(Plugin.TrackPiece.Value) ?? BorrowMaterial("stone_floor_2x2") ?? BorrowMaterial("wood_floor");
+		Shader? plain = FindPlainShader();
+		if (plain != null)
 		{
-			m_trackMaterial.mainTextureScale = Vector2.one;
+			m_trackMaterial = new Material(plain) { name = "SurfTrack" };
+			if (borrowed != null && borrowed.HasProperty("_MainTex") && borrowed.mainTexture != null && m_trackMaterial.HasProperty("_MainTex"))
+			{
+				m_trackMaterial.mainTexture = borrowed.mainTexture;
+			}
+			if (m_trackMaterial.HasProperty("_Color"))
+			{
+				m_trackMaterial.color = new Color(0.78f, 0.76f, 0.72f) * Plugin.TrackBrightness.Value;
+			}
+			if (m_trackMaterial.HasProperty("_Glossiness"))
+			{
+				m_trackMaterial.SetFloat("_Glossiness", 0.1f);
+			}
 		}
-		if (m_trackMaterial != null && m_trackMaterial.HasProperty("_Color"))
+		else
 		{
-			m_trackMaterial.color = m_trackMaterial.color * Plugin.TrackBrightness.Value;
+			m_trackMaterial = borrowed;
+		}
+		if (borrowed != null && borrowed != m_trackMaterial)
+		{
+			Destroy(borrowed);
 		}
 		m_groundTexture = MakeGroundTexture();
 		m_waterMaterial = MakeWaterMaterial();
@@ -1107,6 +1127,12 @@ internal sealed class SurfGame : MonoBehaviour
 		Mesh mesh = new Mesh { name = "SurfStrip" };
 		mesh.vertices = verts;
 		mesh.uv = uvs;
+		Color[] colors = new Color[verts.Length];
+		for (int i = 0; i < colors.Length; i++)
+		{
+			colors[i] = Color.white;
+		}
+		mesh.colors = colors;
 		mesh.triangles = tris;
 		mesh.RecalculateNormals();
 		mesh.RecalculateBounds();
@@ -1158,6 +1184,12 @@ internal sealed class SurfGame : MonoBehaviour
 		Mesh mesh = new Mesh { name = "SurfHills" };
 		mesh.vertices = verts;
 		mesh.uv = uvs;
+		Color[] colors = new Color[verts.Length];
+		for (int i = 0; i < colors.Length; i++)
+		{
+			colors[i] = Color.white;
+		}
+		mesh.colors = colors;
 		mesh.triangles = tris;
 		mesh.RecalculateNormals();
 		mesh.RecalculateBounds();
