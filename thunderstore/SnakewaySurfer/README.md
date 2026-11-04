@@ -60,6 +60,15 @@ and for players without the mod.
 
 ## Changes
 
+- **1.5**: creatures come from the game's own spawn tables for each biome (the right
+  creatures, as common as they really are, in their real group sizes, so greydwarfs swarm);
+  real sizes from each creature's collider (no more tiny abominations or stone golems);
+  deathsquitos dive in from the side (slide under them); big creatures stomp in and shake the
+  camera; slow attackers wind up earlier; waiting creatures may taunt; abominations burst out
+  of the ground, and in the Swamp one rises straddling the track (slide between its legs);
+  attack effects such as the blob's gas show and linger in the lane; lighting and fog follow
+  each biome's real daytime weather, and the fog works now; `surfprobe` console command logs
+  a spot's look for tuning; Allow Pause / Pause Key test settings.
 - **1.4**: creatures play their real attack animations with their own weapons (the classic
   stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
   monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water

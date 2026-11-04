@@ -17,6 +17,9 @@ internal sealed class CreatureAttack
 	public bool LeftHand;
 	public int AnimationState;
 	public string Sound = "";
+	// Visual effects the attack spawns (a blob's gas cloud, a slam's dust), pictured when it fires.
+	public readonly List<GameObject> Effects = new();
+	public bool Area => Type == Attack.AttackType.Area;
 
 	public bool Ranged => Projectile != null;
 }
@@ -36,6 +39,11 @@ internal sealed class CreatureInfo
 	public string AlertSound = "";
 	// First footstep sound of its FootStep component.
 	public string StepSound = "";
+	// The sound it makes when it wakes (MonsterAI.m_wakeupEffects), e.g. an abomination
+	// bursting out of the ground.
+	public string WakeSound = "";
+	// Real standing height from its collider (render bounds of an unanimated picture lie).
+	public float Height;
 
 	public bool Fast => RunSpeed >= 7f;
 
@@ -59,6 +67,16 @@ internal sealed class CreatureInfo
 		if (ai != null)
 		{
 			info.AlertSound = FirstSound(ai.m_alertedEffects) ?? FirstSound(ai.m_idleSound) ?? "";
+		}
+		if (ai is MonsterAI monster)
+		{
+			info.WakeSound = FirstSound(monster.m_wakeupEffects) ?? "";
+		}
+		CapsuleCollider capsule = prefab.GetComponent<CapsuleCollider>();
+		if (capsule != null)
+		{
+			float axis = capsule.direction == 1 ? prefab.transform.lossyScale.y : capsule.direction == 0 ? prefab.transform.lossyScale.x : prefab.transform.lossyScale.z;
+			info.Height = capsule.direction == 1 ? capsule.height * axis : capsule.radius * 2f * prefab.transform.lossyScale.y;
 		}
 		FootStep steps = prefab.GetComponentInChildren<FootStep>(true);
 		if (steps != null && steps.m_effects != null)
@@ -126,6 +144,8 @@ internal sealed class CreatureInfo
 					AnimationState = (int)shared.m_animationState,
 					Sound = FirstSound(attack.m_startEffect) ?? FirstSound(attack.m_triggerEffect) ?? "",
 				};
+				AddVisuals(attack.m_triggerEffect, a.Effects);
+				AddVisuals(attack.m_startEffect, a.Effects);
 				(a.Ranged ? info.Ranged : info.Melee).Add(a);
 			}
 			foreach (GameObject item in humanoid.m_defaultItems ?? new GameObject[0])
@@ -146,10 +166,26 @@ internal sealed class CreatureInfo
 		}
 		if (Plugin.DebugLog.Value)
 		{
-			Plugin.Log.LogInfo($"{prefab.name}: walk {info.WalkSpeed:0.0}, run {info.RunSpeed:0.0}, alert '{info.AlertSound}', step '{info.StepSound}', melee [{string.Join(", ", info.Melee.ConvertAll(a => $"{a.Item}:{a.Animation}{(a.Attach != null ? "+attach" : "")}"))}], ranged [{string.Join(", ", info.Ranged.ConvertAll(a => $"{a.Item}:{a.Animation}->{a.Projectile!.name}"))}]");
+			Plugin.Log.LogInfo($"{prefab.name}: walk {info.WalkSpeed:0.0}, run {info.RunSpeed:0.0}, height {info.Height:0.0}, alert '{info.AlertSound}', step '{info.StepSound}', wake '{info.WakeSound}', melee [{string.Join(", ", info.Melee.ConvertAll(a => $"{a.Item}:{a.Animation}{(a.Attach != null ? "+attach" : "")}"))}], ranged [{string.Join(", ", info.Ranged.ConvertAll(a => $"{a.Item}:{a.Animation}->{a.Projectile!.name}"))}]");
 		}
 		s_cache[prefab] = info;
 		return info;
+	}
+
+	private static void AddVisuals(EffectList? effects, List<GameObject> into)
+	{
+		if (effects?.m_effectPrefabs == null)
+		{
+			return;
+		}
+		foreach (EffectList.EffectData e in effects.m_effectPrefabs)
+		{
+			if (e != null && e.m_enabled && e.m_prefab != null && e.m_prefab.GetComponentInChildren<ParticleSystem>(true) != null
+				&& e.m_prefab.GetComponentInChildren<ZSFX>(true) == null && !into.Contains(e.m_prefab))
+			{
+				into.Add(e.m_prefab);
+			}
+		}
 	}
 
 	private static string? FirstSound(EffectList? effects)

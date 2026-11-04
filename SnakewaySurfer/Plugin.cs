@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.4.0";
+	public const string PluginVersion = "1.5.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -52,6 +52,12 @@ public class Plugin : BaseUnityPlugin
 
 	internal static ConfigEntry<bool> DebugLog = null!;
 	internal static ConfigEntry<bool> Invincible = null!;
+	internal static ConfigEntry<bool> AllowPause = null!;
+	internal static ConfigEntry<bool> GameLighting = null!;
+	internal static ConfigEntry<float> GameLightScale = null!;
+	internal static ConfigEntry<KeyCode> PauseKey = null!;
+	internal static ConfigEntry<string> Swoopers = null!;
+	internal static ConfigEntry<string> Ambushers = null!;
 	internal static ConfigEntry<float> GameSpeed = null!;
 	internal static ConfigEntry<bool> GameGroundTextures = null!;
 
@@ -139,8 +145,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Chance that a row of obstacles is a troll set piece instead, in biomes that have Giants (the Black Forest by default).", new AcceptableValueRange<float>(0f, 1f)));
 		LightIntensity = Config.Bind("3 - Look", "Light Intensity", 0.45f,
 			new ConfigDescription("Brightness of the minigame's own sun.", new AcceptableValueRange<float>(0f, 4f)));
-		MonsterHeight = Config.Bind("3 - Look", "Monster Height", 4.2f,
-			new ConfigDescription("Monsters in the lanes are their real size, but anything taller than this (or much wider than a lane) is shrunk to fit.", new AcceptableValueRange<float>(1f, 8f)));
+		MonsterHeight = Config.Bind("3 - Look", "Monster Height", 9f,
+			new ConfigDescription("Monsters in the lanes are their real size, but anything taller than this (or much wider than a lane) is shrunk to fit.", new AcceptableValueRange<float>(1f, 20f)));
 		SceneryDensity = Config.Bind("3 - Look", "Scenery Density", 1f,
 			new ConfigDescription("How many trees and rocks line the track. Lower it if the minigame runs slowly.", new AcceptableValueRange<float>(0.2f, 3f)));
 		TrackPiece = Config.Bind("3 - Look", "Track Piece", "stone_floor_2x2",
@@ -161,9 +167,9 @@ public class Plugin : BaseUnityPlugin
 			BiomeDef d = Biomes.Defaults[i];
 			string section = $"4.{i + 1} - {d.Name}";
 			s_monsters[i] = Config.Bind(section, "Monsters", d.Monsters,
-				"Monsters standing (or charging) in the lanes; dodge them by changing lane. Comma-separated creature names as in the game's text keys (\"greydwarfbrute\" for $enemy_greydwarfbrute) or prefab names. Unknown names are skipped and logged.");
+				"Monsters in the lanes. \"auto\" uses the game's own spawn tables for this biome (the creatures that really live here, as common as they really are, in their group sizes). Or a comma-separated list of creature names as in the game's text keys (\"greydwarfbrute\" for $enemy_greydwarfbrute) or prefab names, each optionally with :weight and :group size (\"greydwarf:6:3\"). Unknown names are skipped and logged.");
 			s_flyers[i] = Config.Bind(section, "Flyers", d.Flyers,
-				"Flying monsters at head height; slide under them. Same naming as Monsters. Empty: hanging logs only.");
+				"Flying monsters at head height; slide under them. \"auto\": the flying creatures from this biome's spawn tables. Same naming as Monsters. Empty: hanging logs only.");
 			s_scenery[i] = Config.Bind(section, "Scenery", d.Scenery,
 				"Trees and rocks beside the track (prefab names).");
 			s_logs[i] = Config.Bind(section, "Logs", d.Logs,
@@ -195,11 +201,47 @@ public class Plugin : BaseUnityPlugin
 			}
 			balance.Value = 2;
 		}
+		if (balance.Value < 3)
+		{
+			// 1.5: creatures come from the game's spawn tables, and big ones keep their size.
+			for (int i = 0; i < Biomes.Defaults.Length; i++)
+			{
+				if (s_monsters[i].Value == Biomes.Defaults[i].FallbackMonsters)
+				{
+					s_monsters[i].Value = "auto";
+				}
+				if (s_flyers[i].Value == Biomes.Defaults[i].FallbackFlyers)
+				{
+					s_flyers[i].Value = "auto";
+				}
+			}
+			if (s_giants[2].Value == "")
+			{
+				s_giants[2].Value = "abomination";
+			}
+			if (MonsterHeight.Value <= 4.2f)
+			{
+				MonsterHeight.Value = 9f;
+			}
+			balance.Value = 3;
+		}
 
 		DebugLog = Config.Bind("9 - Debug", "Log Details", false,
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
 		Invincible = Config.Bind("9 - Debug", "Invincible", false,
 			"Testing: run through everything instead of crashing (a banner says what would have got you).");
+		GameLighting = Config.Bind("3 - Look", "Game Lighting", true,
+			"Light and fog each biome the way the game's own daytime weather for that biome does (fog density and colour, ambient light, sun). Off: the minigame's own simpler values (Fog Strength, Ambient Light and Light Intensity).");
+		GameLightScale = Config.Bind("3 - Look", "Game Light Scale", 0.8f,
+			new ConfigDescription("With Game Lighting: scales the sun and ambient light (the game's shaders and post effects differ from the minigame's).", new AcceptableValueRange<float>(0.1f, 3f)));
+		AllowPause = Config.Bind("9 - Debug", "Allow Pause", false,
+			"Testing: the Pause Key freezes the minigame (to look at things).");
+		PauseKey = Config.Bind("9 - Debug", "Pause Key", KeyCode.P,
+			"Testing: pauses and resumes the minigame when Allow Pause is on.");
+		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",
+			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
+		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",
+			"Creatures that lie hidden and burst up as you get close (in the lanes, and as the Swamp's straddling giant).");
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
@@ -240,6 +282,10 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				SurfGame.Begin(player, args.Context);
+			});
+			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
+			{
+				Probe.Run(args.Context);
 			});
 		}
 	}

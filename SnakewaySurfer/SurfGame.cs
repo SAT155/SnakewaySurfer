@@ -65,6 +65,14 @@ internal sealed class SurfGame : MonoBehaviour
 		public CreatureInfo? Info;
 		// Short creatures can be jumped over: you clear them above this height (0 = can't).
 		public float ClearHeight;
+		public float Height;
+		public bool Swoop;
+		public bool Sleeping;
+		public bool Stomper;
+		// A straddling giant that bursts up out of the ground instead of leaping in.
+		public bool Rise;
+		// > 0: removed after this many seconds.
+		public float Life;
 		public bool Alerted;
 		// Speed and animation pace once it notices you (it idles until then).
 		public float MoveSpeed;
@@ -87,12 +95,17 @@ internal sealed class SurfGame : MonoBehaviour
 		public BiomeDef Def = null!;
 		public Color Sky;
 		public Material Ground = null!;
-		public readonly List<(GameObject prefab, string label)> Monsters = new();
-		public readonly List<(GameObject prefab, string label)> Flyers = new();
+		public readonly List<SpawnEntry> Monsters = new();
+		public readonly List<SpawnEntry> Flyers = new();
 		public readonly List<GameObject> Scenery = new();
 		public readonly List<GameObject> Logs = new();
 		public readonly List<(GameObject prefab, string label)> Giants = new();
 		public float Fog;
+		// From the game's own weather for this biome (EnvSetup), when it can be read.
+		public Color FogColor;
+		public Color Ambient;
+		public Color SunColor = new Color(1f, 0.96f, 0.88f);
+		public float SunIntensity;
 		public bool Water;
 	}
 
@@ -571,6 +584,10 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			BiomeDef def = Plugin.BiomeConfig(i);
 			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Fog = s_fog[Mathf.Min(i, s_fog.Length - 1)], Ground = MakeGroundMaterial(def.Ground, TerrainTexture(def.Name)) };
+			rt.FogColor = rt.Sky;
+			rt.Ambient = rt.Sky * Plugin.AmbientLight.Value;
+			rt.SunIntensity = Plugin.LightIntensity.Value;
+			GameWeather.Apply(i, rt.Def.Name, ref rt.Fog, ref rt.FogColor, ref rt.Ambient, ref rt.SunColor, ref rt.SunIntensity, ref rt.Sky);
 			rt.Water = Plugin.SwampWater.Value && def.Name == "Swamp" && m_waterMaterial != null;
 			foreach (string key in Pictures.SplitList(def.Giants))
 			{
@@ -584,29 +601,33 @@ internal sealed class SurfGame : MonoBehaviour
 					missing.Add(key);
 				}
 			}
-			foreach (string key in Pictures.SplitList(def.Monsters))
+			bool autoMonsters = def.Monsters.Trim().Equals("auto", System.StringComparison.OrdinalIgnoreCase);
+			bool autoFlyers = def.Flyers.Trim().Equals("auto", System.StringComparison.OrdinalIgnoreCase);
+			List<SpawnEntry> table = autoMonsters || autoFlyers ? SpawnTables.ForBiome(i) : new List<SpawnEntry>();
+			if (table.Count == 0 && (autoMonsters || autoFlyers))
 			{
-				GameObject? prefab = Pictures.Monster(key);
-				if (prefab != null)
+				Plugin.Log.LogWarning($"No spawn table found for the {def.Name}; using the built-in creature list.");
+				table = SpawnTables.Parse(Biomes.Defaults[i].FallbackMonsters + ", " + Biomes.Defaults[i].FallbackFlyers, missing);
+			}
+			foreach (SpawnEntry e in autoMonsters ? table : SpawnTables.Parse(def.Monsters, missing))
+			{
+				if (!e.Flying)
 				{
-					rt.Monsters.Add((prefab, MonsterLabel(prefab)));
+					rt.Monsters.Add(e);
 				}
-				else
+				else if (!autoFlyers || autoMonsters)
 				{
-					missing.Add(key);
+					rt.Flyers.Add(e);
 				}
 			}
-			foreach (string key in Pictures.SplitList(def.Flyers))
+			if (autoFlyers && !autoMonsters)
 			{
-				GameObject? prefab = Pictures.Monster(key);
-				if (prefab != null)
-				{
-					rt.Flyers.Add((prefab, MonsterLabel(prefab)));
-				}
-				else
-				{
-					missing.Add(key);
-				}
+				rt.Flyers.AddRange(table.FindAll(e => e.Flying));
+			}
+			else if (!autoFlyers)
+			{
+				rt.Flyers.Clear();
+				rt.Flyers.AddRange(SpawnTables.Parse(def.Flyers, missing));
 			}
 			foreach (string name in Pictures.SplitList(def.Scenery))
 			{
@@ -635,7 +656,7 @@ internal sealed class SurfGame : MonoBehaviour
 			m_biomes.Add(rt);
 			if (Plugin.DebugLog.Value)
 			{
-				Plugin.Log.LogInfo($"{def.Name}: monsters [{string.Join(", ", rt.Monsters.ConvertAll(m => m.prefab.name))}], flyers [{string.Join(", ", rt.Flyers.ConvertAll(m => m.prefab.name))}], {rt.Scenery.Count} scenery, {rt.Logs.Count} logs");
+				Plugin.Log.LogInfo($"{def.Name}: monsters [{string.Join(", ", rt.Monsters.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0} x{m.GroupMin}-{m.GroupMax}"))}], flyers [{string.Join(", ", rt.Flyers.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0}"))}], {rt.Scenery.Count} scenery, {rt.Logs.Count} logs");
 			}
 		}
 		if (missing.Count > 0)
@@ -720,6 +741,7 @@ internal sealed class SurfGame : MonoBehaviour
 		m_lastHealth = m_player.GetHealth();
 		m_speed = Plugin.StartSpeed.Value;
 		m_camPlaced = false;
+		m_envPlaced = false;
 		m_lastTick = 0;
 		SpawnAhead();
 		PlaceAvatar(0f);
@@ -798,6 +820,16 @@ internal sealed class SurfGame : MonoBehaviour
 			return;
 		}
 
+		if (canInput && Plugin.AllowPause.Value && Input.GetKeyDown(Plugin.PauseKey.Value))
+		{
+			SetPaused(!m_paused);
+		}
+		if (m_paused)
+		{
+			PlaceCamera(0f);
+			return;
+		}
+
 		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
 		m_stateTime += dt;
 		m_bannerTime -= dt;
@@ -840,6 +872,20 @@ internal sealed class SurfGame : MonoBehaviour
 		UpdateThings(dt);
 		PlaceAvatar(dt);
 		PlaceCamera(dt);
+	}
+
+	private bool m_paused;
+
+	// Testing aid: freezes the run, animations included.
+	private void SetPaused(bool paused)
+	{
+		m_paused = paused;
+		foreach (Animator a in m_stage.GetComponentsInChildren<Animator>())
+		{
+			a.speed = paused ? 0f : 1f;
+		}
+		m_banner = paused ? "Paused" : "";
+		m_bannerTime = paused ? 9999f : 0f;
 	}
 
 	private void LateUpdate()
@@ -1051,6 +1097,16 @@ internal sealed class SurfGame : MonoBehaviour
 			if (t.Kind == Kind.Coin)
 			{
 				t.Go.transform.Rotate(0f, 180f * dt, 0f, Space.World);
+			}
+			if (t.Life > 0f && m_state == State.Running)
+			{
+				t.Life -= dt;
+				if (t.Life <= 0f)
+				{
+					DestroyThing(t);
+					m_things.RemoveAt(i);
+					continue;
+				}
 			}
 			float end = t.Kind == Kind.Ground ? t.Z + GroundTile * 0.5f : t.Z + t.HalfLength;
 			if (end < behind)
@@ -1364,13 +1420,17 @@ internal sealed class SurfGame : MonoBehaviour
 		BiomeRuntime giants = m_biomes[BiomeAt(z)];
 		if (giants.Giants.Count > 0 && z > 60f && Random.value < Plugin.GiantChance.Value)
 		{
-			if (Random.value < 0.5f)
+			(GameObject prefab, string label) giant = giants.Giants[Random.Range(0, giants.Giants.Count)];
+			// Ambushers (abominations) burst out of the ground over the track; trolls either
+			// swing beside it or leap onto it.
+			bool rise = SpawnTables.Contains(Plugin.Ambushers.Value, giant.prefab);
+			if (!rise && Random.value < 0.5f)
 			{
-				SpawnSwingTroll(z, giants);
+				SpawnSwingTroll(z, giants, giant);
 			}
 			else
 			{
-				SpawnStraddleTroll(z, giants);
+				SpawnStraddleTroll(z, giants, giant, rise);
 			}
 			m_nextRowZ += 8f;
 			return;
@@ -1415,8 +1475,17 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				case Kind.Block:
 				{
-					(GameObject prefab, string label) = b.Monsters[Random.Range(0, b.Monsters.Count)];
-					SpawnCreature(prefab, label, lane, z, Kind.Block, 0f, new Vector3(LaneWidth * 1.4f, Plugin.MonsterHeight.Value, 6f), biomeIndex);
+					SpawnEntry e = SpawnTables.Pick(b.Monsters)!;
+					SpawnCreature(e, lane, z, Kind.Block, 0f, biomeIndex);
+					// Pack animals (greydwarfs, wolves...) come in their groups, crowding the lane.
+					if (e.GroupMax > 1 && Random.value < 0.75f)
+					{
+						int extra = Mathf.Min(Random.Range(e.GroupMin, e.GroupMax + 1), 4) - 1;
+						for (int k = 1; k <= extra; k++)
+						{
+							SpawnCreature(e, lane, z + 2.8f * k, Kind.Block, 0f, biomeIndex);
+						}
+					}
 					break;
 				}
 				case Kind.Low:
@@ -1438,8 +1507,7 @@ internal sealed class SurfGame : MonoBehaviour
 				{
 					if (b.Flyers.Count > 0 && (b.Logs.Count == 0 || Random.value < 0.5f))
 					{
-						(GameObject prefab, string label) = b.Flyers[Random.Range(0, b.Flyers.Count)];
-						SpawnCreature(prefab, label, lane, z, Kind.High, 1.35f, new Vector3(LaneWidth * 1.2f, 1.4f, 4f), biomeIndex);
+						SpawnCreature(SpawnTables.Pick(b.Flyers)!, lane, z, Kind.High, 1.35f, biomeIndex);
 					}
 					else
 					{
@@ -1463,9 +1531,9 @@ internal sealed class SurfGame : MonoBehaviour
 
 	// A troll beside the track holds a log up; when you get close it slams it down across the
 	// outer lane on its side, which then stays blocked.
-	private void SpawnSwingTroll(float z, BiomeRuntime b)
+	private void SpawnSwingTroll(float z, BiomeRuntime b, (GameObject prefab, string label) giant)
 	{
-		(GameObject prefab, string label) = b.Giants[Random.Range(0, b.Giants.Count)];
+		(GameObject prefab, string label) = giant;
 		int side = Random.value < 0.5f ? -1 : 1;
 		GameObject root = new GameObject("SwingTroll");
 		root.layer = m_layer;
@@ -1528,9 +1596,9 @@ internal sealed class SurfGame : MonoBehaviour
 
 	// A troll jumps down over the track, legs planted in both outer lanes: the only way through
 	// is sliding between its legs in the middle lane.
-	private void SpawnStraddleTroll(float z, BiomeRuntime b)
+	private void SpawnStraddleTroll(float z, BiomeRuntime b, (GameObject prefab, string label) giant, bool rise)
 	{
-		(GameObject prefab, string label) = b.Giants[Random.Range(0, b.Giants.Count)];
+		(GameObject prefab, string label) = giant;
 		GameObject root = new GameObject("StraddleTroll");
 		root.layer = m_layer;
 		root.transform.SetParent(m_stage, false);
@@ -1540,7 +1608,7 @@ internal sealed class SurfGame : MonoBehaviour
 		body.layer = m_layer;
 		body.transform.SetParent(root.transform, false);
 		int side = Random.value < 0.5f ? -1 : 1;
-		body.transform.localPosition = new Vector3(side * StraddleStartX, 0f, 0f);
+		body.transform.localPosition = rise ? new Vector3(0f, -5f, 0f) : new Vector3(side * StraddleStartX, 0f, 0f);
 		// Stretched sideways so its feet land in the outer lanes.
 		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(LaneWidth * 3f + 0.4f, 4.2f, 3f), false);
 		troll.transform.SetParent(body.transform, false);
@@ -1564,6 +1632,8 @@ internal sealed class SurfGame : MonoBehaviour
 			Side = side,
 			Anim = anim,
 			Attack = slam,
+			Info = info,
+			Rise = rise,
 		});
 		foreach ((int lane, Kind kind, string text) in new[]
 		{
@@ -1586,7 +1656,7 @@ internal sealed class SurfGame : MonoBehaviour
 		bool real = swing && t.Moving == null;
 		if (!t.Triggered)
 		{
-			float trigger = !swing ? m_speed * 1.6f + 10f : real ? m_speed * 0.65f + 2f : m_speed * 0.5f + 2.5f;
+			float trigger = !swing ? m_speed * 1.6f + 10f : real ? m_speed * 0.45f + 1.5f : m_speed * 0.5f + 2.5f;
 			if (distance > trigger)
 			{
 				return;
@@ -1595,6 +1665,12 @@ internal sealed class SurfGame : MonoBehaviour
 			if (real && t.Anim != null && t.Attack != null)
 			{
 				TriggerAttack(t);
+			}
+			else if (t.Rise)
+			{
+				string wake = t.Info != null && t.Info.WakeSound.Length > 0 ? t.Info.WakeSound : t.Info?.AlertSound ?? "";
+				m_audio.Play(wake.Length > 0 ? wake : Sfx.TrollSlam);
+				m_shake = Mathf.Max(m_shake, 0.3f);
 			}
 			else
 			{
@@ -1619,6 +1695,12 @@ internal sealed class SurfGame : MonoBehaviour
 				t.Collidable = true;
 			}
 		}
+		else if (t.Moving != null && t.Rise)
+		{
+			// Bursting up out of the ground, overshooting a little.
+			float p = t.Progress;
+			t.Moving.localPosition = new Vector3(0f, Mathf.Lerp(-5f, 0f, p) + 0.6f * Mathf.Sin(p * Mathf.PI), 0f);
+		}
 		else if (t.Moving != null)
 		{
 			// A leap from beside the track onto it.
@@ -1630,41 +1712,54 @@ internal sealed class SurfGame : MonoBehaviour
 			m_audio.Play(Sfx.TrollSlam);
 			if (!swing && t.Anim != null && t.Attack != null)
 			{
-				TriggerAttack(t, false);
+				TriggerAttack(t, t.Rise);
 			}
 		}
 	}
 
 	// A lane monster (or flyer) with one of its own attacks: melee ones swing as you come close,
-	// ranged ones shoot down the track toward the lane you're in. Fast creatures charge at you,
-	// slow ones walk.
-	private void SpawnCreature(GameObject prefab, string label, int lane, float z, Kind kind, float baseY, Vector3 size, int biomeIndex)
+	// ranged ones shoot down the track toward the lane you're in. They idle until they notice
+	// you; then fast creatures charge, slow ones walk, big ones stomp in.
+	private void SpawnCreature(SpawnEntry entry, int lane, float z, Kind kind, float baseY, int biomeIndex)
 	{
+		GameObject prefab = entry.Prefab;
+		string label = entry.Label;
 		CreatureInfo info = CreatureInfo.Of(prefab);
 		CreatureAttack? attack = info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f)
 			? info.PickRanged()
 			: info.PickMelee();
-		// Real size; only creatures too big for the lane are shrunk.
-		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), size, true, 1f);
-		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + baseY, z);
+		bool swoop = kind == Kind.High && SpawnTables.Contains(Plugin.Swoopers.Value, prefab);
+		bool ambush = kind == Kind.Block && SpawnTables.Contains(Plugin.Ambushers.Value, prefab);
+
+		// Real size from the creature's collider; only the very biggest are shrunk.
+		float scale = info.Height > 0.3f ? Mathf.Min(1f, Plugin.MonsterHeight.Value / info.Height) : 1f;
+		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), Vector3.one * 1000f, true, scale);
+		float x = LaneX(lane);
+		float y = baseY;
+		int side = Random.value < 0.5f ? -1 : 1;
+		if (swoop)
+		{
+			// Waits off to the side and above, then dives across the lanes.
+			x = side * (TrackHalf + 7f);
+			y = 4.5f;
+		}
+		go.transform.localPosition = new Vector3(x, RoadY(z) + y, z);
 		Animator anim = go.GetComponentInChildren<Animator>();
 		if (attack != null)
 		{
 			Arm(go, info, attack, anim);
 		}
+		float height = info.Height > 0.3f ? info.Height * scale : (Pictures.MeshBounds(go, out Bounds body) ? body.size.y : 2f);
 		// Anything shorter than about three quarters of a jump can be jumped over.
-		float clear = 0f;
-		if (kind == Kind.Block && Pictures.MeshBounds(go, out Bounds body) && body.size.y < Plugin.JumpHeight.Value * 0.75f)
-		{
-			clear = body.size.y * 0.8f;
-		}
+		float clear = kind == Kind.Block && height < Plugin.JumpHeight.Value * 0.75f ? height * 0.85f : 0f;
 
 		bool ranged = attack != null && attack.Ranged;
+		bool stomper = !ranged && height > 3f;
 		float speed = 0f;
 		float pace = 0f;
-		if (!ranged && Random.value < (info.Fast ? 0.7f : 0.45f))
+		if (stomper || (!ranged && Random.value < (info.Fast ? 0.7f : 0.45f)))
 		{
-			pace = info.Fast ? info.RunSpeed : info.WalkSpeed;
+			pace = info.Fast ? info.RunSpeed : stomper ? Mathf.Max(info.RunSpeed, info.WalkSpeed) : info.WalkSpeed;
 			speed = pace * (info.Fast ? 0.6f : 0.8f);
 		}
 		else if (ranged && Random.value < 0.3f)
@@ -1680,6 +1775,19 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				SetParam(anim, "onGround", true);
 			}
+			if (ambush)
+			{
+				SetParam(anim, "sleeping", true);
+			}
+			if (Plugin.DebugLog.Value && m_loggedTriggers.Add(prefab))
+			{
+				List<string> triggers = new();
+				foreach (AnimatorControllerParameter p in anim.parameters)
+				{
+					triggers.Add($"{p.name}:{p.type}");
+				}
+				Plugin.Log.LogInfo($"{prefab.name} animator parameters: {string.Join(", ", triggers)}");
+			}
 		}
 		m_things.Add(new Thing
 		{
@@ -1687,7 +1795,7 @@ internal sealed class SurfGame : MonoBehaviour
 			Kind = kind,
 			Lane = lane,
 			Z = z,
-			BaseY = baseY,
+			BaseY = y,
 			HalfLength = kind == Kind.Block ? 0.9f : 0.8f,
 			MoveSpeed = speed,
 			Pace = speed > 0.1f ? pace : 0f,
@@ -1697,8 +1805,20 @@ internal sealed class SurfGame : MonoBehaviour
 			Info = info,
 			ClearHeight = clear,
 			Cooldown = Random.Range(0f, 0.8f),
+			Height = height,
+			Swoop = swoop,
+			Sleeping = ambush,
+			Stomper = stomper,
+			FreeX = swoop,
+			X = x,
+			TargetX = x,
+			Side = side,
+			// A swooper isn't in any lane until it dives.
+			Collidable = !swoop,
 		});
 	}
+
+	private readonly HashSet<GameObject> m_loggedTriggers = new();
 
 	// Puts the attack's weapon in the creature's hand, as VisEquipment.AttachItem does (the item's
 	// "attach" child on the hand joint), and sets the animator's weapon stance.
@@ -1754,13 +1874,48 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		if (!t.Alerted && t.Info != null && distance < m_speed * 2.5f + 12f)
+		if (t.Info == null)
 		{
-			// It noticed you: the same sound it makes in the game when it aggroes.
+			return;
+		}
+		// Sleepers (abominations) lie as a heap until you're close, then burst up.
+		float notice = t.Sleeping ? m_speed * 1.3f + 7f : t.Swoop ? m_speed * 1.3f + 6f : m_speed * 2.5f + 12f;
+		if (!t.Alerted && distance < notice)
+		{
 			t.Alerted = true;
-			if (t.Info.AlertSound.Length > 0)
+			string sound = t.Sleeping && t.Info.WakeSound.Length > 0 ? t.Info.WakeSound : t.Info.AlertSound;
+			if (sound.Length > 0)
 			{
-				m_audio.Play(t.Info.AlertSound, Mathf.Clamp01(1.1f - distance / 50f));
+				m_audio.Play(sound, Mathf.Clamp01(1.1f - distance / 50f));
+			}
+			if (t.Sleeping)
+			{
+				t.Sleeping = false;
+				if (t.Anim != null)
+				{
+					SetParam(t.Anim, "sleeping", false);
+				}
+				t.Cooldown = Mathf.Max(t.Cooldown, 0.6f);
+			}
+			else if (t.Swoop)
+			{
+				// Dive across toward the lane you're in now.
+				t.TargetX = LaneX(m_lane) + t.Side * -LaneWidth * 0.6f;
+				t.XSpeed = Mathf.Abs(t.TargetX - t.X) / 1.0f;
+				t.MoveSpeed = Mathf.Max(t.MoveSpeed, 3f);
+				t.Collidable = true;
+			}
+			else if (t.MoveSpeed <= 0f && t.Anim != null && Random.value < 0.6f)
+			{
+				// Creatures that wait for you may taunt first.
+				foreach (AnimatorControllerParameter p in t.Anim.parameters)
+				{
+					if (p.type == AnimatorControllerParameterType.Trigger && p.name.ToLowerInvariant().Contains("taunt"))
+					{
+						t.Anim.SetTrigger(p.name);
+						break;
+					}
+				}
 			}
 			if (t.MoveSpeed > 0f)
 			{
@@ -1771,41 +1926,103 @@ internal sealed class SurfGame : MonoBehaviour
 				}
 			}
 		}
-		if (t.Speed > 0f && t.Info != null && t.Info.StepSound.Length > 0 && distance < 35f)
+		if (t.Swoop && t.Alerted)
+		{
+			// Glide down to head height while crossing.
+			t.BaseY = Mathf.MoveTowards(t.BaseY, 1.35f, 3.5f * dt);
+		}
+		if (t.Speed > 0f && t.Info.StepSound.Length > 0 && distance < 35f && !t.Swoop)
 		{
 			t.StepTimer -= dt;
 			if (t.StepTimer <= 0f)
 			{
-				t.StepTimer = Mathf.Clamp(2.4f / Mathf.Max(1f, t.Pace), 0.18f, 0.6f);
-				m_audio.Play(t.Info.StepSound, Mathf.Clamp01(0.8f - distance / 45f));
+				t.StepTimer = Mathf.Clamp(2.4f / Mathf.Max(1f, t.Pace), 0.18f, 0.6f) * (t.Stomper ? 1.4f : 1f);
+				m_audio.Play(t.Info.StepSound, Mathf.Clamp01((t.Stomper ? 1.1f : 0.8f) - distance / 45f));
+				if (t.Stomper)
+				{
+					m_shake = Mathf.Max(m_shake, Mathf.Clamp01(1f - distance / 30f) * 0.25f);
+				}
 			}
 		}
-		if (t.Attack == null)
+		if (t.Attack == null || !t.Alerted)
 		{
 			return;
 		}
 		t.Cooldown -= dt;
-		if (t.Attack.Ranged)
+		if (t.FireIn >= 0f)
 		{
-			if (t.FireIn >= 0f)
+			t.FireIn -= dt;
+			if (t.FireIn < 0f)
 			{
-				t.FireIn -= dt;
-				if (t.FireIn < 0f)
+				if (t.Attack.Ranged)
 				{
 					FireShot(t);
 				}
+				else
+				{
+					AttackLands(t);
+				}
 			}
-			else if (t.Cooldown <= 0f && distance < m_speed * 2.2f + 14f && distance > m_speed * 0.8f + 5f)
+		}
+		else if (t.Attack.Ranged)
+		{
+			if (t.Cooldown <= 0f && distance < m_speed * 2.2f + 14f && distance > m_speed * 0.8f + 5f)
 			{
 				TriggerAttack(t);
 				t.FireIn = 0.35f;
 				t.Cooldown = 2.4f;
 			}
 		}
-		else if (!t.Attacked && distance < (m_speed + t.Speed) * 0.45f + 1.5f)
+		else if (!t.Attacked && t.Cooldown <= 0f)
 		{
-			t.Attacked = true;
-			TriggerAttack(t);
+			// Big, slow creatures wind up earlier so the blow lands as you arrive.
+			float windup = Mathf.Clamp(0.2f + 0.12f * t.Height, 0.3f, 0.8f);
+			if (distance < (m_speed + t.Speed) * windup + 1.5f)
+			{
+				t.Attacked = true;
+				TriggerAttack(t);
+				t.FireIn = windup * 0.7f;
+			}
+		}
+	}
+
+	// When a melee or area attack strikes: show its effects (a blob's gas, dust), and leave an
+	// area attack's cloud hanging in the lane for a moment.
+	private void AttackLands(Thing t)
+	{
+		CreatureAttack? attack = t.Attack;
+		if (attack == null || t.Go == null)
+		{
+			return;
+		}
+		Vector3 at = t.Go.transform.localPosition + new Vector3(0f, 0.5f, -1f);
+		foreach (GameObject fx in attack.Effects)
+		{
+			GameObject go = Instantiate(Picture(fx), m_stage, false);
+			go.transform.localPosition = at;
+			go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+			foreach (ParticleSystem ps in go.GetComponentsInChildren<ParticleSystem>(true))
+			{
+				ps.Play(true);
+			}
+			Destroy(go, 4f);
+		}
+		if (attack.Area)
+		{
+			GameObject cloud = new GameObject("AttackCloud");
+			cloud.transform.SetParent(m_stage, false);
+			cloud.transform.localPosition = at;
+			m_things.Add(new Thing
+			{
+				Go = cloud,
+				Kind = Kind.Block,
+				Lane = t.Lane,
+				Z = t.Z - 1.5f,
+				HalfLength = 1.6f,
+				Label = t.Label,
+				CrashText = $"You ran into a {t.Label}'s attack in the {m_biomes[BiomeAt(m_z)].Def.Name}!",
+				Life = 2.5f,
+			});
 		}
 	}
 
@@ -2007,18 +2224,40 @@ internal sealed class SurfGame : MonoBehaviour
 			smooth.z = target.z;
 			m_camPos = smooth;
 		}
-		m_camera.transform.position = m_camPos;
+		m_shake = Mathf.MoveTowards(m_shake, 0f, dt * 0.8f);
+		m_camera.transform.position = m_camPos + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake : Vector3.zero);
 		m_camera.transform.rotation = Quaternion.LookRotation(look - m_camPos);
 
-		Color sky = m_biomes.Count > 0 ? m_biomes[BiomeAt(m_z + 30f)].Sky : s_sky[0];
-		m_camera.backgroundColor = Color.Lerp(m_camera.backgroundColor, sky, 1f - Mathf.Exp(-2f * dt));
-		float fog = (m_biomes.Count > 0 ? m_biomes[BiomeAt(m_z + 30f)].Fog : 0.011f) * Plugin.FogStrength.Value;
-		m_fogNow = Mathf.Lerp(m_fogNow, fog, 1f - Mathf.Exp(-2f * dt));
+		if (m_biomes.Count == 0)
+		{
+			return;
+		}
+		BiomeRuntime b = m_biomes[BiomeAt(m_z + 30f)];
+		float k = dt <= 0f ? 0f : 1f - Mathf.Exp(-2f * dt);
+		if (!m_envPlaced)
+		{
+			k = 1f;
+			m_envPlaced = true;
+		}
+		m_camera.backgroundColor = Color.Lerp(m_camera.backgroundColor, b.Sky, k);
+		m_fogNow = Mathf.Lerp(m_fogNow, b.Fog * Plugin.FogStrength.Value, k);
+		m_fogColorNow = Color.Lerp(m_fogColorNow, b.FogColor, k);
+		m_ambientNow = Color.Lerp(m_ambientNow, b.Ambient, k);
+		m_light.color = Color.Lerp(m_light.color, b.SunColor, k);
+		m_light.intensity = Mathf.Lerp(m_light.intensity, b.SunIntensity, k);
 	}
 
 	public Color SkyColor => m_camera != null ? m_camera.backgroundColor : s_sky[0];
 
 	private float m_fogNow = 0.011f;
+	private Color m_fogColorNow = Color.gray;
+	private Color m_ambientNow = Color.gray;
+	private bool m_envPlaced;
+	private float m_shake;
+
+	public Color FogColor => m_fogColorNow;
+
+	public Color AmbientColor => m_ambientNow;
 
 	public float FogDensity => m_fogNow;
 
@@ -2098,6 +2337,21 @@ internal sealed class SurfCameraFog : MonoBehaviour
 	private UnityEngine.Rendering.AmbientMode m_ambientMode;
 	private Color m_ambient;
 
+	private Light? m_worldSun;
+	private bool m_worldSunOn;
+
+	// The world's sun would also light the minigame (and at night not at all); switch it off
+	// while our camera draws.
+	private void OnPreCull()
+	{
+		m_worldSun = EnvMan.instance != null ? EnvMan.instance.m_dirLight : null;
+		if (m_worldSun != null)
+		{
+			m_worldSunOn = m_worldSun.enabled;
+			m_worldSun.enabled = false;
+		}
+	}
+
 	private void OnPreRender()
 	{
 		m_fog = RenderSettings.fog;
@@ -2110,16 +2364,27 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		m_ambient = RenderSettings.ambientLight;
 
 		Color sky = Game != null ? Game.SkyColor : Color.gray;
-		RenderSettings.fog = true;
-		RenderSettings.fogColor = sky;
-		RenderSettings.fogMode = FogMode.ExponentialSquared;
-		RenderSettings.fogDensity = Game != null ? Game.FogDensity : 0.012f;
+		float density = Game != null ? Game.FogDensity : 0.012f;
+		RenderSettings.fog = density > 0f;
+		RenderSettings.fogColor = Game != null ? Game.FogColor : sky;
+		// Keep the world's fog mode: the game's shaders are built for it, and a mode it never
+		// uses (1.2 set exponential-squared) can have no shader variant, so there was no fog.
+		if (RenderSettings.fogMode == FogMode.Linear)
+		{
+			RenderSettings.fogStartDistance = 0f;
+			RenderSettings.fogEndDistance = 2.5f / Mathf.Max(0.001f, density);
+		}
+		RenderSettings.fogDensity = density;
 		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-		RenderSettings.ambientLight = sky * Plugin.AmbientLight.Value;
+		RenderSettings.ambientLight = Game != null ? Game.AmbientColor : sky * Plugin.AmbientLight.Value;
 	}
 
 	private void OnPostRender()
 	{
+		if (m_worldSun != null)
+		{
+			m_worldSun.enabled = m_worldSunOn;
+		}
 		RenderSettings.fog = m_fog;
 		RenderSettings.fogColor = m_fogColor;
 		RenderSettings.fogMode = m_fogMode;
