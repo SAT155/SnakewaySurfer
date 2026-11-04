@@ -1,0 +1,122 @@
+name: Decompile
+
+# Dev aid: prints the decompiled source of Valheim types named in TYPES to the job log (and
+# uploads it as the "decompiled" artifact),
+# so patches can be written against the current game code without a local install.
+
+on:
+  workflow_dispatch:
+    inputs:
+      types:
+        description: Space-separated Valheim type names to decompile
+        default: Player Sadle
+      grep:
+        description: Optional regex; print only matching lines (with line numbers)
+        default: ""
+      after:
+        description: With grep, also print this many lines after each match
+        default: "0"
+      assets:
+        description: Optional regex; list unique strings in the game's asset files that match (for prefab and item names)
+        default: ""
+
+env:
+  TYPES: ${{ inputs.types }}
+  GREP: ${{ inputs.grep }}
+  AFTER: ${{ inputs.after }}
+  ASSETS: ${{ inputs.assets }}
+  # ilspycmd targets .NET 6, which the runner image no longer ships.
+  DOTNET_ROLL_FORWARD: Major
+
+permissions:
+  contents: read
+
+jobs:
+  decompile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download Valheim dedicated server (for game assemblies)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lib32gcc-s1
+          mkdir -p "$RUNNER_TEMP/steamcmd"
+          curl --fail --location --retry 3 \
+            https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
+            -o "$RUNNER_TEMP/steamcmd.tar.gz"
+          tar -xzf "$RUNNER_TEMP/steamcmd.tar.gz" -C "$RUNNER_TEMP/steamcmd"
+          for attempt in 1 2 3; do
+            # steamcmd occasionally hangs instead of failing, so each attempt is capped.
+            if timeout 300 "$RUNNER_TEMP/steamcmd/steamcmd.sh" \
+              +force_install_dir "$RUNNER_TEMP/valheim" \
+              +login anonymous +app_update 896660 validate +quit \
+              && test -f "$RUNNER_TEMP/valheim/valheim_server_Data/Managed/assembly_valheim.dll"; then
+              break
+            fi
+            [ "$attempt" = 3 ] && exit 1
+            sleep 5
+          done
+
+      - name: Decompile
+        run: |
+          set -o pipefail
+          dotnet tool install -g ilspycmd --version 8.2.0.7535
+          MANAGED="$RUNNER_TEMP/valheim/valheim_server_Data/Managed"
+          mkdir -p decompiled
+          for t in $TYPES; do
+            ilspycmd -r "$MANAGED" -t "$t" "$MANAGED/assembly_valheim.dll" > "decompiled/$t.cs" || true
+            echo "=================== $t ==================="
+            if [ -n "$GREP" ]; then
+              ilspycmd -r "$MANAGED" -t "$t" "$MANAGED/assembly_valheim.dll" | cat -n | grep -E -A "${AFTER:-0}" "$GREP" || true
+            else
+              ilspycmd -r "$MANAGED" -t "$t" "$MANAGED/assembly_valheim.dll" | cat -n
+            fi
+          done
+
+      - name: Search asset names
+        if: ${{ inputs.assets != '' }}
+        run: |
+          pip install --quiet "UnityPy>=1.10,<2"
+          python3 - "$RUNNER_TEMP/valheim/valheim_server_Data" <<'PY'
+          import os, re, sys, UnityPy
+          pattern = re.compile(os.environ["ASSETS"])
+          names, texts = set(), []
+          for root, _, files in os.walk(sys.argv[1]):
+              for f in files:
+                  path = os.path.join(root, f)
+                  if "Managed" in path or "MonoBleedingEdge" in path or f.endswith((".so", ".json", ".dll")):
+                      continue
+                  try:
+                      env = UnityPy.load(path)
+                  except Exception:
+                      continue
+                  for obj in env.objects:
+                      try:
+                          if obj.type.name == "GameObject":
+                              name = obj.read().m_Name
+                              if pattern.search(name):
+                                  names.add(name)
+                          elif obj.type.name == "TextAsset":
+                              data = obj.read()
+                              text = data.m_Script if isinstance(data.m_Script, str) else bytes(data.m_Script).decode("utf-8", "ignore")
+                              for line in text.splitlines():
+                                  if pattern.search(line):
+                                      # Localization rows: just the key and the English text.
+                                      texts.append(",".join(line.split('","')[:2])[:200])
+                      except Exception:
+                          pass
+          print("=================== matching GameObjects ===================")
+          print("\n".join(sorted(names)))
+          print("=================== matching text lines ===================")
+          print("\n".join(sorted(set(texts))[:1500]))
+          PY
+
+      # Full sources too, for types too long to read back from the job log.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: decompiled
+          path: decompiled/

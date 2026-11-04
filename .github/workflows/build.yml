@@ -1,0 +1,160 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+env:
+  # Bump this when you want a newer BepInEx to build/publicize against.
+  # Check for the current version at:
+  # https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/
+  BEPINEX_VERSION: 5.4.2350
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        mod: [SnakewaySurfer]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install SteamCMD
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lib32gcc-s1
+          mkdir -p "$RUNNER_TEMP/steamcmd"
+          curl --fail --location --retry 3 \
+            https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
+            -o "$RUNNER_TEMP/steamcmd.tar.gz"
+          tar -xzf "$RUNNER_TEMP/steamcmd.tar.gz" -C "$RUNNER_TEMP/steamcmd"
+
+      - name: Download Valheim dedicated server (for game assemblies)
+        run: |
+          # Valheim Dedicated Server (app 896660) is free and downloads anonymously.
+          # It ships the same managed assemblies needed to compile a client+server mod.
+          for attempt in 1 2 3; do
+            # steamcmd occasionally hangs instead of failing, so each attempt is capped.
+            if timeout 300 "$RUNNER_TEMP/steamcmd/steamcmd.sh" \
+              +force_install_dir "$RUNNER_TEMP/valheim" \
+              +login anonymous +app_update 896660 validate +quit \
+              && test -f "$RUNNER_TEMP/valheim/valheim_server_Data/Managed/assembly_valheim.dll"; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::SteamCMD could not download Valheim app 896660 after three attempts."
+              exit 1
+            fi
+            echo "SteamCMD download attempt $attempt failed; retrying in 5s."
+            sleep 5
+          done
+          echo "MANAGED_DIR=$RUNNER_TEMP/valheim/valheim_server_Data/Managed" >> "$GITHUB_ENV"
+
+      - name: Download BepInEx pack
+        run: |
+          curl --fail --location --retry 3 \
+            "https://thunderstore.io/package/download/denikson/BepInExPack_Valheim/${BEPINEX_VERSION}/" \
+            -o "$RUNNER_TEMP/bepinex.zip"
+          unzip -q "$RUNNER_TEMP/bepinex.zip" -d "$RUNNER_TEMP/bepinex"
+          echo "BEPINEX_DIR=$RUNNER_TEMP/bepinex/BepInExPack_Valheim/BepInEx" >> "$GITHUB_ENV"
+
+      - name: Build ${{ matrix.mod }}.dll
+        run: |
+          # Errors are re-emitted as annotations so they're readable from the run's
+          # summary/API without downloading the full log.
+          set -o pipefail
+          dotnet build ${{ matrix.mod }}/${{ matrix.mod }}.csproj -c Release \
+            -p:ManagedDir="$MANAGED_DIR" -p:BepInExDir="$BEPINEX_DIR" 2>&1 | tee build.log \
+            || { grep -E ": error |error [A-Z]+[0-9]+" build.log | sort -u | head -20 | sed 's/^/::error::/'; exit 1; }
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.mod }}
+          path: ${{ matrix.mod }}/bin/Release/${{ matrix.mod }}.dll
+          if-no-files-found: error
+
+  # Thunderstore-format package (thunderstore/SnakewaySurfer/): installs through the mod
+  # manager's "Import local mod". Built for our own use.
+  #
+  # Versions are automatic: MAJOR.MINOR come from the manifest's version_number and PATCH is this
+  # workflow's run number, so every build is numbered higher than the last and mod managers see
+  # each release as an update. Bump MAJOR.MINOR in the manifest for a bigger change.
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dlls
+      - name: Work out the version
+        id: version
+        run: |
+          base=$(python3 -c "import json;v=json.load(open('thunderstore/SnakewaySurfer/manifest.json'))['version_number'].split('.');print(v[0]+'.'+v[1])")
+          echo "version=$base.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+      - name: Build SnakewaySurfer package
+        env:
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 thunderstore/package.py SnakewaySurfer thunderstore-out \
+            dlls/SnakewaySurfer/SnakewaySurfer.dll
+      # GitHub wraps every artifact download in its own zip, so the package zip is inside it.
+      # Releases (below) attach the package zip directly.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SnakewaySurfer-thunderstore
+          path: thunderstore-out/*.zip
+          if-no-files-found: error
+
+  # Publishes a release by itself for every push to the default branch that changes the mod
+  # (SnakewaySurfer/ or thunderstore/), and for any manual run. Nothing to tag or bump by hand.
+  release:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    needs: [build, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether the mod changed
+        id: changed
+        run: |
+          before="${{ github.event.before }}"
+          if [ "${{ github.event_name }}" != "push" ] || [ -z "$before" ] \
+            || ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$before" "${{ github.sha }}" | grep -qE '^(SnakewaySurfer|thunderstore)/'; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Only docs/CI changed; no release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.changed.outputs.release == 'true'
+        with:
+          path: artifacts
+      - name: Create GitHub release
+        if: steps.changed.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ needs.package.outputs.version }}" artifacts/SnakewaySurfer/SnakewaySurfer.dll \
+            artifacts/SnakewaySurfer-thunderstore/*.zip \
+            --target "${{ github.sha }}" --repo "${{ github.repository }}" --generate-notes

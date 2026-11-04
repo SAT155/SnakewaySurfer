@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net48</TargetFramework>
+        <AssemblyName>SnakewaySurfer</AssemblyName>
+        <RootNamespace>SnakewaySurfer</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <WarningLevel>4</WarningLevel>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DebugType>full</DebugType>
+        <Optimize>false</Optimize>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>pdbonly</DebugType>
+        <Optimize>true</Optimize>
+    </PropertyGroup>
+    <!--
+      Local development (Windows with Steam + Valheim installed) auto-detects the game
+      install. CI instead passes -p:ManagedDir=... -p:BepInExDir=... directly, pointed at a
+      headless dedicated-server download and an unpacked BepInExPack, so no GamePath/Steam
+      install is required to build. See .github/workflows/build.yml.
+    -->
+    <Choose>
+        <When Condition="($(OS) == 'Unix' OR $(OS) == 'OSX') AND '$(GamePath)' == ''">
+            <PropertyGroup>
+                <GamePath Condition="!Exists('$(GamePath)')">$(HOME)/.steam/steam/steamapps/common/Valheim</GamePath>
+                <GamePath Condition="!Exists('$(GamePath)')">$(HOME)/Library/Application Support/Steam/steamapps/common/Valheim/Contents/MacOS</GamePath>
+            </PropertyGroup>
+        </When>
+        <When Condition="($(OS) == 'Windows_NT') AND '$(GamePath)' == ''">
+            <PropertyGroup>
+                <GamePath Condition="!Exists('$(GamePath)')">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 892970', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</GamePath>
+                <_SteamLibraryPath>$([MSBuild]::GetRegistryValueFromView('HKEY_CURRENT_USER\SOFTWARE\Valve\Steam', 'SteamPath', null, RegistryView.Registry32))</_SteamLibraryPath>
+                <GamePath Condition="!Exists('$(GamePath)') AND '$(_SteamLibraryPath)' != ''">$(_SteamLibraryPath)\steamapps\common\Valheim</GamePath>
+                <GamePath Condition="!Exists('$(GamePath)')">C:\Program Files\Steam\steamapps\common\Valheim</GamePath>
+                <GamePath Condition="!Exists('$(GamePath)')">C:\Program Files (x86)\Steam\steamapps\common\Valheim</GamePath>
+            </PropertyGroup>
+        </When>
+    </Choose>
+    <PropertyGroup>
+        <ManagedDir Condition="'$(ManagedDir)' == ''">$(GamePath)/valheim_Data/Managed</ManagedDir>
+        <BepInExDir Condition="'$(BepInExDir)' == ''">$(GamePath)/BepInEx</BepInExDir>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    </ItemGroup>
+    <ItemGroup>
+        <Reference Include="0Harmony">
+            <HintPath>$(BepInExDir)/core/0Harmony.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="BepInEx">
+            <HintPath>$(BepInExDir)/core/BepInEx.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="assembly_valheim">
+            <HintPath>$(ManagedDir)/assembly_valheim.dll</HintPath>
+            <Publicize>true</Publicize>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="assembly_utils">
+            <HintPath>$(ManagedDir)/assembly_utils.dll</HintPath>
+            <Publicize>true</Publicize>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="assembly_guiutils">
+            <HintPath>$(ManagedDir)/assembly_guiutils.dll</HintPath>
+            <Publicize>true</Publicize>
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="$(ManagedDir)/UnityEngine*.dll">
+            <Private>false</Private>
+        </Reference>
+        <Reference Include="$(ManagedDir)/Unity.TextMeshPro.dll">
+            <Private>false</Private>
+        </Reference>
+    </ItemGroup>
+    <Target Name="CheckGameReferences" BeforeTargets="ResolveReferences">
+        <Error Condition="!Exists('$(ManagedDir)/assembly_valheim.dll')" Text="Valheim game assemblies not found. Set GamePath to your Valheim install (Steam auto-detected), or pass ManagedDir directly."/>
+        <Error Condition="!Exists('$(BepInExDir)/core/BepInEx.dll')" Text="BepInEx assemblies not found. Install BepInEx into GamePath, or pass BepInExDir directly."/>
+    </Target>
+    <!-- Local Windows dev convenience only: drop the built plugin straight into a Steam install. No-op in CI. -->
+    <Target Name="Copy" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' AND Exists('$(GamePath)')">
+        <Exec Command="copy /Y &quot;$(TargetDir)$(AssemblyName).dll&quot; &quot;$(GamePath)\BepInEx\plugins\$(AssemblyName).dll&quot;"/>
+    </Target>
+</Project>
