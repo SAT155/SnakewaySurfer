@@ -908,6 +908,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			m_coinTemplate = Picture(coins);
 		}
+		FindTerrainSources();
 	}
 
 	private static string MonsterLabel(GameObject prefab)
@@ -1158,6 +1159,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void LateUpdate()
 	{
+		DrawGrass();
 		// The game may switch its HUD back on (Hud.Update); keep it hidden while we're up.
 		if (m_hudRoot != null && m_hudRoot.activeSelf)
 		{
@@ -1540,9 +1542,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			GameObject land = new GameObject("Land");
 			land.layer = m_layer;
 			land.transform.SetParent(root.transform, false);
-			land.AddComponent<MeshFilter>().sharedMesh = HillMesh(centerZ, side);
+			land.AddComponent<MeshFilter>().sharedMesh = HillMesh(centerZ, side, out LandGrid grid);
 			MeshRenderer r = land.AddComponent<MeshRenderer>();
 			r.sharedMaterial = m_terrainLand ?? b.Ground;
+			ApplyLandMask(land, r, grid);
+			SpawnGrass(root, grid);
 			r.receiveShadows = true;
 		}
 		m_things.Add(new Thing { Go = root, Kind = Kind.Ground, Z = centerZ, HalfLength = GroundTile * 0.5f });
@@ -1590,25 +1594,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		return amplitude * n;
 	}
 
-	// Ground height beside the track: flat at the edge, rolling hills further out. In the Swamp
-	// the land sinks under the water near the track and rises in islands further out.
-	private float HillHeight(float x, float z)
-	{
-		float road = RoadY(z);
-		float water = WaterWeight(z);
-		float out_ = Mathf.Abs(x) - TrackHalf;
-		if (out_ <= 0f)
-		{
-			return road - 0.05f - 0.6f * water;
-		}
-		float ramp = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((out_ - 2.5f) / 22f));
-		float n = Mathf.PerlinNoise((x + 500f) * 0.035f, z * 0.035f) * 0.75f + Mathf.PerlinNoise(x * 0.11f + 91f, z * 0.11f) * 0.25f;
-		float amp = HillAmplitude(z);
-		float dry = -0.05f + ramp * amp * (0.25f + n);
-		float wet = -0.65f + Mathf.Lerp(0.3f, 1f, ramp) * amp * (n * 1.6f - 0.45f);
-		// A boss arena's walls rise beyond.
-		return road + Mathf.Lerp(dry, wet, water) + ArenaWalls(z, out_) * (0.8f + 0.4f * n);
-	}
+	// Ground height beside the track (SurfTerrain.cs): this world's real ground for the biome, or
+	// the minigame's own rolling hills where no spot was found.
+	private float HillHeight(float x, float z) => LandAt(x, z, out _, out _);
 
 	// A flat strip that follows the road: the track itself, or the swamp water's surface.
 	// The game's terrain shader picks each biome's ground textures from the vertex colour
@@ -1672,10 +1660,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private const float LandWidth = 90f;
 	private const float LandStep = 3f;
 
-	private Mesh HillMesh(float centerZ, int side)
+	private Mesh HillMesh(float centerZ, int side, out LandGrid grid)
 	{
 		int nx = Mathf.CeilToInt(LandWidth / LandStep) + 1;
 		int nz = Mathf.CeilToInt(GroundTile / LandStep) + 1;
+		grid = new LandGrid { Nx = nx, Nz = nz, Side = side, CenterZ = centerZ, Y = new float[nx * nz], H = new float[nx * nz], Veg = new float[nx * nz] };
+		bool maskUv = m_terrainLand != null && System.Array.Exists(m_sources, src => src != null);
 		Vector3[] verts = new Vector3[nx * nz];
 		Vector2[] uvs = new Vector2[verts.Length];
 		for (int iz = 0; iz < nz; iz++)
@@ -1683,9 +1673,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 			float lz = -GroundTile * 0.5f + GroundTile * iz / (nz - 1);
 			for (int ix = 0; ix < nx; ix++)
 			{
-				float x = side * (TrackHalf - 0.2f + ix * LandStep);
-				verts[iz * nx + ix] = new Vector3(x, HillHeight(x, centerZ + lz), lz);
-				uvs[iz * nx + ix] = new Vector2(x / 10f, (centerZ + lz) / 10f);
+				int i = iz * nx + ix;
+				float x = GridX(side, ix);
+				float y = LandAt(x, centerZ + lz, out float h, out float veg);
+				grid.Y[i] = y;
+				grid.H[i] = h;
+				grid.Veg[i] = veg;
+				verts[i] = new Vector3(x, y, lz);
+				// With the real paint mask, uv0 addresses its texels, as on a Heightmap.
+				uvs[i] = maskUv ? new Vector2((ix + 0.5f) / nx, (iz + 0.5f) / nz) : new Vector2(x / 10f, (centerZ + lz) / 10f);
 			}
 		}
 		int[] tris = new int[(nx - 1) * (nz - 1) * 6];

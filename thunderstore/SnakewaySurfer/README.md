@@ -88,6 +88,13 @@ and for players without the mod.
 
 ## Changes
 
+- **1.11**: the land beside the track is your world's real ground. Each biome borrows a ring of
+  terrain from a spot in your world where that biome is, using the game's own height formulas:
+  Meadows hills, Black Forest slopes, Swamp islands at the water line, mountain slopes, Plains
+  flats, Mistlands cliffs. The game's paint mask gives the ground textures (the Mistlands rock),
+  and the shores sit at the real sea level. The game's own grass and ground clutter grow by its
+  rules and your grass quality. New settings: Game Terrain Shape and Game Grass. The track is
+  still a hoe path (Track Style: dirt or paved).
 - **1.10**: boss landmarks (the boss's location on the horizon, a flatter path between rising
   walls, torches; Boss Landmarks config); the boss rush after the 3-star lap; Golden Surfer
   Shoes for beating all six in a row.

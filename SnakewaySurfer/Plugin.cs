@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.10.0";
+	public const string PluginVersion = "1.11.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -56,6 +56,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> GameLighting = null!;
 	internal static ConfigEntry<bool> UseGameCamera = null!;
 	internal static ConfigEntry<bool> GameTerrain = null!;
+	internal static ConfigEntry<bool> GameTerrainShape = null!;
+	internal static ConfigEntry<bool> GameGrass = null!;
 	internal static ConfigEntry<string> TrackStyle = null!;
 	internal static ConfigEntry<float> GameLightScale = null!;
 	internal static ConfigEntry<KeyCode> PauseKey = null!;
@@ -254,6 +256,10 @@ public class Plugin : BaseUnityPlugin
 			"Testing: run through everything instead of crashing (a banner says what would have got you).");
 		GameTerrain = Config.Bind("3 - Look", "Game Terrain", true,
 			"Use the game's own terrain material for the land beside the track (real biome ground textures). Off: a generated texture tinted per biome.");
+		GameTerrainShape = Config.Bind("3 - Look", "Game Terrain Shape", true,
+			"Shape the land beside the track like this world's real ground: each biome borrows a ring of terrain from a spot in your world where that biome is (the game's own height formulas, with its rivers, Mistlands cliffs and mountain slopes), plus the game's paint mask for the ground textures. Off: the minigame's own rolling hills.");
+		GameGrass = Config.Bind("3 - Look", "Game Grass", true,
+			"Grow the game's own grass and ground clutter beside the track, by the game's rules for each biome (and its grass quality setting).");
 		TrackStyle = Config.Bind("3 - Look", "Track Style", "dirt",
 			"With Game Terrain: \"dirt\" (a dirt path like a hoed one), \"paved\" (like the hoe's paved road) or \"stone\" (the Track Piece's stone floor).");
 		UseGameCamera = Config.Bind("3 - Look", "Use Game Camera", true,
