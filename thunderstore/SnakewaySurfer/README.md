@@ -71,7 +71,7 @@ and for players without the mod.
   when they notice you. They stand idle until then, then charge or walk at you
   with their own footstep sounds. 1.4.10: the land uses the game's own terrain textures
   when found; chat can't steal the keys any more; Invincible and Game Speed test settings
-  (off by default). 1.4.11: short creatures (necks, blobs, ticks...) can be jumped over.
+  (off by default). 1.4.11: short creatures (necks, blobs, ticks...) can be jumped over. 1.4.12: track no longer black.
 - **1.3**: rolling hills beside the track (tallest in the Mountains); rocks and trees never
   reach over the track; the legs troll leaps in from beside the track instead of hanging in
   the air; darker track; coin sound (with fallbacks) on its own channel apart from footsteps.

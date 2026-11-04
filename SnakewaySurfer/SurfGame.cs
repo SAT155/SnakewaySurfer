@@ -1195,8 +1195,9 @@ internal sealed class SurfGame : MonoBehaviour
 				uvs[iz * nx + ix] = trackUv ? new Vector2((x / halfWidth + 1f), (centerZ + lz) / 4f) : new Vector2(x / 10f, (centerZ + lz) / 10f);
 			}
 		}
-		// Both faces, so it shows however it's looked at (the track went see-through in 1.4.6).
-		int[] tris = new int[(nx - 1) * (nz - 1) * 12];
+		// One face only: back faces sharing these vertices cancel out the normals (black track
+		// in 1.4.10/11).
+		int[] tris = new int[(nx - 1) * (nz - 1) * 6];
 		int k = 0;
 		for (int iz = 0; iz < nz - 1; iz++)
 		{
@@ -1208,8 +1209,6 @@ internal sealed class SurfGame : MonoBehaviour
 				int d = c + 1;
 				tris[k++] = a; tris[k++] = c; tris[k++] = d;
 				tris[k++] = a; tris[k++] = d; tris[k++] = b;
-				tris[k++] = a; tris[k++] = d; tris[k++] = c;
-				tris[k++] = a; tris[k++] = b; tris[k++] = d;
 			}
 		}
 		Mesh mesh = new Mesh { name = "SurfStrip" };
