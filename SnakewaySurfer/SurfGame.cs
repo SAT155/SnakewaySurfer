@@ -71,7 +71,7 @@ internal sealed class SurfGame : MonoBehaviour
 	private const float LaneWidth = 2.6f;
 	private const float Gravity = 32f;
 	private const float GroundTile = 40f;
-	private const float SpawnAhead = 150f;
+	private const float AheadDistance = 150f;
 
 	private Player m_player = null!;
 	private int m_layer;
@@ -745,7 +745,7 @@ internal sealed class SurfGame : MonoBehaviour
 
 	private void SpawnAhead()
 	{
-		float horizon = m_z + SpawnAhead;
+		float horizon = m_z + AheadDistance;
 		while (m_nextGroundZ < horizon + GroundTile)
 		{
 			SpawnGround(m_nextGroundZ + GroundTile * 0.5f);
