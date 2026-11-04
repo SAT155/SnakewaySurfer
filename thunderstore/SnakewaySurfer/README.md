@@ -76,7 +76,11 @@ and for players without the mod.
   over many biomes (mod and late-game anywhere spawns) and strays from a creature's home biome
   are left out; how common each is follows its spawn cap more than its spawn rate. Location Monsters per biome adds
   creatures that live at places rather than in the spawn tables (troll caves, crypts, villages),
-  at modest weights.
+  at modest weights. Brutes (Smashers) send shockwaves down all three lanes that you jump; the
+  goblin brute's berserk smash sends three in a row. Creatures stand on their own feet and keep
+  their real proportions (the straddling giant is no longer stretched), and their legs move at
+  their real ground speed. `surfcompare` console command puts the minigame's version of the
+  creature you're looking at beside the real one and logs both.
 - **1.4**: creatures play their real attack animations with their own weapons (the classic
   stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
   monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water

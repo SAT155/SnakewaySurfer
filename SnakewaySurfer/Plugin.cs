@@ -61,6 +61,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<KeyCode> PauseKey = null!;
 	internal static ConfigEntry<string> Swoopers = null!;
 	internal static ConfigEntry<string> Ambushers = null!;
+	internal static ConfigEntry<string> Smashers = null!;
 	internal static ConfigEntry<float> GameSpeed = null!;
 	internal static ConfigEntry<bool> GameGroundTextures = null!;
 
@@ -255,6 +256,8 @@ public class Plugin : BaseUnityPlugin
 			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
 		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",
 			"Creatures that lie hidden and burst up as you get close (in the lanes, and as the Swamp's straddling giant).");
+		Smashers = Config.Bind("1 - Run", "Smashers", "greydwarfbrute:1, goblinbrute:3, seekerbrute:1, stonegolem:1",
+			"Brutes that smash the ground: each blow sends a shockwave down all three lanes (jump it). The number is how many blows in a row (the goblin brute's berserk smash hits three times).");
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
@@ -300,6 +303,10 @@ public class Plugin : BaseUnityPlugin
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{
 				Probe.Run(args.Context);
+			});
+			new Terminal.ConsoleCommand("surfcompare", "surfcompare - put the minigame's version of the creature you're looking at beside the real one and log both (size, pose, animation); again to remove it", args =>
+			{
+				Compare.Run(args.Context);
 			});
 		}
 	}

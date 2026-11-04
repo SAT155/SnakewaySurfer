@@ -73,6 +73,8 @@ internal sealed class SurfGame : MonoBehaviour
 		public bool Rise;
 		// > 0: removed after this many seconds.
 		public float Life;
+		// Ground smashes left in this brute's attack; each sends a shockwave down the lanes.
+		public int Smashes;
 		public bool Alerted;
 		// Speed and animation pace once it notices you (it idles until then).
 		public float MoveSpeed;
@@ -1169,8 +1171,8 @@ internal sealed class SurfGame : MonoBehaviour
 				case Kind.Low:
 					if (m_y < 0.75f)
 					{
-						m_audio.Play(Sfx.HitLog);
-						Hit(t, $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
+						m_audio.Play(t.CrashText.Length > 0 ? Sfx.HitMonster : Sfx.HitLog);
+						Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 						return;
 					}
 					break;
@@ -1533,6 +1535,23 @@ internal sealed class SurfGame : MonoBehaviour
 
 	// Puts a picture in a world-aligned wrapper and scales the wrapper to fit `size`
 	// (per axis, or uniformly within it), standing on y = 0 of the wrapper.
+	// Creatures stand on their root (a character's pivot is at its feet); the render bounds of an
+	// unanimated copy are the bind pose, which floats or sinks them.
+	private GameObject Creature(GameObject prefab, Quaternion rotation, float scale)
+	{
+		GameObject wrapper = new GameObject(prefab.name + "_Fit");
+		wrapper.layer = m_layer;
+		wrapper.transform.SetParent(m_stage, false);
+		GameObject go = Instantiate(Picture(prefab), wrapper.transform, false);
+		go.transform.localPosition = Vector3.zero;
+		go.transform.localRotation = rotation;
+		wrapper.transform.localScale = Vector3.one * scale;
+		return wrapper;
+	}
+
+	// Real size from the collider, only the very biggest shrunk to Monster Height.
+	private static float RealScale(CreatureInfo info) => info.Height > 0.3f ? Mathf.Min(1f, Plugin.MonsterHeight.Value / info.Height) : 1f;
+
 	private GameObject Fitted(GameObject template, Quaternion rotation, Vector3 size, bool uniform, float maxScale = float.MaxValue)
 	{
 		GameObject wrapper = new GameObject(template.name + "_Fit");
@@ -1684,7 +1703,7 @@ internal sealed class SurfGame : MonoBehaviour
 
 		float trollX = side * (LaneWidth * 1.5f + 2.4f);
 		// Facing the track and a little toward the runner.
-		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, side < 0 ? 120f : 240f, 0f), new Vector3(3.2f, 3.8f, 3.2f), true);
+		GameObject troll = Creature(prefab, Quaternion.Euler(0f, side < 0 ? 120f : 240f, 0f), RealScale(CreatureInfo.Of(prefab)));
 		troll.transform.SetParent(root.transform, false);
 		troll.transform.localPosition = new Vector3(trollX, 0f, 0f);
 		Animator anim = troll.GetComponentInChildren<Animator>();
@@ -1751,8 +1770,8 @@ internal sealed class SurfGame : MonoBehaviour
 		body.transform.SetParent(root.transform, false);
 		int side = Random.value < 0.5f ? -1 : 1;
 		body.transform.localPosition = rise ? new Vector3(0f, -5f, 0f) : new Vector3(side * StraddleStartX, 0f, 0f);
-		// Stretched sideways so its feet land in the outer lanes.
-		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(LaneWidth * 3f + 0.4f, 4.2f, 3f), false);
+		// Its real shape, sized so it spans the track (no longer stretched sideways).
+		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(LaneWidth * 3f + 0.4f, 1000f, 1000f), true);
 		troll.transform.SetParent(body.transform, false);
 		troll.transform.localPosition = Vector3.zero;
 		Animator anim = troll.GetComponentInChildren<Animator>();
@@ -1867,15 +1886,22 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject prefab = entry.Prefab;
 		string label = entry.Label;
 		CreatureInfo info = CreatureInfo.Of(prefab);
-		CreatureAttack? attack = info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f)
-			? info.PickRanged()
-			: info.PickMelee();
+		int smashes = kind == Kind.Block ? SmashCount(prefab) : 0;
+		CreatureAttack? attack = smashes > 0 && info.Melee.Count > 0
+			? PickSmash(info)
+			: info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f)
+				? info.PickRanged()
+				: info.PickMelee();
+		if (attack == null || attack.Ranged)
+		{
+			smashes = 0;
+		}
 		bool swoop = kind == Kind.High && SpawnTables.Contains(Plugin.Swoopers.Value, prefab);
 		bool ambush = kind == Kind.Block && SpawnTables.Contains(Plugin.Ambushers.Value, prefab);
 
 		// Real size from the creature's collider; only the very biggest are shrunk.
-		float scale = info.Height > 0.3f ? Mathf.Min(1f, Plugin.MonsterHeight.Value / info.Height) : 1f;
-		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), Vector3.one * 1000f, true, scale);
+		float scale = RealScale(info);
+		GameObject go = Creature(prefab, Quaternion.Euler(0f, 180f, 0f), scale);
 		float x = LaneX(lane);
 		float y = baseY;
 		int side = Random.value < 0.5f ? -1 : 1;
@@ -1951,6 +1977,7 @@ internal sealed class SurfGame : MonoBehaviour
 			Swoop = swoop,
 			Sleeping = ambush,
 			Stomper = stomper,
+			Smashes = smashes,
 			FreeX = swoop,
 			X = x,
 			TargetX = x,
@@ -2064,7 +2091,8 @@ internal sealed class SurfGame : MonoBehaviour
 				t.Speed = t.MoveSpeed;
 				if (t.Anim != null)
 				{
-					SetParam(t.Anim, "forward_speed", t.Pace);
+					// The game sets forward_speed to the real ground speed (m/s), so the legs match.
+					SetParam(t.Anim, "forward_speed", t.MoveSpeed);
 				}
 			}
 		}
@@ -2103,6 +2131,17 @@ internal sealed class SurfGame : MonoBehaviour
 				else
 				{
 					AttackLands(t);
+					if (t.Smashes > 0)
+					{
+						Shockwave(t);
+						t.Smashes--;
+						if (t.Smashes > 0)
+						{
+							// The next blow of a berserk smash.
+							TriggerAttack(t);
+							t.FireIn = 0.55f;
+						}
+					}
 				}
 			}
 		}
@@ -2119,12 +2158,103 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			// Big, slow creatures wind up earlier so the blow lands as you arrive.
 			float windup = Mathf.Clamp(0.2f + 0.12f * t.Height, 0.3f, 0.8f);
-			if (distance < (m_speed + t.Speed) * windup + 1.5f)
+			// A smasher strikes from further off so its shockwaves travel to you.
+			float reach = t.Smashes > 0 ? (m_speed + t.Speed) * (windup + 1.2f) + 6f : (m_speed + t.Speed) * windup + 1.5f;
+			if (distance < reach)
 			{
 				t.Attacked = true;
 				TriggerAttack(t);
 				t.FireIn = windup * 0.7f;
 			}
+		}
+	}
+
+	private static int SmashCount(GameObject prefab)
+	{
+		foreach (string item in Pictures.SplitList(Plugin.Smashers.Value))
+		{
+			string[] parts = item.Split(':');
+			GameObject? p = Pictures.Monster(parts[0].Trim());
+			if (p == prefab || string.Equals(parts[0].Trim(), prefab.name, System.StringComparison.OrdinalIgnoreCase))
+			{
+				return parts.Length > 1 && int.TryParse(parts[1].Trim(), out int n) ? Mathf.Clamp(n, 1, 6) : 1;
+			}
+		}
+		return 0;
+	}
+
+	// A brute's heaviest blow: its berserk or ground-slam attack if it has one.
+	private static CreatureAttack? PickSmash(CreatureInfo info)
+	{
+		foreach (string want in new[] { "rage", "berserk", "slam", "smash", "groundslam" })
+		{
+			foreach (CreatureAttack a in info.Melee)
+			{
+				if (a.Item.ToLowerInvariant().Contains(want) || a.Animation.ToLowerInvariant().Contains(want))
+				{
+					return a;
+				}
+			}
+		}
+		CreatureAttack? best = null;
+		foreach (CreatureAttack a in info.Melee)
+		{
+			if (best == null || a.Area)
+			{
+				best = a;
+			}
+		}
+		return best;
+	}
+
+	// A ripple of earth rolling down all three lanes from a smash; jump over it.
+	private void Shockwave(Thing t)
+	{
+		float z = t.Z - 1.5f;
+		if (z - m_z < 2f)
+		{
+			return;
+		}
+		m_shake = Mathf.Max(m_shake, Mathf.Clamp01(1f - Mathf.Abs(t.Z - m_z) / 30f) * 0.35f);
+		BiomeRuntime b = m_biomes[BiomeAt(z)];
+		for (int lane = 0; lane < 3; lane++)
+		{
+			GameObject wave = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+			Destroy(wave.GetComponent<Collider>());
+			wave.name = "Shockwave";
+			wave.layer = m_layer;
+			wave.transform.SetParent(m_stage, false);
+			wave.transform.localScale = new Vector3(LaneWidth * 0.95f, 0.2f, 0.7f);
+			wave.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.15f, z);
+			Renderer r = wave.GetComponent<Renderer>();
+			r.sharedMaterial = m_terrainTrack ?? b.Ground;
+			r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+			if (t.Attack != null)
+			{
+				foreach (GameObject fx in t.Attack.Effects)
+				{
+					GameObject dust = Instantiate(Picture(fx), wave.transform, false);
+					dust.transform.localPosition = Vector3.zero;
+					foreach (ParticleSystem ps in dust.GetComponentsInChildren<ParticleSystem>(true))
+					{
+						ps.Play(true);
+					}
+					break;
+				}
+			}
+			m_things.Add(new Thing
+			{
+				Go = wave,
+				Kind = Kind.Low,
+				Lane = lane,
+				Z = z,
+				BaseY = 0.15f,
+				HalfLength = 0.4f,
+				Speed = 7f + 0.5f * BiomeAt(z),
+				Label = t.Label,
+				CrashText = $"A {t.Label}'s smash knocked you flat in the {b.Def.Name}!",
+				Life = 4f,
+			});
 		}
 	}
 
