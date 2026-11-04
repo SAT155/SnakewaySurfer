@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.0.0";
+	public const string PluginVersion = "1.1.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -27,6 +27,10 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> LaneSwitchSpeed = null!;
 	internal static ConfigEntry<float> Countdown = null!;
 	internal static ConfigEntry<KeyCode> ExitKey = null!;
+	internal static ConfigEntry<bool> StopWhenHurt = null!;
+	internal static ConfigEntry<float> HurtThreshold = null!;
+	internal static ConfigEntry<bool> Sounds = null!;
+	internal static ConfigEntry<float> SoundVolume = null!;
 
 	internal static ConfigEntry<float> RunLevelsPerBiome = null!;
 	internal static ConfigEntry<float> FoodCooldownMinutes = null!;
@@ -78,6 +82,15 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Seconds of countdown before each run.", new AcceptableValueRange<float>(0f, 10f)));
 		ExitKey = Config.Bind("1 - Run", "Exit Key", KeyCode.Escape,
 			"Stops the minigame and puts you back in the world. Stopping mid-run still counts the run for rewards.");
+
+		StopWhenHurt = Config.Bind("1 - Run", "Stop When Hurt", true,
+			"Stop the minigame as soon as something damages your character in the real world. Health lost because food is wearing off doesn't count.");
+		HurtThreshold = Config.Bind("1 - Run", "Hurt Threshold", 1f,
+			new ConfigDescription("Smallest health drop (in one frame) that counts as being hurt.", new AcceptableValueRange<float>(0.1f, 50f)));
+		Sounds = Config.Bind("3 - Look", "Sounds", true,
+			"Play sounds for the countdown, jumps, slides, lane changes, coins, new biomes and crashes. Only you hear them.");
+		SoundVolume = Config.Bind("3 - Look", "Sound Volume", 0.8f,
+			new ConfigDescription("Volume of the minigame sounds.", new AcceptableValueRange<float>(0f, 1f)));
 
 		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 1f,
 			new ConfigDescription("Run skill levels earned for each biome's length of track (fractions count, so half a biome gives half). It's levels at your current Run skill, so it slows down as your skill gets high, like vanilla. 0 turns XP off.",

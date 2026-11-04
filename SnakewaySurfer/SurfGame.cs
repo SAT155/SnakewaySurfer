@@ -116,10 +116,13 @@ internal sealed class SurfGame : MonoBehaviour
 	private float m_bannerTime;
 	private string m_crashText = "";
 	private string m_rewardText = "";
-	private float m_startHealth;
+	private float m_lastHealth;
 	private bool m_consoleWasVisible;
 	private Vector3 m_camPos;
 	private bool m_camPlaced;
+	private SurfAudio m_audio = null!;
+	private int m_lastTick;
+	private float m_stepTimer;
 
 	public static void Begin(Player player, Terminal? terminal)
 	{
@@ -201,6 +204,7 @@ internal sealed class SurfGame : MonoBehaviour
 		m_camera.nearClipPlane = 0.1f;
 		m_camera.farClipPlane = 400f;
 		camGo.AddComponent<SurfCameraFog>().Game = this;
+		m_audio = new SurfAudio(camGo);
 
 		m_mainCamera = Camera.main;
 		if (m_mainCamera != null)
@@ -473,9 +477,10 @@ internal sealed class SurfGame : MonoBehaviour
 		m_nextGroundZ = -GroundTile;
 		m_crashText = "";
 		m_rewardText = "";
-		m_startHealth = m_player.GetHealth();
+		m_lastHealth = m_player.GetHealth();
 		m_speed = Plugin.StartSpeed.Value;
 		m_camPlaced = false;
+		m_lastTick = 0;
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
@@ -534,14 +539,18 @@ internal sealed class SurfGame : MonoBehaviour
 		m_consoleWasVisible = consoleVisible;
 
 		// Getting hurt in the real world ends the game straight away, so nobody gets eaten
-		// while surfing.
-		if (m_player.GetHealth() < m_startHealth - 0.5f)
+		// while surfing. Health also falls when food wears off, but then it only follows the
+		// shrinking max health down, so a drop that leaves health at its max isn't a hit.
+		float health = m_player.GetHealth();
+		if (Plugin.StopWhenHurt.Value && health < m_lastHealth - Plugin.HurtThreshold.Value
+			&& health < m_player.GetMaxHealth() - 0.5f)
 		{
+			Plugin.Log.LogInfo($"Real-world damage: health {m_lastHealth:0.0} -> {health:0.0} (max {m_player.GetMaxHealth():0.0}).");
 			Crash("Something hit you in the real world!");
 			Quit();
 			return;
 		}
-		m_startHealth = Mathf.Max(m_startHealth, m_player.GetHealth());
+		m_lastHealth = health;
 
 		if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
 		{
@@ -562,12 +571,21 @@ internal sealed class SurfGame : MonoBehaviour
 		switch (m_state)
 		{
 			case State.Countdown:
+			{
+				int tick = Mathf.CeilToInt(Plugin.Countdown.Value - m_stateTime);
+				if (tick != m_lastTick && tick > 0)
+				{
+					m_audio.Play(Sfx.Tick);
+				}
+				m_lastTick = tick;
 				if (m_stateTime >= Plugin.Countdown.Value)
 				{
 					m_state = State.Running;
 					m_stateTime = 0f;
+					m_audio.Play(Sfx.Go);
 				}
 				break;
+			}
 			case State.Running:
 				UpdateRun(dt, canInput);
 				break;
@@ -608,10 +626,18 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			if (KeyDown(KeyCode.A, KeyCode.LeftArrow))
 			{
+				if (m_lane > 0)
+				{
+					m_audio.Play(Sfx.Lane, 0.5f, 1.15f);
+				}
 				m_lane = Mathf.Max(0, m_lane - 1);
 			}
 			if (KeyDown(KeyCode.D, KeyCode.RightArrow))
 			{
+				if (m_lane < 2)
+				{
+					m_audio.Play(Sfx.Lane, 0.5f, 1.15f);
+				}
 				m_lane = Mathf.Min(2, m_lane + 1);
 			}
 			if (KeyDown(KeyCode.W, KeyCode.UpArrow, KeyCode.Space))
@@ -621,6 +647,7 @@ internal sealed class SurfGame : MonoBehaviour
 					m_vy = Mathf.Sqrt(2f * Gravity * Plugin.JumpHeight.Value);
 					m_slide = 0f;
 					SetTrigger("jump");
+					m_audio.Play(Sfx.Jump);
 				}
 			}
 			if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C))
@@ -628,6 +655,7 @@ internal sealed class SurfGame : MonoBehaviour
 				if (grounded)
 				{
 					m_slide = Plugin.SlideTime.Value;
+					m_audio.Play(Sfx.Slide);
 				}
 				else
 				{
@@ -641,8 +669,22 @@ internal sealed class SurfGame : MonoBehaviour
 		m_y += m_vy * dt;
 		if (m_y < 0f)
 		{
+			if (m_vy < -4f)
+			{
+				m_audio.Play(Sfx.Land, 0.8f);
+			}
 			m_y = 0f;
 			m_vy = 0f;
+		}
+		else if (m_y <= 0.001f)
+		{
+			// Footsteps, quicker as the run speeds up.
+			m_stepTimer -= dt;
+			if (m_stepTimer <= 0f)
+			{
+				m_stepTimer = Mathf.Clamp(3.2f / Mathf.Max(1f, m_speed), 0.14f, 0.4f);
+				m_audio.Play(Sfx.Step(m_biomes[BiomeAt(m_z)].Def.Name), 0.35f);
+			}
 		}
 		if (m_y <= 0.001f)
 		{
@@ -658,6 +700,10 @@ internal sealed class SurfGame : MonoBehaviour
 			m_shownBiome = biome;
 			m_banner = biome == 0 ? m_biomes[0].Def.Name : "Entering " + m_biomes[biome].Def.Name + "!";
 			m_bannerTime = 2.5f;
+			if (biome > 0)
+			{
+				m_audio.Play(Sfx.Biome);
+			}
 		}
 
 		CheckCollisions();
@@ -684,16 +730,19 @@ internal sealed class SurfGame : MonoBehaviour
 					if (m_y < 2.6f)
 					{
 						m_coins++;
+						m_audio.Play(Sfx.Coin, 0.6f, 1f + 0.03f * (m_coins % 5));
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
 					}
 					break;
 				case Kind.Block:
+					m_audio.Play(Sfx.HitMonster);
 					Crash($"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
 				case Kind.Low:
 					if (m_y < 0.75f)
 					{
+						m_audio.Play(Sfx.HitLog);
 						Crash($"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 						return;
 					}
@@ -701,6 +750,7 @@ internal sealed class SurfGame : MonoBehaviour
 				case Kind.High:
 					if (!sliding)
 					{
+						m_audio.Play(string.IsNullOrEmpty(t.Label) ? Sfx.HitLog : Sfx.HitMonster);
 						Crash(string.IsNullOrEmpty(t.Label)
 							? $"You ran into a hanging log in the {m_biomes[BiomeAt(m_z)].Def.Name}!"
 							: $"A {t.Label} swooped into you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
@@ -1157,4 +1207,26 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		RenderSettings.ambientMode = m_ambientMode;
 		RenderSettings.ambientLight = m_ambient;
 	}
+}
+
+// Vanilla sound prefab names (found by asset search, 2026-11-04).
+internal static class Sfx
+{
+	public const string Tick = "sfx_gui_button";
+	public const string Go = "sfx_perfect_dodge";
+	public const string Jump = "sfx_jump";
+	public const string Land = "sfx_land";
+	public const string Slide = "sfx_dodge";
+	public const string Lane = "sfx_unarmed_swing";
+	public const string Coin = "sfx_pickup";
+	public const string Biome = "sfx_levelup";
+	public const string HitMonster = "sfx_hit";
+	public const string HitLog = "sfx_wood_hit";
+
+	public static string Step(string biome) => biome switch
+	{
+		"Swamp" => "sfx_footstep_mud_run",
+		"Mountains" or "Deep North" => "sfx_footstep_snow_run",
+		_ => "sfx_footstep_run",
+	};
 }

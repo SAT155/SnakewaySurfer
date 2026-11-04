@@ -22,7 +22,10 @@ Friends without the mod see that too.
 | Esc | Stop and go back to the world |
 
 Your character can't move or use hotkeys while you play. If something hurts you in the real
-world, the game stops straight away.
+world, the game stops straight away (health lost because food is wearing off doesn't count).
+
+The minigame has its own sounds (countdown, footsteps, jumps, slides, coins, new biomes,
+crashes), borrowed from the game and heard only by you.
 
 ## Rewards
 
@@ -49,3 +52,9 @@ Client-only. Nothing is spawned in the world: the track is built from lifeless c
 objects that only your own camera can see. The running animation and the circlet go through the
 game's normal syncing, so they work on a vanilla dedicated server, with or without Valheim Plus,
 and for players without the mod.
+
+## Changes
+
+- **1.1**: sounds; food wearing off no longer counts as being hit (the game stopped after a
+  few seconds); no more "Can't remove Humanoid" errors in the log.
+- **1.0**: first version.

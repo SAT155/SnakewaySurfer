@@ -138,16 +138,25 @@ internal static class Pictures
 
 	public static void Strip(GameObject go)
 	{
-		// Several passes, because a component another one depends on ([RequireComponent]) can't
-		// go first. ZNetView last of all, as the notes advise.
-		for (int pass = 0; pass < 4; pass++)
+		// A component another one still depends on ([RequireComponent]) can't go yet (Unity logs
+		// "Can't remove X because Y depends on it"), so each pass removes only the ones nothing
+		// left requires. ZNetView last of all, as the notes advise.
+		for (int pass = 0; pass < 8; pass++)
 		{
-			foreach (MonoBehaviour mb in go.GetComponentsInChildren<MonoBehaviour>(true))
+			MonoBehaviour[] all = go.GetComponentsInChildren<MonoBehaviour>(true);
+			bool removed = false;
+			foreach (MonoBehaviour mb in all)
 			{
-				if (mb != null && !(mb is ZNetView))
+				if (mb == null || mb is ZNetView || IsRequired(mb))
 				{
-					Object.DestroyImmediate(mb);
+					continue;
 				}
+				Object.DestroyImmediate(mb);
+				removed = true;
+			}
+			if (!removed)
+			{
+				break;
 			}
 		}
 		foreach (ZNetView view in go.GetComponentsInChildren<ZNetView>(true))
@@ -170,6 +179,51 @@ internal static class Pictures
 		{
 			Object.DestroyImmediate(audio);
 		}
+	}
+
+	private static readonly Dictionary<Type, Type[]> s_requires = new();
+
+	private static Type[] Requires(Type type)
+	{
+		if (!s_requires.TryGetValue(type, out Type[] types))
+		{
+			List<Type> list = new();
+			foreach (object attr in type.GetCustomAttributes(typeof(RequireComponent), true))
+			{
+				RequireComponent rc = (RequireComponent)attr;
+				foreach (Type t in new[] { rc.m_Type0, rc.m_Type1, rc.m_Type2 })
+				{
+					if (t != null)
+					{
+						list.Add(t);
+					}
+				}
+			}
+			types = list.ToArray();
+			s_requires[type] = types;
+		}
+		return types;
+	}
+
+	// Does another component still on the same GameObject require this one?
+	private static bool IsRequired(Component c)
+	{
+		Type type = c.GetType();
+		foreach (Component other in c.GetComponents<Component>())
+		{
+			if (other == null || other == c)
+			{
+				continue;
+			}
+			foreach (Type required in Requires(other.GetType()))
+			{
+				if (required.IsAssignableFrom(type))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	public static void SetLayer(GameObject go, int layer)
