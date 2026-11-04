@@ -19,6 +19,9 @@ internal sealed class BiomeDef
 	public string Logs = "";
 	public string Foods = "";
 	public string Giants = "";
+	// Creatures that live at places in the biome (troll caves, crypts, villages) rather than in
+	// the world spawn tables; added to an "auto" list. Same format as Monsters.
+	public string Locations = "";
 }
 
 internal static class Biomes
@@ -40,6 +43,7 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Black Forest",
+			Locations = "troll:1.2, skeleton:0.6",
 			Ground = new Color(0.20f, 0.30f, 0.16f),
 			Monsters = "auto",
 			FallbackMonsters = "greydwarf, greydwarfbrute, greydwarfshaman, troll, skeleton, bjorn",
@@ -53,6 +57,7 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Swamp",
+			Locations = "draugr:0.8, draugrelite:0.4, skeletonpoison:0.4",
 			Giants = "abomination",
 			Ground = new Color(0.24f, 0.22f, 0.14f),
 			Monsters = "auto",
@@ -66,6 +71,7 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Mountains",
+			Locations = "fenring:0.6, ulv:0.6",
 			Ground = new Color(0.86f, 0.89f, 0.93f),
 			Monsters = "auto",
 			FallbackMonsters = "wolf, fenring, stonegolem, ulv, trollfrost",
@@ -78,6 +84,7 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Plains",
+			Locations = "goblinbrute:0.5, goblinshaman:0.5",
 			Ground = new Color(0.62f, 0.58f, 0.30f),
 			Monsters = "auto",
 			FallbackMonsters = "goblin, goblinbrute, goblinshaman, lox, unbjorn",
@@ -90,6 +97,7 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Mistlands",
+			Locations = "seekerbrute:0.4, seeker:0.8, tick:0.4",
 			Ground = new Color(0.30f, 0.28f, 0.33f),
 			Monsters = "auto",
 			FallbackMonsters = "seeker, seekerbrute, tick, dvergr, dvergr_mage",

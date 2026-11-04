@@ -70,6 +70,7 @@ public class Plugin : BaseUnityPlugin
 	private static ConfigEntry<string>[] s_logs = null!;
 	private static ConfigEntry<string>[] s_foods = null!;
 	private static ConfigEntry<string>[] s_giants = null!;
+	private static ConfigEntry<string>[] s_locations = null!;
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
@@ -165,6 +166,7 @@ public class Plugin : BaseUnityPlugin
 		s_logs = new ConfigEntry<string>[Biomes.Defaults.Length];
 		s_foods = new ConfigEntry<string>[Biomes.Defaults.Length];
 		s_giants = new ConfigEntry<string>[Biomes.Defaults.Length];
+		s_locations = new ConfigEntry<string>[Biomes.Defaults.Length];
 		for (int i = 0; i < Biomes.Defaults.Length; i++)
 		{
 			BiomeDef d = Biomes.Defaults[i];
@@ -179,6 +181,8 @@ public class Plugin : BaseUnityPlugin
 				"Log prefabs used for things to jump over and hanging logs to slide under.");
 			s_giants[i] = Config.Bind(section, "Giants", d.Giants,
 				"Big monsters used for set pieces: one beside the track slams a log down across the outer lane as you run past, or one jumps down straddling the track so you must slide between its legs. Same naming as Monsters. Empty: no set pieces in this biome.");
+			s_locations[i] = Config.Bind(section, "Location Monsters", d.Locations,
+				"With Monsters on \"auto\": creatures that live at places in this biome (troll caves, crypts, villages) instead of the world spawn tables, added with these weights. Same naming as Monsters.");
 			s_foods[i] = Config.Bind(section, "Foods", d.Foods,
 				"Foods you can win when this is the furthest biome you reached; one is picked at random. Item names as in the game's text keys (\"carrotsoup\" for $item_carrotsoup) or prefab names.");
 		}
@@ -272,6 +276,7 @@ public class Plugin : BaseUnityPlugin
 			Logs = s_logs[i].Value,
 			Foods = s_foods[i].Value,
 			Giants = s_giants[i].Value,
+			Locations = s_locations[i].Value,
 		};
 	}
 

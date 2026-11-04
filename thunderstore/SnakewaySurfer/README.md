@@ -74,7 +74,9 @@ and for players without the mod.
   camera), and the land uses the game's real terrain shader with each biome's ground, with
   the track as a dirt path (Game Terrain, Track Style dirt/paved/stone). Creatures whose spawn entries are spread evenly
   over many biomes (mod and late-game anywhere spawns) and strays from a creature's home biome
-  are left out; how common each is follows its spawn cap more than its spawn rate.
+  are left out; how common each is follows its spawn cap more than its spawn rate. Location Monsters per biome adds
+  creatures that live at places rather than in the spawn tables (troll caves, crypts, villages),
+  at modest weights.
 - **1.4**: creatures play their real attack animations with their own weapons (the classic
   stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
   monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water

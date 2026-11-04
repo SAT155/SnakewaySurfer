@@ -731,6 +731,22 @@ internal sealed class SurfGame : MonoBehaviour
 				Plugin.Log.LogWarning($"No spawn table found for the {def.Name}; using the built-in creature list.");
 				table = SpawnTables.Parse(Biomes.Defaults[i].FallbackMonsters + ", " + Biomes.Defaults[i].FallbackFlyers, missing);
 			}
+			if (autoMonsters)
+			{
+				foreach (SpawnEntry extra in SpawnTables.Parse(def.Locations, missing))
+				{
+					SpawnEntry? same = table.Find(e => e.Prefab == extra.Prefab);
+					if (same != null)
+					{
+						same.Weight += extra.Weight;
+					}
+					else
+					{
+						extra.GroupMax = 1;
+						table.Add(extra);
+					}
+				}
+			}
 			foreach (SpawnEntry e in autoMonsters ? table : SpawnTables.Parse(def.Monsters, missing))
 			{
 				if (!e.Flying)
