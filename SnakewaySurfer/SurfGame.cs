@@ -43,6 +43,22 @@ internal sealed class SurfGame : MonoBehaviour
 		public float HalfLength;
 		public float Speed;
 		public string Label = "";
+		public string CrashText = "";
+		public bool Collidable = true;
+		// Set pieces (trolls): what moves when the player gets close.
+		public Special Special;
+		public Transform? Moving;
+		public float TriggerDistance;
+		public bool Triggered;
+		public float Progress;
+		public int Side;
+	}
+
+	private enum Special
+	{
+		None,
+		Swing,
+		Drop,
 	}
 
 	private sealed class BiomeRuntime
@@ -54,6 +70,8 @@ internal sealed class SurfGame : MonoBehaviour
 		public readonly List<(GameObject prefab, string label)> Flyers = new();
 		public readonly List<GameObject> Scenery = new();
 		public readonly List<GameObject> Logs = new();
+		public readonly List<(GameObject prefab, string label)> Giants = new();
+		public float Fog;
 	}
 
 	private static readonly Color[] s_sky =
@@ -67,6 +85,9 @@ internal sealed class SurfGame : MonoBehaviour
 		new Color(0.48f, 0.22f, 0.16f),
 		new Color(0.72f, 0.82f, 0.92f),
 	};
+
+	// Exponential-squared fog density per biome, thicker in the Swamp and Mistlands as in the game.
+	private static readonly float[] s_fog = { 0.011f, 0.017f, 0.026f, 0.013f, 0.009f, 0.04f, 0.02f, 0.022f };
 
 	private const float LaneWidth = 2.6f;
 	private const float Gravity = 32f;
@@ -340,7 +361,19 @@ internal sealed class SurfGame : MonoBehaviour
 		for (int i = 0; i < Biomes.Defaults.Length; i++)
 		{
 			BiomeDef def = Plugin.BiomeConfig(i);
-			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Ground = MakeGroundMaterial(def.Ground) };
+			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Fog = s_fog[Mathf.Min(i, s_fog.Length - 1)], Ground = MakeGroundMaterial(def.Ground) };
+			foreach (string key in Pictures.SplitList(def.Giants))
+			{
+				GameObject? prefab = Pictures.Monster(key);
+				if (prefab != null)
+				{
+					rt.Giants.Add((prefab, MonsterLabel(prefab)));
+				}
+				else
+				{
+					missing.Add(key);
+				}
+			}
 			foreach (string key in Pictures.SplitList(def.Monsters))
 			{
 				GameObject? prefab = Pictures.Monster(key);
@@ -716,7 +749,7 @@ internal sealed class SurfGame : MonoBehaviour
 		for (int i = m_things.Count - 1; i >= 0; i--)
 		{
 			Thing t = m_things[i];
-			if (t.Kind == Kind.Scenery || t.Kind == Kind.Ground)
+			if (t.Kind == Kind.Scenery || t.Kind == Kind.Ground || !t.Collidable)
 			{
 				continue;
 			}
@@ -737,7 +770,7 @@ internal sealed class SurfGame : MonoBehaviour
 					break;
 				case Kind.Block:
 					m_audio.Play(Sfx.HitMonster);
-					Crash($"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
+					Crash(t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
 				case Kind.Low:
 					if (m_y < 0.75f)
@@ -751,7 +784,7 @@ internal sealed class SurfGame : MonoBehaviour
 					if (!sliding)
 					{
 						m_audio.Play(string.IsNullOrEmpty(t.Label) ? Sfx.HitLog : Sfx.HitMonster);
-						Crash(string.IsNullOrEmpty(t.Label)
+						Crash(t.CrashText.Length > 0 ? t.CrashText : string.IsNullOrEmpty(t.Label)
 							? $"You ran into a hanging log in the {m_biomes[BiomeAt(m_z)].Def.Name}!"
 							: $"A {t.Label} swooped into you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 						return;
@@ -771,6 +804,10 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				m_things.RemoveAt(i);
 				continue;
+			}
+			if (m_state == State.Running && t.Special != Special.None)
+			{
+				UpdateSetPiece(t, dt);
 			}
 			if (m_state == State.Running && t.Speed > 0f)
 			{
@@ -895,6 +932,20 @@ internal sealed class SurfGame : MonoBehaviour
 
 	private void SpawnRow(float z)
 	{
+		BiomeRuntime giants = m_biomes[BiomeAt(z)];
+		if (giants.Giants.Count > 0 && z > 60f && Random.value < Plugin.GiantChance.Value)
+		{
+			if (Random.value < 0.5f)
+			{
+				SpawnSwingTroll(z, giants);
+			}
+			else
+			{
+				SpawnStraddleTroll(z, giants);
+			}
+			m_nextRowZ += 8f;
+			return;
+		}
 		BiomeRuntime b = m_biomes[BiomeAt(z)];
 		int biomeIndex = BiomeAt(z);
 		float difficulty = Mathf.Clamp01(z / (Plugin.BiomeLength.Value * m_biomes.Count));
@@ -989,6 +1040,140 @@ internal sealed class SurfGame : MonoBehaviour
 					break;
 				}
 			}
+		}
+	}
+
+	// A troll beside the track holds a log up; when you get close it slams it down across the
+	// outer lane on its side, which then stays blocked.
+	private void SpawnSwingTroll(float z, BiomeRuntime b)
+	{
+		(GameObject prefab, string label) = b.Giants[Random.Range(0, b.Giants.Count)];
+		int side = Random.value < 0.5f ? -1 : 1;
+		GameObject root = new GameObject("SwingTroll");
+		root.layer = m_layer;
+		root.transform.SetParent(m_stage, false);
+		root.transform.localPosition = new Vector3(0f, 0f, z);
+
+		float trollX = side * (LaneWidth * 1.5f + 2.4f);
+		// Facing the track and a little toward the runner.
+		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, side < 0 ? 120f : 240f, 0f), new Vector3(3.2f, 3.8f, 3.2f), true);
+		troll.transform.SetParent(root.transform, false);
+		troll.transform.localPosition = new Vector3(trollX, 0f, 0f);
+
+		GameObject pivot = new GameObject("ClubPivot");
+		pivot.layer = m_layer;
+		pivot.transform.SetParent(root.transform, false);
+		pivot.transform.localPosition = new Vector3(trollX - side * 0.7f, 2.7f, 0f);
+		GameObject log = b.Logs.Count > 0 ? b.Logs[Random.Range(0, b.Logs.Count)] : m_biomes[1].Logs.Count > 0 ? m_biomes[1].Logs[0] : null!;
+		if (log != null)
+		{
+			GameObject club = Fitted(Picture(log), Quaternion.identity, new Vector3(0.55f, 4.4f, 0.55f), false);
+			club.transform.SetParent(pivot.transform, false);
+			club.transform.localPosition = Vector3.zero;
+		}
+		pivot.transform.localRotation = Quaternion.Euler(0f, 0f, side * -25f);
+
+		int lane = side < 0 ? 0 : 2;
+		m_things.Add(new Thing
+		{
+			Go = root,
+			Kind = Kind.Block,
+			Lane = lane,
+			Z = z,
+			HalfLength = 0.7f,
+			Label = label,
+			CrashText = $"A {label} clubbed you flat in the {b.Def.Name}!",
+			Collidable = false,
+			Special = Special.Swing,
+			Moving = pivot.transform,
+			Side = side,
+		});
+	}
+
+	// A troll jumps down over the track, legs planted in both outer lanes: the only way through
+	// is sliding between its legs in the middle lane.
+	private void SpawnStraddleTroll(float z, BiomeRuntime b)
+	{
+		(GameObject prefab, string label) = b.Giants[Random.Range(0, b.Giants.Count)];
+		GameObject root = new GameObject("StraddleTroll");
+		root.layer = m_layer;
+		root.transform.SetParent(m_stage, false);
+		root.transform.localPosition = new Vector3(0f, 0f, z);
+
+		GameObject body = new GameObject("Body");
+		body.layer = m_layer;
+		body.transform.SetParent(root.transform, false);
+		body.transform.localPosition = new Vector3(0f, 9f, 0f);
+		// Stretched sideways so its feet land in the outer lanes.
+		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(LaneWidth * 3f + 0.4f, 4.2f, 3f), false);
+		troll.transform.SetParent(body.transform, false);
+		troll.transform.localPosition = Vector3.zero;
+
+		string legs = $"The {label} stomped you in the {b.Def.Name}!";
+		m_things.Add(new Thing
+		{
+			Go = root,
+			Kind = Kind.Block,
+			Lane = 0,
+			Z = z,
+			HalfLength = 0.9f,
+			Label = label,
+			CrashText = legs,
+			Special = Special.Drop,
+			Moving = body.transform,
+		});
+		foreach ((int lane, Kind kind, string text) in new[]
+		{
+			(2, Kind.Block, legs),
+			(1, Kind.High, $"You didn't slide under the {label}'s legs!"),
+		})
+		{
+			GameObject marker = new GameObject("TrollLane");
+			marker.transform.SetParent(m_stage, false);
+			marker.transform.localPosition = new Vector3(LaneX(lane), 0f, z);
+			m_things.Add(new Thing { Go = marker, Kind = kind, Lane = lane, Z = z, HalfLength = 0.9f, Label = label, CrashText = text });
+		}
+	}
+
+	private void UpdateSetPiece(Thing t, float dt)
+	{
+		if (t.Moving == null)
+		{
+			return;
+		}
+		float distance = t.Z - m_z;
+		if (!t.Triggered)
+		{
+			float trigger = t.Special == Special.Swing ? m_speed * 0.5f + 2.5f : m_speed * 1.3f + 8f;
+			if (distance > trigger)
+			{
+				return;
+			}
+			t.Triggered = true;
+			m_audio.Play(t.Special == Special.Swing ? Sfx.ClubSwing : Sfx.TrollStep);
+		}
+		if (t.Progress >= 1f)
+		{
+			return;
+		}
+		float duration = t.Special == Special.Swing ? 0.22f : 0.35f;
+		t.Progress = Mathf.Min(1f, t.Progress + dt / duration);
+		float e = t.Progress * t.Progress;
+		if (t.Special == Special.Swing)
+		{
+			t.Moving.localRotation = Quaternion.Euler(0f, 0f, t.Side * Mathf.Lerp(-25f, 128f, e));
+			if (t.Progress >= 0.5f)
+			{
+				t.Collidable = true;
+			}
+		}
+		else
+		{
+			t.Moving.localPosition = new Vector3(0f, Mathf.Lerp(9f, 0f, e), 0f);
+		}
+		if (t.Progress >= 1f)
+		{
+			m_audio.Play(Sfx.TrollSlam);
 		}
 	}
 
@@ -1095,9 +1280,15 @@ internal sealed class SurfGame : MonoBehaviour
 
 		Color sky = m_biomes.Count > 0 ? m_biomes[BiomeAt(m_z + 30f)].Sky : s_sky[0];
 		m_camera.backgroundColor = Color.Lerp(m_camera.backgroundColor, sky, 1f - Mathf.Exp(-2f * dt));
+		float fog = (m_biomes.Count > 0 ? m_biomes[BiomeAt(m_z + 30f)].Fog : 0.011f) * Plugin.FogStrength.Value;
+		m_fogNow = Mathf.Lerp(m_fogNow, fog, 1f - Mathf.Exp(-2f * dt));
 	}
 
 	public Color SkyColor => m_camera != null ? m_camera.backgroundColor : s_sky[0];
+
+	private float m_fogNow = 0.011f;
+
+	public float FogDensity => m_fogNow;
 
 	// ---------------------------------------------------------------- UI
 
@@ -1189,11 +1380,10 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		Color sky = Game != null ? Game.SkyColor : Color.gray;
 		RenderSettings.fog = true;
 		RenderSettings.fogColor = sky;
-		RenderSettings.fogMode = FogMode.Linear;
-		RenderSettings.fogStartDistance = 70f;
-		RenderSettings.fogEndDistance = 170f;
+		RenderSettings.fogMode = FogMode.ExponentialSquared;
+		RenderSettings.fogDensity = Game != null ? Game.FogDensity : 0.012f;
 		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-		RenderSettings.ambientLight = Color.Lerp(sky, Color.white, 0.4f) * 0.75f;
+		RenderSettings.ambientLight = sky * Plugin.AmbientLight.Value;
 	}
 
 	private void OnPostRender()
@@ -1222,6 +1412,9 @@ internal static class Sfx
 	public const string Biome = "sfx_levelup";
 	public const string HitMonster = "sfx_hit";
 	public const string HitLog = "sfx_wood_hit";
+	public const string ClubSwing = "sfx_club_swing";
+	public const string TrollSlam = "sfx_troll_attack_hit";
+	public const string TrollStep = "sfx_troll_footstep";
 
 	public static string Step(string biome) => biome switch
 	{

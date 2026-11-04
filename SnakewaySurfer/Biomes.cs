@@ -15,6 +15,7 @@ internal sealed class BiomeDef
 	public string Scenery = "";
 	public string Logs = "";
 	public string Foods = "";
+	public string Giants = "";
 }
 
 internal static class Biomes
@@ -36,6 +37,7 @@ internal static class Biomes
 			Name = "Black Forest",
 			Ground = new Color(0.20f, 0.30f, 0.16f),
 			Monsters = "greydwarf, greydwarfbrute, greydwarfshaman, troll, skeleton, bjorn",
+			Giants = "troll",
 			Flyers = "",
 			Scenery = "FirTree, Pinetree_01, FirTree_small, FirTree_oldLog, rock4_forest",
 			Logs = "FirTree_log_half, PineTree_log_half",

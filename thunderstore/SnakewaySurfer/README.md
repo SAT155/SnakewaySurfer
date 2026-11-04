@@ -8,6 +8,10 @@ never ends). You dodge each biome's monsters, jump over fallen logs, slide under
 and flying monsters, and grab coins. You run a little faster with every biome, and from the
 Black Forest on some monsters charge at you.
 
+In the Black Forest, watch out for trolls: one beside the track holds up a log and slams it
+down across its lane just as you run past, and another jumps down straddling the track with
+its feet in both outer lanes, so you have to slide between its legs.
+
 To everyone else, you're just running in place at the longhouse wearing a Dverger circlet.
 Friends without the mod see that too.
 
@@ -55,6 +59,9 @@ and for players without the mod.
 
 ## Changes
 
+- **1.2**: Black Forest troll set pieces (log slam, slide between the legs); darker lighting
+  and thicker per-biome fog (Swamp and Mistlands thickest); fog strength and ambient light
+  settings.
 - **1.1**: sounds; food wearing off no longer counts as being hit (the game stopped after a
   few seconds); no more "Can't remove Humanoid" errors in the log.
 - **1.0**: first version.

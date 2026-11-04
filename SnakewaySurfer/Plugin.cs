@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.1.0";
+	public const string PluginVersion = "1.2.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -54,6 +54,10 @@ public class Plugin : BaseUnityPlugin
 	private static ConfigEntry<string>[] s_scenery = null!;
 	private static ConfigEntry<string>[] s_logs = null!;
 	private static ConfigEntry<string>[] s_foods = null!;
+	private static ConfigEntry<string>[] s_giants = null!;
+	internal static ConfigEntry<float> GiantChance = null!;
+	internal static ConfigEntry<float> FogStrength = null!;
+	internal static ConfigEntry<float> AmbientLight = null!;
 
 	private void Awake()
 	{
@@ -109,7 +113,13 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How high above the track the minigame camera sits.", new AcceptableValueRange<float>(0.5f, 15f)));
 		CameraFov = Config.Bind("3 - Look", "Camera Field Of View", 65f,
 			new ConfigDescription("Minigame camera field of view in degrees.", new AcceptableValueRange<float>(30f, 110f)));
-		LightIntensity = Config.Bind("3 - Look", "Light Intensity", 1.1f,
+		FogStrength = Config.Bind("3 - Look", "Fog Strength", 1f,
+			new ConfigDescription("How thick the minigame's fog is (each biome has its own; the Swamp and Mistlands are thickest). 0 turns it off.", new AcceptableValueRange<float>(0f, 4f)));
+		AmbientLight = Config.Bind("3 - Look", "Ambient Light", 0.45f,
+			new ConfigDescription("Brightness of the light that comes from the sky colour everywhere (shadows get darker as it goes down).", new AcceptableValueRange<float>(0f, 2f)));
+		GiantChance = Config.Bind("1 - Run", "Giant Chance", 0.22f,
+			new ConfigDescription("Chance that a row of obstacles is a troll set piece instead, in biomes that have Giants (the Black Forest by default).", new AcceptableValueRange<float>(0f, 1f)));
+		LightIntensity = Config.Bind("3 - Look", "Light Intensity", 0.45f,
 			new ConfigDescription("Brightness of the minigame's own sun.", new AcceptableValueRange<float>(0f, 4f)));
 		MonsterHeight = Config.Bind("3 - Look", "Monster Height", 2.2f,
 			new ConfigDescription("Monsters are resized to be at most this tall (and 2.2 m wide), so trolls and lox fit in a lane.", new AcceptableValueRange<float>(1f, 6f)));
@@ -127,6 +137,7 @@ public class Plugin : BaseUnityPlugin
 		s_scenery = new ConfigEntry<string>[Biomes.Defaults.Length];
 		s_logs = new ConfigEntry<string>[Biomes.Defaults.Length];
 		s_foods = new ConfigEntry<string>[Biomes.Defaults.Length];
+		s_giants = new ConfigEntry<string>[Biomes.Defaults.Length];
 		for (int i = 0; i < Biomes.Defaults.Length; i++)
 		{
 			BiomeDef d = Biomes.Defaults[i];
@@ -139,6 +150,8 @@ public class Plugin : BaseUnityPlugin
 				"Trees and rocks beside the track (prefab names).");
 			s_logs[i] = Config.Bind(section, "Logs", d.Logs,
 				"Log prefabs used for things to jump over and hanging logs to slide under.");
+			s_giants[i] = Config.Bind(section, "Giants", d.Giants,
+				"Big monsters used for set pieces: one beside the track slams a log down across the outer lane as you run past, or one jumps down straddling the track so you must slide between its legs. Same naming as Monsters. Empty: no set pieces in this biome.");
 			s_foods[i] = Config.Bind(section, "Foods", d.Foods,
 				"Foods you can win when this is the furthest biome you reached; one is picked at random. Item names as in the game's text keys (\"carrotsoup\" for $item_carrotsoup) or prefab names.");
 		}
@@ -161,6 +174,7 @@ public class Plugin : BaseUnityPlugin
 			Scenery = s_scenery[i].Value,
 			Logs = s_logs[i].Value,
 			Foods = s_foods[i].Value,
+			Giants = s_giants[i].Value,
 		};
 	}
 
