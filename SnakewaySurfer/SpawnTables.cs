@@ -34,9 +34,51 @@ internal static class SpawnTables
 		Heightmap.Biome.DeepNorth,
 	};
 
+	// Creatures whose entries are spread evenly over many biomes (mod and late-game "anywhere"
+	// spawns, one entry per biome) don't belong to any of them; a creature that lives mostly in one
+	// biome isn't kept where it only strays in.
 	public static List<SpawnEntry> ForBiome(int index)
 	{
 		List<SpawnEntry> result = new();
+		if (index < 0 || index >= s_order.Length)
+		{
+			return result;
+		}
+		List<SpawnEntry>[] all = new List<SpawnEntry>[s_order.Length];
+		Dictionary<GameObject, (int count, float max, float min)> spread = new();
+		for (int i = 0; i < s_order.Length; i++)
+		{
+			all[i] = RawForBiome(i, i == index);
+			foreach (SpawnEntry e in all[i])
+			{
+				spread[e.Prefab] = spread.TryGetValue(e.Prefab, out var t) ? (t.count + 1, Mathf.Max(t.max, e.Weight), Mathf.Min(t.min, e.Weight)) : (1, e.Weight, e.Weight);
+			}
+		}
+		List<string> dropped = new();
+		foreach (SpawnEntry e in all[index])
+		{
+			var t = spread[e.Prefab];
+			bool keep = t.count >= 4 ? t.max >= 2f * t.min && e.Weight >= 0.5f * t.max : e.Weight >= 0.1f * t.max;
+			if (keep)
+			{
+				result.Add(e);
+			}
+			else
+			{
+				dropped.Add($"{e.Prefab.name} ({t.count} biomes)");
+			}
+		}
+		if (dropped.Count > 0)
+		{
+			Plugin.Log.LogInfo($"{s_order[index]}: left out {string.Join(", ", dropped)}");
+		}
+		return result;
+	}
+
+	private static List<SpawnEntry> RawForBiome(int index, bool log)
+	{
+		List<SpawnEntry> result = new();
+		List<string> raw = new();
 		if (index < 0 || index >= s_order.Length)
 		{
 			return result;
@@ -69,7 +111,17 @@ internal static class SpawnTables
 				}
 				// How many of it are around on average: the cap times the chance per try,
 				// tries per minute.
-				float weight = Mathf.Max(0.01f, d.m_spawnChance / 100f) * Mathf.Max(1, d.m_maxSpawned) * 60f / Mathf.Max(1f, d.m_spawnInterval);
+				// How many of it are around: mostly its cap (spawners refill up to it), a little
+				// more or less by how often it tries and how likely each try is.
+				float rate = Mathf.Max(0.01f, d.m_spawnChance / 100f) * 600f / Mathf.Max(1f, d.m_spawnInterval);
+				float weight = Mathf.Max(1, d.m_maxSpawned) * Mathf.Clamp(Mathf.Sqrt(rate), 0.25f, 1.5f);
+				if (log)
+				{
+					string flags = (d.m_spawnAtDay ? "" : " night") + (d.m_spawnAtNight ? "" : " day")
+						+ (d.m_requiredEnvironments != null && d.m_requiredEnvironments.Count > 0 ? " weather" : "")
+						+ (string.IsNullOrEmpty(d.m_requiredGlobalKey) ? "" : " key " + d.m_requiredGlobalKey);
+					raw.Add($"{d.m_prefab.name}(max {d.m_maxSpawned} chance {d.m_spawnChance:0} every {d.m_spawnInterval:0}s group {d.m_groupSizeMin}-{d.m_groupSizeMax}{flags})");
+				}
 				if (!d.m_spawnAtDay)
 				{
 					weight *= 0.35f;
@@ -100,6 +152,10 @@ internal static class SpawnTables
 			}
 		}
 		result.AddRange(byPrefab.Values);
+		if (log)
+		{
+			Plugin.Log.LogInfo($"{s_order[index]} spawn entries: {string.Join(", ", raw)}");
+		}
 		return result;
 	}
 

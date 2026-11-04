@@ -600,7 +600,14 @@ internal sealed class SurfGame : MonoBehaviour
 		}
 		m_landMask = MaskTexture(new Color(0f, 0f, 0f, 1f), new Color(0f, 0f, 0f, 1f));
 		m_terrainLand = new Material(source) { name = "SurfTerrain" };
+		// The shader shades by height above the sea (wet sand at the shore, and so on); the stage
+		// floats thousands of metres up, so move its sea to just below the road.
+		float sea = m_stage != null ? m_stage.position.y - 5f : source.GetFloat("_WaterLevel");
 		m_terrainLand.SetTexture("_ClearedMaskTex", m_landMask);
+		if (m_terrainLand.HasProperty("_WaterLevel"))
+		{
+			m_terrainLand.SetFloat("_WaterLevel", sea);
+		}
 		string style = Plugin.TrackStyle.Value.Trim().ToLowerInvariant();
 		if (style != "stone")
 		{
@@ -608,6 +615,10 @@ internal sealed class SurfGame : MonoBehaviour
 			m_trackMask = MaskTexture(new Color(0f, 0f, 0f, 1f), path);
 			m_terrainTrack = new Material(source) { name = "SurfTerrainPath" };
 			m_terrainTrack.SetTexture("_ClearedMaskTex", m_trackMask);
+			if (m_terrainTrack.HasProperty("_WaterLevel"))
+			{
+				m_terrainTrack.SetFloat("_WaterLevel", sea);
+			}
 		}
 		Plugin.Log.LogInfo($"Using the game's terrain material '{source.name}' ({source.shader.name}) for the land{(m_terrainTrack != null ? " and a " + style + " path" : "")}.");
 	}
