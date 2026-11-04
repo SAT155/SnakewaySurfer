@@ -5,11 +5,12 @@ Waiting at the longhouse for your friends? Open the console (F5) and type **`sur
 Your viking auto-runs down the Snakeway, a three-lane track through every biome in order:
 Meadows, Black Forest, Swamp, Mountains, Plains, Mistlands, Ashlands and Deep North (which
 never ends). You dodge each biome's monsters, jump over fallen logs, slide under hanging logs
-and flying monsters, and grab coins. You run a little faster with every biome, and from the
-Black Forest on some monsters charge at you.
+and flying monsters, and grab coins. You run a little faster with every biome, and the road
+rolls more and more. Monsters use their own attacks: fast ones charge at you, slow ones walk,
+and archers, mages and stone throwers shoot down the track toward your lane (slide under the
+shot or change lane). In the Swamp you splash through shallow water.
 
-In the Black Forest, watch out for trolls: one beside the track holds up a log and slams it
-down across its lane just as you run past, and another jumps down straddling the track with
+In the Black Forest, watch out for trolls: one beside the track swings at its lane just as you run past, and another jumps down straddling the track with
 its feet in both outer lanes, so you have to slide between its legs.
 
 To everyone else, you're just running in place at the longhouse wearing a Dverger circlet.
@@ -35,7 +36,7 @@ crashes), borrowed from the game and heard only by you.
 
 At the end of each run:
 
-- **Run XP**: by default one Run level's worth for each biome's length of track you ran
+- **Run XP**: by default a quarter of a Run level's worth for each biome's length of track you ran
   (fractions count). It's measured at your current Run level, so it slows down as your skill
   gets high, the same way vanilla does.
 - **One random food from the furthest biome you reached**, if the run lasted at least 30 seconds
@@ -59,6 +60,11 @@ and for players without the mod.
 
 ## Changes
 
+- **1.4**: creatures play their real attack animations with their own weapons (the classic
+  stiff troll log swing still turns up now and then); ranged monsters shoot at your lane; fast
+  monsters charge, slow ones walk; the road rolls, more in each biome; hillier Swamp with water
+  to run through; textured ground; Run XP lowered to 0.25 levels per biome (an untouched old
+  setting of 1 is changed once).
 - **1.3**: rolling hills beside the track (tallest in the Mountains); rocks and trees never
   reach over the track; the legs troll leaps in from beside the track instead of hanging in
   the air; darker track; coin sound (with fallbacks) on its own channel apart from footsteps.

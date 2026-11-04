@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.3.0";
+	public const string PluginVersion = "1.4.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -21,7 +21,10 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> StartSpeed = null!;
 	internal static ConfigEntry<float> SpeedPerBiome = null!;
 	internal static ConfigEntry<float> MaxSpeed = null!;
-	internal static ConfigEntry<float> MonsterApproach = null!;
+	internal static ConfigEntry<float> MonsterMove = null!;
+	internal static ConfigEntry<bool> RangedAttacks = null!;
+	internal static ConfigEntry<float> RoadRoll = null!;
+	internal static ConfigEntry<bool> SwampWater = null!;
 	internal static ConfigEntry<float> JumpHeight = null!;
 	internal static ConfigEntry<float> SlideTime = null!;
 	internal static ConfigEntry<float> LaneSwitchSpeed = null!;
@@ -75,9 +78,15 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How much faster you run for each biome you get through (it rises smoothly, not in steps).", new AcceptableValueRange<float>(0f, 10f)));
 		MaxSpeed = Config.Bind("1 - Run", "Max Speed", 22f,
 			new ConfigDescription("Running speed never goes above this.", new AcceptableValueRange<float>(5f, 50f)));
-		MonsterApproach = Config.Bind("1 - Run", "Monster Charge Per Biome", 0.8f,
-			new ConfigDescription("Some monsters run at you instead of standing still. Their speed is this times the biome number (Meadows 0, Black Forest 1, ... Deep North 7), so the Meadows ones always stand still.",
-				new AcceptableValueRange<float>(0f, 5f)));
+		MonsterMove = Config.Bind("1 - Run", "Monster Movement", 1f,
+			new ConfigDescription("Some monsters come at you instead of standing still: fast ones (wolves, deer, fenrings...) charge, slow ones walk, a little more in later biomes. This scales their speed; 0 keeps them all still.",
+				new AcceptableValueRange<float>(0f, 3f)));
+		RangedAttacks = Config.Bind("1 - Run", "Ranged Attacks", true,
+			"Monsters with a ranged attack (archers, stone-throwing greydwarfs, mages...) shoot down the track toward your lane. Slide under the shot or change lane.");
+		RoadRoll = Config.Bind("3 - Look", "Road Roll", 1f,
+			new ConfigDescription("How much the road rolls up and down; it gets stronger with every biome. 0 makes it flat.", new AcceptableValueRange<float>(0f, 3f)));
+		SwampWater = Config.Bind("3 - Look", "Swamp Water", true,
+			"In the Swamp you run through shallow water.");
 		JumpHeight = Config.Bind("1 - Run", "Jump Height", 1.6f,
 			new ConfigDescription("How high a jump goes, in metres. Logs are 0.7 m high.", new AcceptableValueRange<float>(0.8f, 4f)));
 		SlideTime = Config.Bind("1 - Run", "Slide Time", 0.8f,
@@ -98,7 +107,7 @@ public class Plugin : BaseUnityPlugin
 		SoundVolume = Config.Bind("3 - Look", "Sound Volume", 0.8f,
 			new ConfigDescription("Volume of the minigame sounds.", new AcceptableValueRange<float>(0f, 1f)));
 
-		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 1f,
+		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 0.25f,
 			new ConfigDescription("Run skill levels earned for each biome's length of track (fractions count, so half a biome gives half). It's levels at your current Run skill, so it slows down as your skill gets high, like vanilla. 0 turns XP off.",
 				new AcceptableValueRange<float>(0f, 10f)));
 		FoodCooldownMinutes = Config.Bind("2 - Rewards", "Food Cooldown Minutes", 30f,
@@ -160,6 +169,19 @@ public class Plugin : BaseUnityPlugin
 				"Big monsters used for set pieces: one beside the track slams a log down across the outer lane as you run past, or one jumps down straddling the track so you must slide between its legs. Same naming as Monsters. Empty: no set pieces in this biome.");
 			s_foods[i] = Config.Bind(section, "Foods", d.Foods,
 				"Foods you can win when this is the furthest biome you reached; one is picked at random. Item names as in the game's text keys (\"carrotsoup\" for $item_carrotsoup) or prefab names.");
+		}
+
+		// Defaults changed in a release: overwrite an old default once (a value someone set
+		// themselves stays).
+		ConfigEntry<int> balance = Config.Bind("9 - Debug", "Balance Version", 0,
+			"Internal: which release's default changes have been applied to this file. Leave it alone.");
+		if (balance.Value < 1)
+		{
+			if (Mathf.Approximately(RunLevelsPerBiome.Value, 1f))
+			{
+				RunLevelsPerBiome.Value = 0.25f;
+			}
+			balance.Value = 1;
 		}
 
 		DebugLog = Config.Bind("9 - Debug", "Log Details", false,

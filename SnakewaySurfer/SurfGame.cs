@@ -52,6 +52,19 @@ internal sealed class SurfGame : MonoBehaviour
 		public bool Triggered;
 		public float Progress;
 		public int Side;
+		// Height above the road, which rolls; moving things follow it.
+		public float BaseY;
+		// Shots fly across lanes toward where you were, so they keep their own x.
+		public bool FreeX;
+		public float X;
+		public float TargetX;
+		public float XSpeed;
+		// Creatures: their own attack, played when you come close.
+		public Animator? Anim;
+		public CreatureAttack? Attack;
+		public bool Attacked;
+		public float Cooldown;
+		public float FireIn = -1f;
 	}
 
 	private enum Special
@@ -72,6 +85,7 @@ internal sealed class SurfGame : MonoBehaviour
 		public readonly List<GameObject> Logs = new();
 		public readonly List<(GameObject prefab, string label)> Giants = new();
 		public float Fog;
+		public bool Water;
 	}
 
 	private static readonly Color[] s_sky =
@@ -93,7 +107,9 @@ internal sealed class SurfGame : MonoBehaviour
 	private const float TrackHalf = LaneWidth * 1.5f + 0.4f;
 	private const float StraddleStartX = TrackHalf + 7f;
 	// Height of the hills beside the track, per biome.
-	private static readonly float[] s_hills = { 3.5f, 7f, 1.5f, 16f, 2.5f, 10f, 6f, 12f };
+	private static readonly float[] s_hills = { 3.5f, 7f, 4.5f, 16f, 2.5f, 10f, 6f, 12f };
+	// How far the swamp water stands above the track.
+	private const float WaterDepth = 0.3f;
 	private const float Gravity = 32f;
 	private const float GroundTile = 40f;
 	private const float AheadDistance = 150f;
@@ -118,6 +134,8 @@ internal sealed class SurfGame : MonoBehaviour
 	private readonly Dictionary<GameObject, GameObject> m_pictureOf = new();
 	private GameObject? m_coinTemplate;
 	private Material? m_trackMaterial;
+	private Material? m_waterMaterial;
+	private Texture2D? m_groundTexture;
 	private Mesh? m_cube;
 
 	private readonly List<Thing> m_things = new();
@@ -283,6 +301,10 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			Destroy(m_cube);
 		}
+		if (m_groundTexture != null)
+		{
+			Destroy(m_groundTexture);
+		}
 		Plugin.Log.LogInfo("Surf's over.");
 	}
 
@@ -327,12 +349,98 @@ internal sealed class SurfGame : MonoBehaviour
 		m_trackMaterial = BorrowMaterial(Plugin.TrackPiece.Value) ?? BorrowMaterial("stone_floor_2x2") ?? BorrowMaterial("wood_floor");
 		if (m_trackMaterial != null && m_trackMaterial.HasProperty("_MainTex"))
 		{
-			m_trackMaterial.mainTextureScale = new Vector2(2f, GroundTile / 4f);
+			m_trackMaterial.mainTextureScale = Vector2.one;
 		}
 		if (m_trackMaterial != null && m_trackMaterial.HasProperty("_Color"))
 		{
 			m_trackMaterial.color = m_trackMaterial.color * Plugin.TrackBrightness.Value;
 		}
+		m_groundTexture = MakeGroundTexture();
+		m_waterMaterial = MakeWaterMaterial();
+	}
+
+	// A tileable mottled grey texture (value noise over a few octaves) that the biome colour
+	// tints, so the land isn't one flat colour. Made here because the game's terrain shader
+	// needs its own splat maps and can't be borrowed for a plain mesh.
+	private static Texture2D MakeGroundTexture()
+	{
+		const int size = 256;
+		System.Random rng = new System.Random(20261104);
+		int[] cells = { 4, 8, 16, 32, 64 };
+		float[] weights = { 0.32f, 0.26f, 0.18f, 0.13f, 0.11f };
+		float[][] lattices = new float[cells.Length][];
+		for (int o = 0; o < cells.Length; o++)
+		{
+			lattices[o] = new float[cells[o] * cells[o]];
+			for (int i = 0; i < lattices[o].Length; i++)
+			{
+				lattices[o][i] = (float)rng.NextDouble();
+			}
+		}
+		Color[] pixels = new Color[size * size];
+		for (int y = 0; y < size; y++)
+		{
+			for (int x = 0; x < size; x++)
+			{
+				float v = 0f;
+				for (int o = 0; o < cells.Length; o++)
+				{
+					int c = cells[o];
+					float fx = x * c / (float)size;
+					float fy = y * c / (float)size;
+					int x0 = Mathf.FloorToInt(fx);
+					int y0 = Mathf.FloorToInt(fy);
+					float tx = Mathf.SmoothStep(0f, 1f, fx - x0);
+					float ty = Mathf.SmoothStep(0f, 1f, fy - y0);
+					float[] l = lattices[o];
+					float a = l[(y0 % c) * c + x0 % c];
+					float b = l[(y0 % c) * c + (x0 + 1) % c];
+					float d = l[((y0 + 1) % c) * c + x0 % c];
+					float e = l[((y0 + 1) % c) * c + (x0 + 1) % c];
+					v += weights[o] * Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(d, e, tx), ty);
+				}
+				float speckle = ((float)rng.NextDouble() - 0.5f) * 0.08f;
+				float g = Mathf.Clamp01(0.82f + (v - 0.5f) * 0.9f + speckle);
+				pixels[y * size + x] = new Color(g, g, g, 1f);
+			}
+		}
+		Texture2D tex = new Texture2D(size, size, TextureFormat.RGB24, true);
+		tex.name = "SurfGround";
+		tex.wrapMode = TextureWrapMode.Repeat;
+		tex.filterMode = FilterMode.Trilinear;
+		tex.anisoLevel = 4;
+		tex.SetPixels(pixels);
+		tex.Apply(true);
+		return tex;
+	}
+
+	private static Material? MakeWaterMaterial()
+	{
+		Shader? shader = FindPlainShader();
+		if (shader == null)
+		{
+			return null;
+		}
+		Material mat = new Material(shader) { name = "SurfWater" };
+		if (mat.HasProperty("_Color"))
+		{
+			mat.color = new Color(0.17f, 0.21f, 0.13f, 0.78f);
+		}
+		if (shader.name == "Standard")
+		{
+			// The Standard shader's "Fade" mode, set up by hand as its editor would.
+			mat.SetFloat("_Mode", 2f);
+			mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+			mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+			mat.SetInt("_ZWrite", 0);
+			mat.DisableKeyword("_ALPHATEST_ON");
+			mat.EnableKeyword("_ALPHABLEND_ON");
+			mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+			mat.renderQueue = 3000;
+			mat.SetFloat("_Glossiness", 0.9f);
+			mat.SetFloat("_Metallic", 0f);
+		}
+		return mat;
 	}
 
 	private Material MakeGroundMaterial(Color color)
@@ -353,7 +461,12 @@ internal sealed class SurfGame : MonoBehaviour
 		}
 		if (mat.HasProperty("_Color"))
 		{
-			mat.color = color;
+			// The texture averages about 0.82, so lift the colour to keep the biome's brightness.
+			mat.color = color * 1.2f;
+		}
+		if (m_groundTexture != null && mat.HasProperty("_MainTex"))
+		{
+			mat.mainTexture = m_groundTexture;
 		}
 		if (mat.HasProperty("_Glossiness"))
 		{
@@ -370,6 +483,7 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			BiomeDef def = Plugin.BiomeConfig(i);
 			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Fog = s_fog[Mathf.Min(i, s_fog.Length - 1)], Ground = MakeGroundMaterial(def.Ground) };
+			rt.Water = Plugin.SwampWater.Value && def.Name == "Swamp" && m_waterMaterial != null;
 			foreach (string key in Pictures.SplitList(def.Giants))
 			{
 				GameObject? prefab = Pictures.Monster(key);
@@ -758,7 +872,7 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				continue;
 			}
-			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - LaneX(t.Lane)) > LaneWidth * 0.45f)
+			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX ? t.X : LaneX(t.Lane))) > LaneWidth * 0.45f)
 			{
 				continue;
 			}
@@ -814,11 +928,20 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				UpdateSetPiece(t, dt);
 			}
+			else if (m_state == State.Running && t.Attack != null)
+			{
+				UpdateCreature(t, dt);
+			}
 			if (m_state == State.Running && t.Speed > 0f)
 			{
 				t.Z -= t.Speed * dt;
 				Vector3 p = t.Go.transform.localPosition;
-				t.Go.transform.localPosition = new Vector3(p.x, p.y, t.Z);
+				if (t.FreeX)
+				{
+					t.X = Mathf.MoveTowards(t.X, t.TargetX, t.XSpeed * dt);
+					p.x = t.X;
+				}
+				t.Go.transform.localPosition = new Vector3(p.x, RoadY(t.Z) + t.BaseY, t.Z);
 			}
 			if (t.Kind == Kind.Coin)
 			{
@@ -857,20 +980,6 @@ internal sealed class SurfGame : MonoBehaviour
 		}
 	}
 
-	private GameObject Box(string name, Material? material, Vector3 localPos, Vector3 size)
-	{
-		GameObject go = new GameObject(name);
-		go.layer = m_layer;
-		go.transform.SetParent(m_stage, false);
-		go.transform.localPosition = localPos;
-		go.transform.localScale = size;
-		go.AddComponent<MeshFilter>().sharedMesh = m_cube;
-		MeshRenderer r = go.AddComponent<MeshRenderer>();
-		r.sharedMaterial = material;
-		r.receiveShadows = true;
-		return go;
-	}
-
 	private void SpawnGround(float centerZ)
 	{
 		BiomeRuntime b = m_biomes[BiomeAt(centerZ)];
@@ -879,10 +988,23 @@ internal sealed class SurfGame : MonoBehaviour
 		root.layer = m_layer;
 		root.transform.SetParent(m_stage, false);
 		root.transform.localPosition = new Vector3(0f, 0f, centerZ);
-		GameObject track = Box("Track", m_trackMaterial ?? b.Ground, Vector3.zero, Vector3.one);
+		GameObject track = new GameObject("Track");
+		track.layer = m_layer;
 		track.transform.SetParent(root.transform, false);
-		track.transform.localPosition = new Vector3(0f, -0.1f, 0f);
-		track.transform.localScale = new Vector3(trackWidth, 0.2f, GroundTile + 0.02f);
+		track.AddComponent<MeshFilter>().sharedMesh = StripMesh(centerZ, trackWidth * 0.5f, 2f, 1, 0f, true);
+		MeshRenderer tr = track.AddComponent<MeshRenderer>();
+		tr.sharedMaterial = m_trackMaterial ?? b.Ground;
+		tr.receiveShadows = true;
+		if (b.Water && m_waterMaterial != null)
+		{
+			GameObject water = new GameObject("Water");
+			water.layer = m_layer;
+			water.transform.SetParent(root.transform, false);
+			water.AddComponent<MeshFilter>().sharedMesh = StripMesh(centerZ, TrackHalf + LandWidth, 4f, 8, WaterDepth, false);
+			MeshRenderer wr = water.AddComponent<MeshRenderer>();
+			wr.sharedMaterial = m_waterMaterial;
+			wr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		}
 		foreach (int side in new[] { -1, 1 })
 		{
 			GameObject land = new GameObject("Land");
@@ -896,27 +1018,99 @@ internal sealed class SurfGame : MonoBehaviour
 		m_things.Add(new Thing { Go = root, Kind = Kind.Ground, Z = centerZ, HalfLength = GroundTile * 0.5f });
 	}
 
+	// Blends from one biome to the next over the last 40 m of a biome, so nothing jumps at a border.
+	private void BiomeBlend(float z, out int a, out int b, out float blend)
+	{
+		float f = Mathf.Max(0f, z) / Plugin.BiomeLength.Value;
+		a = Mathf.Clamp(Mathf.FloorToInt(f), 0, m_biomes.Count - 1);
+		b = Mathf.Clamp(a + 1, 0, m_biomes.Count - 1);
+		blend = Mathf.Clamp01((f - Mathf.Floor(f)) * Plugin.BiomeLength.Value / 40f - (Plugin.BiomeLength.Value - 40f) / 40f);
+	}
+
 	private float HillAmplitude(float z)
 	{
-		// Blend between biomes over 40 m so the hills don't jump at a border.
-		float f = Mathf.Max(0f, z) / Plugin.BiomeLength.Value;
-		int a = Mathf.Clamp(Mathf.FloorToInt(f), 0, m_biomes.Count - 1);
-		int b = Mathf.Clamp(a + 1, 0, m_biomes.Count - 1);
-		float blend = Mathf.Clamp01((f - Mathf.Floor(f)) * Plugin.BiomeLength.Value / 40f - (Plugin.BiomeLength.Value - 40f) / 40f);
+		BiomeBlend(z, out int a, out int b, out float blend);
 		return Mathf.Lerp(s_hills[Mathf.Min(a, s_hills.Length - 1)], s_hills[Mathf.Min(b, s_hills.Length - 1)], blend) * Plugin.HillHeight.Value;
 	}
 
-	// Ground height beside the track: flat at the edge, rolling hills further out.
+	private float WaterWeight(float z)
+	{
+		if (m_biomes.Count == 0)
+		{
+			return 0f;
+		}
+		BiomeBlend(z, out int a, out int b, out float blend);
+		return Mathf.Lerp(m_biomes[a].Water ? 1f : 0f, m_biomes[b].Water ? 1f : 0f, blend);
+	}
+
+	// The road rolls up and down, gently in the Meadows and more with every biome (calmer in the
+	// Swamp so the water lies flat-ish).
+	private float RoadY(float z)
+	{
+		float biomes = Mathf.Clamp(z / Plugin.BiomeLength.Value, 0f, m_biomes.Count);
+		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value;
+		float n = (Mathf.PerlinNoise(z * 0.011f + 3.1f, 7.3f) - 0.5f) * 2f + (Mathf.PerlinNoise(z * 0.037f + 11f, 1.9f) - 0.5f) * 0.5f;
+		return amplitude * n;
+	}
+
+	// Ground height beside the track: flat at the edge, rolling hills further out. In the Swamp
+	// the land sinks under the water near the track and rises in islands further out.
 	private float HillHeight(float x, float z)
 	{
+		float road = RoadY(z);
+		float water = WaterWeight(z);
 		float out_ = Mathf.Abs(x) - TrackHalf;
 		if (out_ <= 0f)
 		{
-			return -0.05f;
+			return road - 0.05f - 0.6f * water;
 		}
 		float ramp = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((out_ - 2.5f) / 22f));
 		float n = Mathf.PerlinNoise((x + 500f) * 0.035f, z * 0.035f) * 0.75f + Mathf.PerlinNoise(x * 0.11f + 91f, z * 0.11f) * 0.25f;
-		return -0.05f + ramp * HillAmplitude(z) * (0.25f + n);
+		float amp = HillAmplitude(z);
+		float dry = -0.05f + ramp * amp * (0.25f + n);
+		float wet = -0.65f + Mathf.Lerp(0.3f, 1f, ramp) * amp * (n * 1.6f - 0.45f);
+		return road + Mathf.Lerp(dry, wet, water);
+	}
+
+	// A flat strip that follows the road: the track itself, or the swamp water's surface.
+	private Mesh StripMesh(float centerZ, float halfWidth, float step, int across, float lift, bool trackUv)
+	{
+		int nz = Mathf.CeilToInt(GroundTile / step) + 1;
+		int nx = across + 1;
+		Vector3[] verts = new Vector3[nx * nz];
+		Vector2[] uvs = new Vector2[verts.Length];
+		for (int iz = 0; iz < nz; iz++)
+		{
+			float lz = -GroundTile * 0.5f + GroundTile * iz / (nz - 1);
+			float y = RoadY(centerZ + lz) + lift;
+			for (int ix = 0; ix < nx; ix++)
+			{
+				float x = -halfWidth + 2f * halfWidth * ix / across;
+				verts[iz * nx + ix] = new Vector3(x, y, lz);
+				uvs[iz * nx + ix] = trackUv ? new Vector2((x / halfWidth + 1f), (centerZ + lz) / 4f) : new Vector2(x / 10f, (centerZ + lz) / 10f);
+			}
+		}
+		int[] tris = new int[(nx - 1) * (nz - 1) * 6];
+		int k = 0;
+		for (int iz = 0; iz < nz - 1; iz++)
+		{
+			for (int ix = 0; ix < nx - 1; ix++)
+			{
+				int a = iz * nx + ix;
+				int b = a + 1;
+				int c = a + nx;
+				int d = c + 1;
+				tris[k++] = a; tris[k++] = c; tris[k++] = d;
+				tris[k++] = a; tris[k++] = d; tris[k++] = b;
+			}
+		}
+		Mesh mesh = new Mesh { name = "SurfStrip" };
+		mesh.vertices = verts;
+		mesh.uv = uvs;
+		mesh.triangles = tris;
+		mesh.RecalculateNormals();
+		mesh.RecalculateBounds();
+		return mesh;
 	}
 
 	private const float LandWidth = 90f;
@@ -935,7 +1129,7 @@ internal sealed class SurfGame : MonoBehaviour
 			{
 				float x = side * (TrackHalf - 0.2f + ix * LandStep);
 				verts[iz * nx + ix] = new Vector3(x, HillHeight(x, centerZ + lz), lz);
-				uvs[iz * nx + ix] = new Vector2(x / 8f, (centerZ + lz) / 8f);
+				uvs[iz * nx + ix] = new Vector2(x / 10f, (centerZ + lz) / 10f);
 			}
 		}
 		int[] tris = new int[(nx - 1) * (nz - 1) * 6];
@@ -1103,23 +1297,14 @@ internal sealed class SurfGame : MonoBehaviour
 				case Kind.Block:
 				{
 					(GameObject prefab, string label) = b.Monsters[Random.Range(0, b.Monsters.Count)];
-					GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(2.2f, Plugin.MonsterHeight.Value, 3f), true);
-					go.transform.localPosition = new Vector3(LaneX(lane), 0f, z);
-					float speed = Random.value < 0.55f ? Plugin.MonsterApproach.Value * biomeIndex * Random.Range(0.5f, 1f) : 0f;
-					Animator anim = go.GetComponentInChildren<Animator>();
-					if (anim != null)
-					{
-						SetParam(anim, "forward_speed", speed > 0.1f ? Mathf.Max(speed, 2f) : 0f);
-						SetParam(anim, "onGround", true);
-					}
-					m_things.Add(new Thing { Go = go, Kind = Kind.Block, Lane = lane, Z = z, HalfLength = 0.9f, Speed = speed, Label = label });
+					SpawnCreature(prefab, label, lane, z, Kind.Block, 0f, new Vector3(2.2f, Plugin.MonsterHeight.Value, 3f), biomeIndex);
 					break;
 				}
 				case Kind.Low:
 				{
 					GameObject log = b.Logs[Random.Range(0, b.Logs.Count)];
 					GameObject go = Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
-					go.transform.localPosition = new Vector3(LaneX(lane), 0f, z);
+					go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
 					m_things.Add(new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, HalfLength = 0.35f });
 					if (m_coinTemplate != null && Random.value < 0.35f)
 					{
@@ -1135,15 +1320,13 @@ internal sealed class SurfGame : MonoBehaviour
 					if (b.Flyers.Count > 0 && (b.Logs.Count == 0 || Random.value < 0.5f))
 					{
 						(GameObject prefab, string label) = b.Flyers[Random.Range(0, b.Flyers.Count)];
-						GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(2.0f, 1.0f, 2.0f), true);
-						go.transform.localPosition = new Vector3(LaneX(lane), 1.35f, z);
-						m_things.Add(new Thing { Go = go, Kind = Kind.High, Lane = lane, Z = z, HalfLength = 0.8f, Label = label });
+						SpawnCreature(prefab, label, lane, z, Kind.High, 1.35f, new Vector3(2.0f, 1.0f, 2.0f), biomeIndex);
 					}
 					else
 					{
 						GameObject log = b.Logs[Random.Range(0, b.Logs.Count)];
 						GameObject go = Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth, 0.6f, 0.6f), false);
-						go.transform.localPosition = new Vector3(LaneX(lane), 1.3f, z);
+						go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 1.3f, z);
 						// Two posts so the log doesn't just float.
 						foreach (float side in new[] { -1f, 1f })
 						{
@@ -1168,26 +1351,25 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject root = new GameObject("SwingTroll");
 		root.layer = m_layer;
 		root.transform.SetParent(m_stage, false);
-		root.transform.localPosition = new Vector3(0f, 0f, z);
+		root.transform.localPosition = new Vector3(0f, RoadY(z), z);
 
 		float trollX = side * (LaneWidth * 1.5f + 2.4f);
 		// Facing the track and a little toward the runner.
 		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, side < 0 ? 120f : 240f, 0f), new Vector3(3.2f, 3.8f, 3.2f), true);
 		troll.transform.SetParent(root.transform, false);
 		troll.transform.localPosition = new Vector3(trollX, 0f, 0f);
+		Animator anim = troll.GetComponentInChildren<Animator>();
 
-		GameObject pivot = new GameObject("ClubPivot");
-		pivot.layer = m_layer;
-		pivot.transform.SetParent(root.transform, false);
-		pivot.transform.localPosition = new Vector3(trollX - side * 0.7f, 2.7f, 0f);
-		GameObject log = b.Logs.Count > 0 ? b.Logs[Random.Range(0, b.Logs.Count)] : m_biomes[1].Logs.Count > 0 ? m_biomes[1].Logs[0] : null!;
-		if (log != null)
+		// Mostly the troll's own attack with its own weapon; now and then the classic stiff log
+		// swing from 1.2, which Sam asked to keep.
+		CreatureInfo info = CreatureInfo.Of(prefab);
+		CreatureAttack? attack = Random.value < 0.3f ? null : info.PickMelee("swing");
+		bool armed = attack != null && Arm(troll, info, attack, anim);
+		Transform? moving = null;
+		if (!armed)
 		{
-			GameObject club = Fitted(Picture(log), Quaternion.identity, new Vector3(0.55f, 4.4f, 0.55f), false);
-			club.transform.SetParent(pivot.transform, false);
-			club.transform.localPosition = Vector3.zero;
+			moving = ClassicClub(root.transform, trollX, side, b);
 		}
-		pivot.transform.localRotation = Quaternion.Euler(0f, 0f, side * -25f);
 
 		int lane = side < 0 ? 0 : 2;
 		m_things.Add(new Thing
@@ -1201,9 +1383,28 @@ internal sealed class SurfGame : MonoBehaviour
 			CrashText = $"A {label} clubbed you flat in the {b.Def.Name}!",
 			Collidable = false,
 			Special = Special.Swing,
-			Moving = pivot.transform,
+			Moving = moving,
 			Side = side,
+			Anim = anim,
+			Attack = attack,
 		});
+	}
+
+	private Transform ClassicClub(Transform root, float trollX, int side, BiomeRuntime b)
+	{
+		GameObject pivot = new GameObject("ClubPivot");
+		pivot.layer = m_layer;
+		pivot.transform.SetParent(root, false);
+		pivot.transform.localPosition = new Vector3(trollX - side * 0.7f, 2.7f, 0f);
+		GameObject log = b.Logs.Count > 0 ? b.Logs[Random.Range(0, b.Logs.Count)] : m_biomes[1].Logs.Count > 0 ? m_biomes[1].Logs[0] : null!;
+		if (log != null)
+		{
+			GameObject club = Fitted(Picture(log), Quaternion.identity, new Vector3(0.55f, 4.4f, 0.55f), false);
+			club.transform.SetParent(pivot.transform, false);
+			club.transform.localPosition = Vector3.zero;
+		}
+		pivot.transform.localRotation = Quaternion.Euler(0f, 0f, side * -25f);
+		return pivot.transform;
 	}
 
 	// A troll jumps down over the track, legs planted in both outer lanes: the only way through
@@ -1214,7 +1415,7 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject root = new GameObject("StraddleTroll");
 		root.layer = m_layer;
 		root.transform.SetParent(m_stage, false);
-		root.transform.localPosition = new Vector3(0f, 0f, z);
+		root.transform.localPosition = new Vector3(0f, RoadY(z), z);
 
 		GameObject body = new GameObject("Body");
 		body.layer = m_layer;
@@ -1225,6 +1426,9 @@ internal sealed class SurfGame : MonoBehaviour
 		GameObject troll = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(LaneWidth * 3f + 0.4f, 4.2f, 3f), false);
 		troll.transform.SetParent(body.transform, false);
 		troll.transform.localPosition = Vector3.zero;
+		Animator anim = troll.GetComponentInChildren<Animator>();
+		CreatureInfo info = CreatureInfo.Of(prefab);
+		CreatureAttack? slam = info.PickMelee("slam");
 
 		string legs = $"The {label} stomped you in the {b.Def.Name}!";
 		m_things.Add(new Thing
@@ -1239,6 +1443,8 @@ internal sealed class SurfGame : MonoBehaviour
 			Special = Special.Drop,
 			Moving = body.transform,
 			Side = side,
+			Anim = anim,
+			Attack = slam,
 		});
 		foreach ((int lane, Kind kind, string text) in new[]
 		{
@@ -1255,37 +1461,46 @@ internal sealed class SurfGame : MonoBehaviour
 
 	private void UpdateSetPiece(Thing t, float dt)
 	{
-		if (t.Moving == null)
-		{
-			return;
-		}
 		float distance = t.Z - m_z;
+		bool swing = t.Special == Special.Swing;
+		// The real attack animation winds up slower than the classic stiff swing.
+		bool real = swing && t.Moving == null;
 		if (!t.Triggered)
 		{
-			float trigger = t.Special == Special.Swing ? m_speed * 0.5f + 2.5f : m_speed * 1.6f + 10f;
+			float trigger = !swing ? m_speed * 1.6f + 10f : real ? m_speed * 0.65f + 2f : m_speed * 0.5f + 2.5f;
 			if (distance > trigger)
 			{
 				return;
 			}
 			t.Triggered = true;
-			m_audio.Play(t.Special == Special.Swing ? Sfx.ClubSwing : Sfx.TrollStep);
+			if (real && t.Anim != null && t.Attack != null)
+			{
+				TriggerAttack(t);
+			}
+			else
+			{
+				m_audio.Play(swing ? Sfx.ClubSwing : Sfx.TrollStep);
+			}
 		}
 		if (t.Progress >= 1f)
 		{
 			return;
 		}
-		float duration = t.Special == Special.Swing ? 0.22f : 0.5f;
+		float duration = !swing ? 0.5f : real ? 0.45f : 0.22f;
 		t.Progress = Mathf.Min(1f, t.Progress + dt / duration);
 		float e = t.Progress * t.Progress;
-		if (t.Special == Special.Swing)
+		if (swing)
 		{
-			t.Moving.localRotation = Quaternion.Euler(0f, 0f, t.Side * Mathf.Lerp(-25f, 128f, e));
+			if (t.Moving != null)
+			{
+				t.Moving.localRotation = Quaternion.Euler(0f, 0f, t.Side * Mathf.Lerp(-25f, 128f, e));
+			}
 			if (t.Progress >= 0.5f)
 			{
 				t.Collidable = true;
 			}
 		}
-		else
+		else if (t.Moving != null)
 		{
 			// A leap from beside the track onto it.
 			float p = t.Progress;
@@ -1294,7 +1509,211 @@ internal sealed class SurfGame : MonoBehaviour
 		if (t.Progress >= 1f)
 		{
 			m_audio.Play(Sfx.TrollSlam);
+			if (!swing && t.Anim != null && t.Attack != null)
+			{
+				TriggerAttack(t, false);
+			}
 		}
+	}
+
+	// A lane monster (or flyer) with one of its own attacks: melee ones swing as you come close,
+	// ranged ones shoot down the track toward the lane you're in. Fast creatures charge at you,
+	// slow ones walk.
+	private void SpawnCreature(GameObject prefab, string label, int lane, float z, Kind kind, float baseY, Vector3 size, int biomeIndex)
+	{
+		CreatureInfo info = CreatureInfo.Of(prefab);
+		CreatureAttack? attack = info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f)
+			? info.PickRanged()
+			: info.PickMelee();
+		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), size, true);
+		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + baseY, z);
+		Animator anim = go.GetComponentInChildren<Animator>();
+		if (attack != null)
+		{
+			Arm(go, info, attack, anim);
+		}
+
+		bool ranged = attack != null && attack.Ranged;
+		float speed = 0f;
+		float pace = 0f;
+		if (!ranged && Random.value < (info.Fast ? 0.7f : 0.45f))
+		{
+			pace = info.Fast ? info.RunSpeed : info.WalkSpeed;
+			speed = pace * (info.Fast ? 0.6f : 0.8f);
+		}
+		else if (ranged && Random.value < 0.3f)
+		{
+			pace = info.WalkSpeed;
+			speed = pace * 0.5f;
+		}
+		speed = Mathf.Min(speed * Mathf.Clamp(0.5f + 0.12f * biomeIndex, 0.5f, 1.2f) * Plugin.MonsterMove.Value, 9f);
+		if (anim != null)
+		{
+			SetParam(anim, "forward_speed", speed > 0.1f ? pace : 0f);
+			if (!info.Flying)
+			{
+				SetParam(anim, "onGround", true);
+			}
+		}
+		m_things.Add(new Thing
+		{
+			Go = go,
+			Kind = kind,
+			Lane = lane,
+			Z = z,
+			BaseY = baseY,
+			HalfLength = kind == Kind.Block ? 0.9f : 0.8f,
+			Speed = speed,
+			Label = label,
+			Anim = anim,
+			Attack = attack,
+			Cooldown = Random.Range(0f, 0.8f),
+		});
+	}
+
+	// Puts the attack's weapon in the creature's hand, as VisEquipment.AttachItem does (the item's
+	// "attach" child on the hand joint), and sets the animator's weapon stance.
+	private bool Arm(GameObject wrapper, CreatureInfo info, CreatureAttack attack, Animator? anim)
+	{
+		if (anim != null)
+		{
+			SetParam(anim, "statef", (float)attack.AnimationState);
+			SetParam(anim, "statei", attack.AnimationState);
+		}
+		string? path = attack.LeftHand ? info.LeftHand : info.RightHand;
+		if (attack.Attach == null || string.IsNullOrEmpty(path) || wrapper.transform.childCount == 0)
+		{
+			return false;
+		}
+		Transform hand = wrapper.transform.GetChild(0).Find(path);
+		if (hand == null)
+		{
+			return false;
+		}
+		GameObject weapon = Instantiate(Picture(attack.Attach), hand, false);
+		weapon.transform.localPosition = Vector3.zero;
+		weapon.transform.localRotation = Quaternion.identity;
+		return true;
+	}
+
+	private void TriggerAttack(Thing t, bool sound = true)
+	{
+		if (t.Anim != null && t.Attack != null)
+		{
+			SetTrigger(t.Anim, t.Attack.Animation);
+		}
+		if (sound)
+		{
+			float distance = Mathf.Abs(t.Z - m_z);
+			string sfx = t.Attack != null && t.Attack.Sound.Length > 0 ? t.Attack.Sound : Sfx.ClubSwing;
+			m_audio.Play(sfx, Mathf.Clamp01(1.2f - distance / 40f));
+		}
+	}
+
+	private void UpdateCreature(Thing t, float dt)
+	{
+		float distance = t.Z - m_z;
+		if (distance < -1f || t.Attack == null)
+		{
+			return;
+		}
+		t.Cooldown -= dt;
+		if (t.Attack.Ranged)
+		{
+			if (t.FireIn >= 0f)
+			{
+				t.FireIn -= dt;
+				if (t.FireIn < 0f)
+				{
+					FireShot(t);
+				}
+			}
+			else if (t.Cooldown <= 0f && distance < m_speed * 2.2f + 14f && distance > m_speed * 0.8f + 5f)
+			{
+				TriggerAttack(t);
+				t.FireIn = 0.35f;
+				t.Cooldown = 2.4f;
+			}
+		}
+		else if (!t.Attacked && distance < (m_speed + t.Speed) * 0.45f + 1.5f)
+		{
+			t.Attacked = true;
+			TriggerAttack(t);
+		}
+	}
+
+	// The creature's own projectile, flying down the track and across toward the lane you were in
+	// when it fired. Slide under it or change lane.
+	private void FireShot(Thing shooter)
+	{
+		CreatureAttack attack = shooter.Attack!;
+		float startZ = shooter.Z - 1.2f;
+		if (startZ - m_z < 3f)
+		{
+			return;
+		}
+		float speed = 9f + 0.6f * BiomeAt(shooter.Z);
+		float startX = LaneX(shooter.Lane);
+		float targetX = LaneX(m_lane);
+		float time = Mathf.Max(0.3f, (startZ - m_z) / (speed + m_speed));
+		float xSpeed = Mathf.Abs(targetX - startX) / time;
+		const float y = 1.1f;
+
+		GameObject wrapper = new GameObject("Shot");
+		wrapper.layer = m_layer;
+		wrapper.transform.SetParent(m_stage, false);
+		GameObject? visual = null;
+		if (attack.Projectile != null)
+		{
+			visual = Instantiate(Picture(attack.Projectile), wrapper.transform, false);
+			visual.transform.localPosition = Vector3.zero;
+			visual.transform.localRotation = Quaternion.identity;
+			if (visual.GetComponentsInChildren<Renderer>().Length == 0)
+			{
+				Destroy(visual);
+				visual = null;
+			}
+		}
+		if (visual == null && Pictures.Prefab("Stone") is GameObject stone)
+		{
+			visual = Instantiate(Picture(stone), wrapper.transform, false);
+			visual.transform.localPosition = Vector3.zero;
+		}
+		if (visual != null && Pictures.MeshBounds(visual, out Bounds bounds) && bounds.size.sqrMagnitude > 1e-4f)
+		{
+			visual.transform.position += wrapper.transform.position - bounds.center;
+			float biggest = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
+			wrapper.transform.localScale = Vector3.one * Mathf.Clamp(1.3f / biggest, 0.3f, 2f);
+		}
+		// A small glow so it shows through the fog.
+		Light glow = new GameObject("Glow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(wrapper.transform, false);
+		glow.type = LightType.Point;
+		glow.range = 4f;
+		glow.intensity = 1.3f;
+		glow.color = new Color(1f, 0.75f, 0.45f);
+		glow.cullingMask = 1 << m_layer;
+
+		wrapper.transform.localPosition = new Vector3(startX, RoadY(startZ) + y, startZ);
+		wrapper.transform.localRotation = Quaternion.LookRotation(new Vector3((targetX - startX) / time, 0f, -speed));
+		string biome = m_biomes[BiomeAt(m_z)].Def.Name;
+		m_things.Add(new Thing
+		{
+			Go = wrapper,
+			Kind = Kind.High,
+			Lane = m_lane,
+			Z = startZ,
+			BaseY = y,
+			HalfLength = 0.45f,
+			Speed = speed,
+			Label = shooter.Label,
+			CrashText = $"A {shooter.Label}'s shot hit you in the {biome}! (Slide under them.)",
+			FreeX = true,
+			X = startX,
+			TargetX = targetX,
+			XSpeed = xSpeed,
+		});
 	}
 
 	private void SpawnCoin(int lane, float z, float y)
@@ -1304,7 +1723,7 @@ internal sealed class SurfGame : MonoBehaviour
 			return;
 		}
 		GameObject go = Fitted(m_coinTemplate, Quaternion.identity, new Vector3(0.5f, 0.5f, 0.5f), true);
-		go.transform.localPosition = new Vector3(LaneX(lane), y, z);
+		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + y, z);
 		m_things.Add(new Thing { Go = go, Kind = Kind.Coin, Lane = lane, Z = z, Y = y, HalfLength = 0.3f });
 	}
 
@@ -1329,6 +1748,30 @@ internal sealed class SurfGame : MonoBehaviour
 			if (p.name == name && p.type == AnimatorControllerParameterType.Bool)
 			{
 				anim.SetBool(name, value);
+				return;
+			}
+		}
+	}
+
+	private void SetParam(Animator anim, string name, int value)
+	{
+		foreach (AnimatorControllerParameter p in anim.parameters)
+		{
+			if (p.name == name && p.type == AnimatorControllerParameterType.Int)
+			{
+				anim.SetInteger(name, value);
+				return;
+			}
+		}
+	}
+
+	private static void SetTrigger(Animator anim, string name)
+	{
+		foreach (AnimatorControllerParameter p in anim.parameters)
+		{
+			if (p.name == name && p.type == AnimatorControllerParameterType.Trigger)
+			{
+				anim.SetTrigger(name);
 				return;
 			}
 		}
@@ -1364,7 +1807,7 @@ internal sealed class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		m_avatar.transform.localPosition = new Vector3(m_x, m_y, m_z);
+		m_avatar.transform.localPosition = new Vector3(m_x, RoadY(m_z) + m_y, m_z);
 		float lean = (LaneX(m_lane) - m_x) * -6f;
 		m_avatar.transform.localRotation = Quaternion.Euler(0f, 0f, m_state == State.Running ? lean : 0f);
 		bool running = m_state == State.Running;
@@ -1381,8 +1824,10 @@ internal sealed class SurfGame : MonoBehaviour
 
 	private void PlaceCamera(float dt)
 	{
-		Vector3 target = m_stage.TransformPoint(new Vector3(m_x * 0.6f, Plugin.CameraHeight.Value + m_y * 0.4f, m_z - Plugin.CameraDistance.Value));
-		Vector3 look = m_stage.TransformPoint(new Vector3(m_x * 0.8f, 1.0f, m_z + 7f));
+		// Follow the rolling road, but never dip into a rise behind you.
+		float road = Mathf.Max(RoadY(m_z), RoadY(m_z - Plugin.CameraDistance.Value) + 0.8f);
+		Vector3 target = m_stage.TransformPoint(new Vector3(m_x * 0.6f, road + Plugin.CameraHeight.Value + m_y * 0.4f, m_z - Plugin.CameraDistance.Value));
+		Vector3 look = m_stage.TransformPoint(new Vector3(m_x * 0.8f, RoadY(m_z + 7f) + 1.0f, m_z + 7f));
 		if (!m_camPlaced)
 		{
 			m_camPos = target;
