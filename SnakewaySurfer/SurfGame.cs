@@ -654,7 +654,6 @@ internal sealed class SurfGame : MonoBehaviour
 				}
 			}
 			m_biomes.Add(rt);
-			if (Plugin.DebugLog.Value)
 			{
 				Plugin.Log.LogInfo($"{def.Name}: monsters [{string.Join(", ", rt.Monsters.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0} x{m.GroupMin}-{m.GroupMax}"))}], flyers [{string.Join(", ", rt.Flyers.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0}"))}], {rt.Scenery.Count} scenery, {rt.Logs.Count} logs");
 			}
