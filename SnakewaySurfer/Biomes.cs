@@ -22,6 +22,11 @@ internal sealed class BiomeDef
 	// Creatures that live at places in the biome (troll caves, crypts, villages) rather than in
 	// the world spawn tables; added to an "auto" list. Same format as Monsters.
 	public string Locations = "";
+	// Homes put beside the track near their creatures: "Prefab: home, home; Prefab*: home"
+	// (a trailing * matches a name start).
+	public string Landmarks = "";
+	// Plants, mushrooms, stones and bushes along the track edge (prefab names).
+	public string Pickables = "";
 }
 
 internal static class Biomes
@@ -31,6 +36,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Meadows",
+			Landmarks = "Greyling: Spawner_GreydwarfNest",
+			Pickables = "Pickable_Dandelion, Pickable_Mushroom, Pickable_Flint, Pickable_Stone, Pickable_Branch, RaspberryBush",
 			Ground = new Color(0.36f, 0.52f, 0.22f),
 			Monsters = "auto",
 			FallbackMonsters = "greyling, boar, neck, deer",
@@ -43,6 +50,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Black Forest",
+			Landmarks = "Greydwarf*: Spawner_GreydwarfNest; Skeleton: BonePileSpawner; Troll: Pickable_Stone",
+			Pickables = "Pickable_Mushroom_yellow, Pickable_Thistle, Pickable_SeedCarrot, Pickable_Branch, Pickable_Stone, BlueberryBush",
 			Locations = "troll:1.2, skeleton:0.6",
 			Ground = new Color(0.20f, 0.30f, 0.16f),
 			Monsters = "auto",
@@ -57,6 +66,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Swamp",
+			Landmarks = "Draugr*: Spawner_DraugrPile; Skeleton*: BonePileSpawner_swamp; Blob*: Pickable_Mushroom",
+			Pickables = "Pickable_SeedTurnip, Pickable_Branch, Pickable_Mushroom",
 			Locations = "draugr:0.8, draugrelite:0.4, skeletonpoison:0.4",
 			Giants = "abomination",
 			Ground = new Color(0.24f, 0.22f, 0.14f),
@@ -71,6 +82,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Mountains",
+			Landmarks = "Hatchling: Pickable_DragonEgg; Fenring: Pickable_Obsidian",
+			Pickables = "Pickable_Branch_Snow, Pickable_Stone, Pickable_Obsidian, Pickable_SeedOnion",
 			Locations = "fenring:0.6, ulv:0.6",
 			Ground = new Color(0.86f, 0.89f, 0.93f),
 			Monsters = "auto",
@@ -84,6 +97,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Plains",
+			Landmarks = "Goblin*: goblin_totempole, goblin_banner, goblin_fence, goblin_trashpile",
+			Pickables = "Pickable_Barley_Wild, Pickable_Flax_Wild, CloudberryBush, Pickable_Branch",
 			Locations = "goblinbrute:0.5, goblinshaman:0.5",
 			Ground = new Color(0.62f, 0.58f, 0.30f),
 			Monsters = "auto",
@@ -97,6 +112,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Mistlands",
+			Landmarks = "Dverger*: dvergrprops_crate, dvergrprops_barrel, dvergrprops_lantern_standing, dvergrprops_banner; Seeker*: Pickable_RoyalJelly; Tick: Pickable_RoyalJelly",
+			Pickables = "Pickable_Mushroom_Magecap, Pickable_Mushroom_JotunPuffs, Pickable_DvergrLantern",
 			Locations = "seekerbrute:0.4, seeker:0.8, tick:0.4",
 			Ground = new Color(0.30f, 0.28f, 0.33f),
 			Monsters = "auto",
@@ -110,6 +127,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Ashlands",
+			Landmarks = "Charred*: Pickable_Charredskull",
+			Pickables = "Pickable_Ashstone, Pickable_Charredskull, Pickable_SmokePuff",
 			Ground = new Color(0.17f, 0.12f, 0.11f),
 			Monsters = "auto",
 			FallbackMonsters = "charred_melee, charred_archer, charred_mage, asksvin, morgen, fallenvalkyrie",
@@ -122,6 +141,8 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Deep North",
+			Landmarks = "",
+			Pickables = "Pickable_Branch_Snow, Pickable_Snowball",
 			Ground = new Color(0.80f, 0.88f, 0.95f),
 			Monsters = "auto",
 			FallbackMonsters = "frysling, jotun_warrior, jotun_witch, kvastur, moose, trollfrost, blobfrost, writhan",

@@ -13,6 +13,22 @@ shot or change lane). In the Swamp you splash through shallow water.
 In the Black Forest, watch out for trolls: one beside the track swings at its lane just as you run past, and another jumps down straddling the track with
 its feet in both outer lanes, so you have to slide between its legs.
 
+## Bosses and checkpoints
+
+Each biome ends with its boss, but only bosses you've already beaten in this world: a new
+world's run stays in the Meadows (looping with stars), and each boss you kill in the real game
+opens the next biome. Some coins become the boss's summoning item, in the game's own amounts
+(2 deer trophies, 3 ancient seeds, 10 withered bones, 3 dragon eggs, 5 fuling totems, 3
+sealbreaker fragments). You stay in the biome until you hold them all, then the boss fights
+you: every attack marks the lanes it will hit first, and you hurt it by grabbing what it fears
+(thunder stones, surtling cores, maces, bolts, frost arrows, bombs) from the track. Three hits
+wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
+`surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
+
+Beside the track you pass the biome's own things: greydwarf nests and bone piles near their
+creatures, fuling totems, Dvergr crates and lanterns, and the plants, mushrooms and stones you'd
+pick up there.
+
 To everyone else, you're just running in place at the longhouse wearing a Dverger circlet.
 Friends without the mod see that too.
 
@@ -59,6 +75,11 @@ game's normal syncing, so they work on a vanilla dedicated server, with or witho
 and for players without the mod.
 
 ## Changes
+
+- **1.7**: boss fights at the end of each biome (one fight per boss, three hits each) with the
+  game's summoning items replacing some coins, checkpoints (`surfsup [biome] [stars]`), the run
+  only reaches as far as the furthest boss beaten in the world (Ignore Boss Gate under Debug to
+  bypass), and biome landmarks and pickables beside the track.
 
 - **1.6**: every creature has its own challenge (Creature Schemas, picked by Sam creature by
   creature): boars, necks and greylings are hurdles, deer and lox herds bolt across the track,

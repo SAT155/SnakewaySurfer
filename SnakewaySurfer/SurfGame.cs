@@ -33,6 +33,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		Ground,
 		// Tar: slows you down while you run through it.
 		Slow,
+		// A boss's summoning item, and what you hurt the boss with (SurfBoss.cs).
+		Item,
+		BossHit,
 	}
 
 	private sealed class Thing
@@ -135,6 +138,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public Color SunColor = new Color(1f, 0.96f, 0.88f);
 		public float SunIntensity;
 		public bool Water;
+		// Creature prefab name (or name start) -> its homes (nests, totems, bone piles).
+		public readonly List<(string key, bool prefix, List<GameObject> homes)> Landmarks = new();
+		public readonly List<GameObject> Pickables = new();
 	}
 
 	private static readonly Color[] s_sky =
@@ -239,7 +245,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private int m_lastTick;
 	private float m_stepTimer;
 
-	public static void Begin(Player player, Terminal? terminal)
+	public static void Begin(Player player, Terminal? terminal, string[]? args = null)
 	{
 		void Say(string text)
 		{
@@ -271,8 +277,28 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 
+		int lap = Plugin.LoopBiomes.Value <= 0 ? Biomes.Defaults.Length : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, Biomes.Defaults.Length);
+		(int biome, int stars)? start = Progress.ParseStart(player, args ?? new string[0], lap, out string error, out bool explicitStart);
+		if (start == null)
+		{
+			Say(error);
+			return;
+		}
+		if (terminal != null && !Plugin.IgnoreBossGate.Value)
+		{
+			int allowed = Progress.AllowedBiomes(lap);
+			BossDef? gate = Progress.BossOf(allowed - 1);
+			if (allowed < lap && gate != null)
+			{
+				terminal.AddString($"surfsup: this world's run reaches the {Biomes.Defaults[allowed - 1].Name}; defeat {gate.Name} in the world to go further.");
+			}
+		}
+
 		GameObject go = new GameObject("SnakewaySurfer_Game");
 		SurfGame game = go.AddComponent<SurfGame>();
+		game.m_startBiome = start.Value.biome;
+		game.m_startStars = start.Value.stars;
+		game.m_explicitStart = explicitStart;
 		game.Init(player);
 	}
 
@@ -796,6 +822,45 @@ internal sealed partial class SurfGame : MonoBehaviour
 				rt.Flyers.Clear();
 				rt.Flyers.AddRange(SpawnTables.Parse(def.Flyers, missing));
 			}
+			foreach (string name in Pictures.SplitList(def.Pickables))
+			{
+				GameObject? prefab = Pictures.Prefab(name);
+				if (prefab != null)
+				{
+					rt.Pickables.Add(prefab);
+				}
+				else
+				{
+					missing.Add(name);
+				}
+			}
+			foreach (string part in def.Landmarks.Split(';'))
+			{
+				int colon = part.IndexOf(':');
+				if (colon <= 0)
+				{
+					continue;
+				}
+				string key = part.Substring(0, colon).Trim();
+				bool prefix = key.EndsWith("*");
+				List<GameObject> homes = new();
+				foreach (string name in Pictures.SplitList(part.Substring(colon + 1)))
+				{
+					GameObject? prefab = Pictures.Prefab(name);
+					if (prefab != null)
+					{
+						homes.Add(prefab);
+					}
+					else
+					{
+						missing.Add(name);
+					}
+				}
+				if (homes.Count > 0)
+				{
+					rt.Landmarks.Add((key.TrimEnd('*'), prefix, homes));
+				}
+			}
 			foreach (string name in Pictures.SplitList(def.Scenery))
 			{
 				GameObject? prefab = Pictures.Prefab(name);
@@ -909,6 +974,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camPlaced = false;
 		m_envPlaced = false;
 		m_lastTick = 0;
+		m_lastLandmarkZ = -999f;
+		if (!m_explicitStart && m_player != null)
+		{
+			// Again from the latest checkpoint (a boss beaten this run moves it on).
+			int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
+			(m_startBiome, m_startStars) = Progress.Latest(m_player, Progress.AllowedBiomes(lap));
+		}
+		ResetSegments();
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
@@ -923,7 +996,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_stateTime = 0f;
 		m_crashText = why;
 		SetTrigger("stagger");
-		m_rewardText = Rewards.Grant(m_player, m_z, m_highestBiome, m_runTime, m_biomes.ConvertAll(b => b.Def));
+		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, m_runTime, m_biomes.ConvertAll(b => b.Def));
 		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
 	}
 
@@ -1063,24 +1136,19 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 	}
 
-	private int BiomeAt(float z) => BiomeIndex(Mathf.FloorToInt(Mathf.Max(0f, z) / Plugin.BiomeLength.Value));
-
-	// Biomes in one lap; after it the run starts again from the Meadows with stars.
-	private int Cycle => Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
-
-	private int BiomeIndex(int stretch) => Plugin.LoopBiomes.Value <= 0
-		? Mathf.Clamp(stretch, 0, m_biomes.Count - 1)
-		: Mathf.Max(0, stretch) % Mathf.Max(1, Cycle);
+	// The run's stretches (SurfBoss.cs): biomes, boss arenas, and laps with stars after the last
+	// biome this world allows.
+	private int BiomeAt(float z) => SegAt(z).Biome;
 
 	// 0 on the first lap, then 1, 2 and 3 stars.
-	private int StarsAt(float z) => Plugin.LoopBiomes.Value <= 0 ? 0 : Mathf.Clamp(Mathf.FloorToInt(Mathf.Max(0f, z) / Plugin.BiomeLength.Value) / Mathf.Max(1, Cycle), 0, 3);
+	private int StarsAt(float z) => SegAt(z).Stars;
 
 	private static float LaneX(int lane) => (lane - 1) * LaneWidth;
 
 	private void UpdateRun(float dt, bool canInput)
 	{
 		m_runTime += dt;
-		float biomeProgress = m_z / Plugin.BiomeLength.Value;
+		float biomeProgress = ProgressAt(m_z);
 		m_speed = Mathf.Min(Plugin.StartSpeed.Value + Plugin.SpeedPerBiome.Value * biomeProgress, Plugin.MaxSpeed.Value);
 		if (m_slowTime > 0f)
 		{
@@ -1160,22 +1228,30 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_x = Mathf.MoveTowards(m_x, LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
 		m_z += m_speed * dt;
 
-		int biome = BiomeAt(m_z);
+		Segment seg = SegAt(m_z);
+		int biome = seg.Biome;
 		m_highestBiome = Mathf.Max(m_highestBiome, biome);
-		if (biome != m_shownBiome)
+		int shown = seg.Boss ? -1 : biome + 100 * seg.Stars;
+		if (!seg.Boss && shown != m_shownBiome)
 		{
-			m_shownBiome = biome;
-			int stars = StarsAt(m_z);
+			bool first = m_shownBiome == -1;
+			m_shownBiome = shown;
+			int stars = seg.Stars;
 			string starText = stars > 0 ? $" ({stars} star{(stars > 1 ? "s" : "")})" : "";
-			m_banner = biome == 0 && stars == 0 ? m_biomes[0].Def.Name : "Entering " + m_biomes[biome].Def.Name + starText + "!";
+			m_banner = first ? m_biomes[biome].Def.Name + starText : "Entering " + m_biomes[biome].Def.Name + starText + "!";
 			m_bannerTime = 2.5f;
-			if (biome > 0 || stars > 0)
+			if (!first)
 			{
 				m_audio.Play(Sfx.Biome);
 			}
 		}
 
 		CheckCollisions();
+		if (m_state != State.Running)
+		{
+			return;
+		}
+		UpdateStretch(dt);
 		SpawnAhead();
 	}
 
@@ -1202,6 +1278,25 @@ internal sealed partial class SurfGame : MonoBehaviour
 						m_audio.Play(Sfx.Coin, 1f, 1f + 0.03f * (m_coins % 5));
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
+					}
+					break;
+				case Kind.Item:
+				case Kind.BossHit:
+					if (m_y < 2.6f)
+					{
+						bool hit = t.Kind == Kind.BossHit;
+						Destroy(t.Go);
+						m_things.RemoveAt(i);
+						// These change the run (and the list), so stop looking this frame.
+						if (hit)
+						{
+							BossHit();
+						}
+						else
+						{
+							PickedUpItem();
+						}
+						return;
 					}
 					break;
 				case Kind.Slow:
@@ -1299,9 +1394,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				t.Go.transform.localPosition = new Vector3(p.x, RoadY(t.Z) + t.BaseY, t.Z);
 			}
-			if (t.Kind == Kind.Coin)
+			if (t.Kind == Kind.Coin || t.Kind == Kind.Item || t.Kind == Kind.BossHit)
 			{
 				t.Go.transform.Rotate(0f, 180f * dt, 0f, Space.World);
+			}
+			if (m_state == State.Running && t.Kind == Kind.Block && t.Moving != null)
+			{
+				UpdateStrike(t, dt);
 			}
 			if (t.Life > 0f && m_state == State.Running)
 			{
@@ -1336,12 +1435,19 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			SpawnScenery(m_nextSceneryZ, -1);
 			SpawnScenery(m_nextSceneryZ + Random.Range(0f, 3f), 1);
+			MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
 			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
 		while (m_nextRowZ < horizon)
 		{
+			if (SegAt(m_nextRowZ).Boss)
+			{
+				// The boss lays out its own attacks.
+				m_nextRowZ += 10f;
+				continue;
+			}
 			SpawnRow(m_nextRowZ);
-			float difficulty = Mathf.Clamp01(m_nextRowZ / (Plugin.BiomeLength.Value * m_biomes.Count));
+			float difficulty = Mathf.Clamp01(ProgressAt(m_nextRowZ) / m_biomes.Count);
 			m_nextRowZ += Mathf.Lerp(30f, 16f, difficulty) + Random.Range(0f, 9f);
 		}
 	}
@@ -1384,13 +1490,20 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_things.Add(new Thing { Go = root, Kind = Kind.Ground, Z = centerZ, HalfLength = GroundTile * 0.5f });
 	}
 
-	// Blends from one biome to the next over the last 40 m of a biome, so nothing jumps at a border.
+	// Blends from the previous stretch's biome over the first 40 m of a stretch, so nothing
+	// jumps at a border (a stretch's end isn't known ahead while its boss items are missing).
 	private void BiomeBlend(float z, out int a, out int b, out float blend)
 	{
-		float f = Mathf.Max(0f, z) / Plugin.BiomeLength.Value;
-		a = BiomeIndex(Mathf.FloorToInt(f));
-		b = BiomeIndex(Mathf.FloorToInt(f) + 1);
-		blend = Mathf.Clamp01((f - Mathf.Floor(f)) * Plugin.BiomeLength.Value / 40f - (Plugin.BiomeLength.Value - 40f) / 40f);
+		Segment s = SegAt(z);
+		a = s.PrevBiome;
+		b = s.Biome;
+		blend = Mathf.Clamp01((z - s.Start) / 40f);
+	}
+
+	private float LevelAt(float z)
+	{
+		Segment s = SegAt(z);
+		return Mathf.Lerp(s.PrevLevel, s.Level, Mathf.Clamp01((z - s.Start) / 40f));
 	}
 
 	private float HillAmplitude(float z)
@@ -1413,8 +1526,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// Swamp so the water lies flat-ish).
 	private float RoadY(float z)
 	{
-		BiomeBlend(z, out int ba, out int bb, out float bblend);
-		float biomes = Mathf.Lerp(ba, bb, bblend) + 1.5f * StarsAt(z);
+		float biomes = LevelAt(z);
 		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value;
 		float n = (Mathf.PerlinNoise(z * 0.011f + 3.1f, 7.3f) - 0.5f) * 2f + (Mathf.PerlinNoise(z * 0.037f + 11f, 1.9f) - 0.5f) * 0.5f;
 		return amplitude * n;
@@ -1666,7 +1778,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		BiomeRuntime b = m_biomes[BiomeAt(z)];
 		int biomeIndex = BiomeAt(z);
-		float difficulty = Mathf.Clamp01(z / (Plugin.BiomeLength.Value * m_biomes.Count));
+		float difficulty = Mathf.Clamp01(ProgressAt(z) / m_biomes.Count);
 		int blocked = Random.value < 0.3f + 0.4f * difficulty ? 2 : 1;
 		List<int> lanes = new() { 0, 1, 2 };
 		for (int i = 0; i < lanes.Count; i++)
@@ -1681,6 +1793,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			int lane = lanes[i];
 			if (i >= blocked)
 			{
+				if (MaybeSpawnItem(lane, z))
+				{
+					continue;
+				}
 				if (m_coinTemplate != null && Random.value < 0.45f)
 				{
 					for (int k = -2; k <= 2; k++)
@@ -1706,6 +1822,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				case Kind.Block:
 				{
 					SpawnEntry e = SpawnTables.Pick(b.Monsters)!;
+					MaybeLandmark(e.Prefab, z);
 					// Swarms, herds, lines, crossers, chasers and helpers lay out the whole row.
 					if (SpawnFormation(e, lane, z, biomeIndex, i))
 					{
@@ -2675,9 +2792,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_mid!.fontSize = Mathf.RoundToInt(34 * k);
 		m_small!.fontSize = Mathf.RoundToInt(26 * k);
 
-		string biome = m_biomes.Count > 0 ? m_biomes[BiomeAt(m_z)].Def.Name : "";
-		Shadowed(new Rect(24 * k, 18 * k, 900 * k, 200 * k),
-			$"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s", m_small);
+		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z)) : "";
+		string stretch = m_biomes.Count > 0 ? StretchHud() : "";
+		Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k),
+			$"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}", m_small);
 
 		float w = Screen.width;
 		float h = Screen.height;

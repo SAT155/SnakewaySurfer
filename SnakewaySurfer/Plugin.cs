@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.6.0";
+	public const string PluginVersion = "1.7.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -74,6 +74,10 @@ public class Plugin : BaseUnityPlugin
 	private static ConfigEntry<string>[] s_foods = null!;
 	private static ConfigEntry<string>[] s_giants = null!;
 	private static ConfigEntry<string>[] s_locations = null!;
+	private static ConfigEntry<string>[] s_landmarks = null!;
+	private static ConfigEntry<string>[] s_pickables = null!;
+	internal static ConfigEntry<bool> BossFights = null!;
+	internal static ConfigEntry<bool> IgnoreBossGate = null!;
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
@@ -170,6 +174,8 @@ public class Plugin : BaseUnityPlugin
 		s_foods = new ConfigEntry<string>[Biomes.Defaults.Length];
 		s_giants = new ConfigEntry<string>[Biomes.Defaults.Length];
 		s_locations = new ConfigEntry<string>[Biomes.Defaults.Length];
+		s_landmarks = new ConfigEntry<string>[Biomes.Defaults.Length];
+		s_pickables = new ConfigEntry<string>[Biomes.Defaults.Length];
 		for (int i = 0; i < Biomes.Defaults.Length; i++)
 		{
 			BiomeDef d = Biomes.Defaults[i];
@@ -186,6 +192,10 @@ public class Plugin : BaseUnityPlugin
 				"Big monsters used for set pieces: one beside the track slams a log down across the outer lane as you run past, or one jumps down straddling the track so you must slide between its legs. Same naming as Monsters. Empty: no set pieces in this biome.");
 			s_locations[i] = Config.Bind(section, "Location Monsters", d.Locations,
 				"With Monsters on \"auto\": creatures that live at places in this biome (troll caves, crypts, villages) instead of the world spawn tables, added with these weights. Same naming as Monsters.");
+			s_landmarks[i] = Config.Bind(section, "Landmarks", d.Landmarks,
+				"Creature homes put beside the track now and then near those creatures, as \"Prefab: home, home; Prefab*: home\" (creature prefab names; a trailing * matches a name start; homes are prefab names such as Spawner_GreydwarfNest or goblin_totempole).");
+			s_pickables[i] = Config.Bind(section, "Pickables", d.Pickables,
+				"Plants, mushrooms, stones and bushes along the track edge (prefab names). Empty: none.");
 			s_foods[i] = Config.Bind(section, "Foods", d.Foods,
 				"Foods you can win when this is the furthest biome you reached; one is picked at random. Item names as in the game's text keys (\"carrotsoup\" for $item_carrotsoup) or prefab names.");
 		}
@@ -264,6 +274,10 @@ public class Plugin : BaseUnityPlugin
 			"What each creature does, as \"Prefab: tags; Prefab: tags\" (a trailing * matches a name start). Tags: charger, waiter, switcher, swarm, herd, line, crosser, shooter, flyshooter, sweep, gas2, gas3, smash, slams, lob, fire, tar, bomb, tickdrop, leaper, headleap, hurdle, stomper, ambush, chaser, behind, helper, talk. Creatures not listed behave as before.");
 		LoopBiomes = Config.Bind("1 - Run", "Loop Biomes", 6,
 			new ConfigDescription("How many biomes one lap of the run has (6 = Meadows to the Mistlands). After the last one the run goes back to the Meadows with 1-star creatures, then 2, then 3. 0: no loop, the run goes through every biome and stays in the last.", new AcceptableValueRange<int>(0, 8)));
+		BossFights = Config.Bind("1 - Run", "Boss Fights", true,
+			"Each biome ends with its boss once you've beaten that boss in this world: some coins become its summoning item (the game's own amount, e.g. 2 deer trophies for Eikthyr), you stay in the biome until you have them all, then you face the boss. Beating it saves a checkpoint for the next biome (\"surfsup\" starts at your latest one; \"surfsup swamp\" or \"surfsup 3 1\" picks one). Off: no items or bosses, the run goes straight on.");
+		IgnoreBossGate = Config.Bind("9 - Debug", "Ignore Boss Gate", false,
+			"Testing: the run normally only reaches as far as the furthest boss beaten in this world (the Meadows only, until Eikthyr is dead). On: every biome and boss is open, and surfsup can start anywhere.");
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
@@ -286,6 +300,8 @@ public class Plugin : BaseUnityPlugin
 			Foods = s_foods[i].Value,
 			Giants = s_giants[i].Value,
 			Locations = s_locations[i].Value,
+			Landmarks = s_landmarks[i].Value,
+			Pickables = s_pickables[i].Value,
 		};
 	}
 
@@ -296,7 +312,7 @@ public class Plugin : BaseUnityPlugin
 	{
 		private static void Postfix()
 		{
-			new Terminal.ConsoleCommand("surfsup", "surfsup - kill some time: run the Snakeway through every biome, dodging monsters on 3 lanes", args =>
+			new Terminal.ConsoleCommand("surfsup", "surfsup [biome] [stars] - kill some time: run the Snakeway through the biomes, dodging monsters on 3 lanes (starts at your latest checkpoint, or the biome you name)", args =>
 			{
 				Player player = Player.m_localPlayer;
 				if (player == null)
@@ -304,7 +320,7 @@ public class Plugin : BaseUnityPlugin
 					args.Context.AddString("Load into a world first.");
 					return;
 				}
-				SurfGame.Begin(player, args.Context);
+				SurfGame.Begin(player, args.Context, args.Args);
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{
