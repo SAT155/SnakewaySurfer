@@ -26,6 +26,17 @@ the run stops and you aim the ballista yourself). Three hits
 wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
 `surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
 
+Each arena has its boss's own place from the game looming on the horizon (Eikthyr's altar, the
+Elder's stones, Bonemass's sunken tomb, Moder's peak, Yagluth's ruins, the Queen's gate), rising
+out of the ground as you arrive. The path flattens, the land rises into walls on both sides,
+torches in the boss's colour line the way, and the light and fog take on its colour.
+
+After the 3-star lap comes the **boss rush**: every boss in a row, with no items to collect and
+no checkpoints. Beat all six in one rush for the **Golden Surfer Shoes**, a trinket with a
+winged emblem: +15% movement speed, and at full adrenaline another 5% plus 2.5x stamina regen.
+You only get them once per character, and only players with the mod can see them. Don't drop
+them on a shared server, because players without the mod can't load them.
+
 Beside the track you pass the biome's own things: greydwarf nests and bone piles near their
 creatures, fuling totems, Dvergr crates and lanterns, and the plants, mushrooms and stones you'd
 pick up there.
@@ -77,6 +88,9 @@ and for players without the mod.
 
 ## Changes
 
+- **1.10**: boss landmarks (the boss's location on the horizon, a flatter path between rising
+  walls, torches; Boss Landmarks config); the boss rush after the 3-star lap; Golden Surfer
+  Shoes for beating all six in a row.
 - **1.9**: the Elder splits the path into branches (root walls between the lanes, so pick
   early; some branches end in roots, but a torch under a low root burns them if you slide
   under it); every star lap teaches each boss a new trick (charges down your lane, double

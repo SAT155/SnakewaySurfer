@@ -22,6 +22,11 @@ internal sealed partial class SurfGame
 		public bool Beaten;
 		public int PrevBiome;
 		public float PrevLevel;
+		// The stretch before was a boss arena (its look fades out over this one's start).
+		public bool PrevBoss;
+		// One fight of the boss rush (after the 3-star lap): every boss in a row.
+		public bool Rush;
+		public int RushIndex;
 
 		public float Level => Biome + 1.5f * Stars;
 	}
@@ -112,8 +117,19 @@ internal sealed partial class SurfGame
 		return found ? boss : null;
 	}
 
+	// Pure: also used to look ahead (the checkpoint after a boss), so it must not change state.
 	private Segment Following(Segment s)
 	{
+		if (s.Rush)
+		{
+			List<int> rush = RushBosses();
+			if (s.RushIndex + 1 < rush.Count)
+			{
+				return RushSegment(s.End, rush[s.RushIndex + 1], s.RushIndex + 1);
+			}
+			// Done: back to the 3-star lap.
+			return NewSegment(s.End, 0, 3, false, false);
+		}
 		if (!s.Boss && BossFor(s) != null)
 		{
 			return NewSegment(s.End, s.Biome, s.Stars, true, false);
@@ -130,12 +146,37 @@ internal sealed partial class SurfGame
 			}
 			else
 			{
+				// The end of the 3-star lap: the boss rush, once a run.
+				if (s.Stars >= 3 && !m_segments.Exists(x => x.Rush) && RushBosses() is { Count: > 0 } rush)
+				{
+					return RushSegment(s.End, rush[0], 0);
+				}
 				biome = 0;
 				stars = Mathf.Min(3, stars + 1);
 			}
 		}
 		return NewSegment(s.End, biome, stars, false, repeat);
 	}
+
+	private Segment RushSegment(float start, int biome, int index) =>
+		new Segment { Start = start, Biome = biome, Stars = 3, Boss = true, Rush = true, RushIndex = index };
+
+	// The bosses of the rush, in order: every one in this lap you could fight.
+	private List<int> RushBosses()
+	{
+		List<int> list = new();
+		for (int b = 0; b < m_lapBiomes; b++)
+		{
+			if (BossFor(new Segment { Biome = b }) != null)
+			{
+				list.Add(b);
+			}
+		}
+		return list;
+	}
+
+	// A rush with every boss of the game earns the golden shoes.
+	private bool FullRush() => RushBosses().Count >= Progress.Bosses.Length;
 
 	private Segment SegAt(float z)
 	{
@@ -151,6 +192,7 @@ internal sealed partial class SurfGame
 			Segment next = Following(last);
 			next.PrevBiome = last.Biome;
 			next.PrevLevel = last.Level;
+			next.PrevBoss = last.Boss;
 			m_segments.Add(next);
 		}
 		for (int i = m_segments.Count - 1; i >= 0; i--)
@@ -167,7 +209,8 @@ internal sealed partial class SurfGame
 	private float ProgressAt(float z)
 	{
 		Segment s = SegAt(z);
-		float ordinal = s.Stars * Mathf.Max(1, m_lapBiomes) + s.Biome;
+		// The rush counts as past the whole 3-star lap.
+		float ordinal = s.Rush ? (s.Stars + 1) * Mathf.Max(1, m_lapBiomes) : s.Stars * Mathf.Max(1, m_lapBiomes) + s.Biome;
 		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / Plugin.BiomeLength.Value);
 		return ordinal + frac;
 	}
@@ -195,6 +238,7 @@ internal sealed partial class SurfGame
 			m_nextRowZ = end + 14f;
 		}
 		m_nextItemZ = Mathf.Min(m_nextItemZ, end);
+		m_nextTorchZ = Mathf.Min(m_nextTorchZ, end);
 		// Root walls splitting the lanes end where the stretch does.
 		for (int i = m_dividers.Count - 1; i >= 0; i--)
 		{
@@ -398,7 +442,7 @@ internal sealed partial class SurfGame
 			Level = seg.Stars + 1,
 		};
 		ApplyStars(m_bossThing, seg.Stars);
-		m_banner = $"{def.Name}!";
+		m_banner = seg.Rush && seg.RushIndex == 0 ? $"BOSS RUSH!\nEvery boss in a row, starting with {def.Name}!" : $"{def.Name}!";
 		m_bannerTime = 2.5f;
 		if (m_bossInfo.AlertSound.Length > 0)
 		{
@@ -897,9 +941,29 @@ internal sealed partial class SurfGame
 		Segment seg = m_bossSeg!;
 		seg.Beaten = true;
 		Segment next = Following(seg);
-		Progress.SaveCheckpoint(m_player, next.Biome, next.Stars);
 		m_bonusDistance += Plugin.BiomeLength.Value * 0.5f;
-		m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Biome, next.Stars)}";
+		if (seg.Rush)
+		{
+			// No checkpoints inside the rush: it's one run of fights.
+			if (next.Rush)
+			{
+				m_banner = $"{def.Name} defeated!\nNext: {Progress.BossOf(next.Biome)?.Name}";
+			}
+			else
+			{
+				m_bonusDistance += Plugin.BiomeLength.Value * 2f;
+				m_banner = "Boss rush complete!" + (FullRush() ? "\n" + SurferShoes.Give(m_player) : "\n(Beat all six in a row for the golden shoes.)");
+			}
+		}
+		else
+		{
+			Progress.SaveCheckpoint(m_player, next.Biome, next.Stars);
+			m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Biome, next.Stars)}";
+			if (next.Rush)
+			{
+				m_banner += "\nBut first... the boss rush!";
+			}
+		}
 		m_bannerTime = 3.5f;
 		m_audio.Play(Sfx.Biome, 1f, 1.1f);
 		Plugin.Log.LogInfo($"Beat {def.Name}; checkpoint {next.Biome}:{next.Stars}.");
@@ -954,7 +1018,8 @@ internal sealed partial class SurfGame
 	{
 		if (m_boss != null && m_bossSink < 0f)
 		{
-			return $"   ·   {m_boss.Name}: {m_bossHits}/{BossHitsNeeded} hits";
+			string rush = m_bossSeg != null && m_bossSeg.Rush ? $"Boss rush {m_bossSeg.RushIndex + 1}/{RushBosses().Count}: " : "";
+			return $"   ·   {rush}{m_boss.Name}: {m_bossHits}/{BossHitsNeeded} hits";
 		}
 		Segment here = SegAt(m_z);
 		BossDef? boss = BossFor(here);

@@ -414,6 +414,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Active = null;
 		}
 		DestroySchemaObjects();
+		ReleaseLocations();
 		if (m_mainCamera != null)
 		{
 			m_mainCamera.cullingMask = m_mainMask;
@@ -986,6 +987,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_lastLandmarkZ = -999f;
 		m_lives = Plugin.Lives.Value;
 		m_dividers.Clear();
+		m_nextTorchZ = 0f;
+		m_torchCount = 0;
+		DestroyBackdrop();
+		m_backdropShow = 0f;
 		m_hurtTime = 0f;
 		m_aimTime = 0f;
 		if (!m_explicitStart && m_player != null)
@@ -1490,6 +1495,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
 			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
+		SpawnArenaTorches(horizon);
 		while (m_nextRowZ < horizon)
 		{
 			if (SegAt(m_nextRowZ).Boss)
@@ -1579,7 +1585,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float RoadY(float z)
 	{
 		float biomes = LevelAt(z);
-		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value;
+		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value * ArenaFlatten(z);
 		float n = (Mathf.PerlinNoise(z * 0.011f + 3.1f, 7.3f) - 0.5f) * 2f + (Mathf.PerlinNoise(z * 0.037f + 11f, 1.9f) - 0.5f) * 0.5f;
 		return amplitude * n;
 	}
@@ -1600,7 +1606,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		float amp = HillAmplitude(z);
 		float dry = -0.05f + ramp * amp * (0.25f + n);
 		float wet = -0.65f + Mathf.Lerp(0.3f, 1f, ramp) * amp * (n * 1.6f - 0.45f);
-		return road + Mathf.Lerp(dry, wet, water);
+		// A boss arena's walls rise beyond.
+		return road + Mathf.Lerp(dry, wet, water) + ArenaWalls(z, out_) * (0.8f + 0.4f * n);
 	}
 
 	// A flat strip that follows the road: the track itself, or the swamp water's surface.
@@ -2821,11 +2828,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 			arena = m_bossSink >= 0f ? 0.3f : 1f;
 		}
 		m_camera.backgroundColor = Color.Lerp(m_camera.backgroundColor, Color.Lerp(b.Sky, b.Sky * 0.55f + tint * 0.2f, arena), k);
-		m_fogNow = Mathf.Lerp(m_fogNow, b.Fog * Plugin.FogStrength.Value * (1f + 0.5f * arena), k);
+		// Thicker without landmarks; with them the air clears a little so the boss's place
+		// shows on the horizon.
+		float arenaFog = Plugin.BossLandmarks.Value ? 1f - 0.25f * arena : 1f + 0.5f * arena;
+		m_fogNow = Mathf.Lerp(m_fogNow, b.Fog * Plugin.FogStrength.Value * arenaFog, k);
 		m_fogColorNow = Color.Lerp(m_fogColorNow, Color.Lerp(b.FogColor, b.FogColor * 0.6f + tint * 0.25f, arena), k);
 		m_ambientNow = Color.Lerp(m_ambientNow, b.Ambient * (1f - 0.25f * arena), k);
 		m_light.color = Color.Lerp(m_light.color, Color.Lerp(b.SunColor, Color.Lerp(b.SunColor, tint, 0.3f), arena), k);
 		m_light.intensity = Mathf.Lerp(m_light.intensity, b.SunIntensity * (1f - 0.3f * arena), k);
+		UpdateBackdrop(dt);
 	}
 
 	public Color SkyColor => m_camera != null ? m_camera.backgroundColor : s_sky[0];

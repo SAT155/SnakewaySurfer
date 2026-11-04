@@ -48,6 +48,11 @@ internal static class Rewards
 				}
 			}
 		}
+		// Golden shoes still owed from a boss rush (the bag was full).
+		if (SurferShoes.TryDeliver(player) is string shoes)
+		{
+			lines.Add(shoes);
+		}
 		return string.Join("\n", lines);
 	}
 

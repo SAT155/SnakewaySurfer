@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.9.0";
+	public const string PluginVersion = "1.10.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -79,6 +79,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> BossFights = null!;
 	internal static ConfigEntry<int> Lives = null!;
 	internal static ConfigEntry<bool> IgnoreBossGate = null!;
+	internal static ConfigEntry<bool> BossLandmarks = null!;
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
@@ -279,6 +280,8 @@ public class Plugin : BaseUnityPlugin
 			"Each biome ends with its boss once you've beaten that boss in this world: some coins become its summoning item (the game's own amount, e.g. 2 deer trophies for Eikthyr), you stay in the biome until you have them all, then you face the boss. Beating it saves a checkpoint for the next biome (\"surfsup\" starts at your latest one; \"surfsup swamp\" or \"surfsup 3 1\" picks one). Off: no items or bosses, the run goes straight on.");
 		Lives = Config.Bind("1 - Run", "Lives", 3,
 			new ConfigDescription("Hits you can take before the run is over (three strikes and you're out). 1: the first hit ends it.", new AcceptableValueRange<int>(1, 9)));
+		BossLandmarks = Config.Bind("1 - Run", "Boss Landmarks", true,
+			"Boss arenas show the boss's own place from the game (Eikthyr's altar, the Elder's stones, Moder's peak...) looming far ahead, with the land rising beside a flatter path and torches lining it. Off: arenas only take on the boss's colour.");
 		IgnoreBossGate = Config.Bind("9 - Debug", "Ignore Boss Gate", false,
 			"Testing: the run normally only reaches as far as the furthest boss beaten in this world (the Meadows only, until Eikthyr is dead). On: every biome and boss is open, and surfsup can start anywhere.");
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
