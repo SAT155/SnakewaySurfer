@@ -30,6 +30,9 @@ internal sealed class BossDef
 	public bool Aim;
 	// Its moves in each of the three phases (one more phase per hit taken).
 	public string[][] Moves = new string[0][];
+	// A new trick for each star lap, added to every phase (index 0 = 1 star). "move:creature"
+	// names the creature for "minions".
+	public string[] StarMoves = new string[0];
 	public Color Tint = new Color(1f, 0.3f, 0.1f);
 }
 
@@ -48,6 +51,7 @@ internal static class Progress
 				new[] { "shot", "stomp", "strike1" },
 				new[] { "stomp", "shot", "jumprow", "strike2" },
 			},
+			StarMoves = new[] { "dash", "shot2", "minions:deer" },
 		},
 		new BossDef
 		{
@@ -56,10 +60,11 @@ internal static class Progress
 			Tint = new Color(0.45f, 0.75f, 0.2f),
 			Moves = new[]
 			{
-				new[] { "strike1", "strike2" },
-				new[] { "wall", "strike1", "strike2" },
-				new[] { "slide", "strike2", "gap", "wall" },
+				new[] { "strike1", "strike2", "wall" },
+				new[] { "branches", "strike1", "strike2" },
+				new[] { "branches", "slide", "gap", "strike2" },
 			},
+			StarMoves = new[] { "minions:greydwarf", "lob2", "branches" },
 		},
 		new BossDef
 		{
@@ -72,6 +77,7 @@ internal static class Progress
 				new[] { "minions", "blobs" },
 				new[] { "stomp", "blobs", "minions" },
 			},
+			StarMoves = new[] { "gaswall", "minions:blob", "dash" },
 		},
 		new BossDef
 		{
@@ -84,6 +90,7 @@ internal static class Progress
 				new[] { "jumprow", "slide", "sweep" },
 				new[] { "strike2", "sweep", "jumprow" },
 			},
+			StarMoves = new[] { "minions:drake", "meteors", "gap" },
 		},
 		new BossDef
 		{
@@ -96,6 +103,7 @@ internal static class Progress
 				new[] { "beam", "meteors" },
 				new[] { "lob2", "meteors", "beam" },
 			},
+			StarMoves = new[] { "minions:goblin", "firewall", "sweep" },
 		},
 		new BossDef
 		{
@@ -108,6 +116,7 @@ internal static class Progress
 				new[] { "lob2", "minions", "grab" },
 				new[] { "slide", "grab", "lob2" },
 			},
+			StarMoves = new[] { "minions:tick", "branches", "dash" },
 		},
 	};
 

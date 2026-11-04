@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.8.0";
+	public const string PluginVersion = "1.9.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;

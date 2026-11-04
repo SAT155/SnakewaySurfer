@@ -112,6 +112,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public bool ChaseHigh;
 		public bool Helper;
 		public int Level = 1;
+		// Branching paths (SurfBranches.cs): a root to slide under that carries a torch, and
+		// which branch section a thing belongs to.
+		public bool Torch;
+		public int Group = -1;
 	}
 
 	private enum Special
@@ -981,6 +985,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_lastTick = 0;
 		m_lastLandmarkZ = -999f;
 		m_lives = Plugin.Lives.Value;
+		m_dividers.Clear();
 		m_hurtTime = 0f;
 		m_aimTime = 0f;
 		if (!m_explicitStart && m_player != null)
@@ -1178,21 +1183,21 @@ internal sealed partial class SurfGame : MonoBehaviour
 		bool grounded = m_y <= 0.001f;
 		if (canInput)
 		{
-			if (KeyDown(KeyCode.A, KeyCode.LeftArrow))
+			if (KeyDown(KeyCode.A, KeyCode.LeftArrow) && m_lane > 0)
 			{
-				if (m_lane > 0)
+				if (CanSwitch(m_lane, m_lane - 1))
 				{
 					m_audio.Play(Sfx.Lane, 0.5f, 1.15f);
+					m_lane--;
 				}
-				m_lane = Mathf.Max(0, m_lane - 1);
 			}
-			if (KeyDown(KeyCode.D, KeyCode.RightArrow))
+			if (KeyDown(KeyCode.D, KeyCode.RightArrow) && m_lane < 2)
 			{
-				if (m_lane < 2)
+				if (CanSwitch(m_lane, m_lane + 1))
 				{
 					m_audio.Play(Sfx.Lane, 0.5f, 1.15f);
+					m_lane++;
 				}
-				m_lane = Mathf.Min(2, m_lane + 1);
 			}
 			if (KeyDown(KeyCode.W, KeyCode.UpArrow, KeyCode.Space))
 			{
@@ -1355,6 +1360,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 					}
 					break;
 				case Kind.High:
+					if (sliding && t.Torch)
+					{
+						t.Torch = false;
+						BurnBranch(t);
+						return;
+					}
 					if (!sliding)
 					{
 						m_audio.Play(string.IsNullOrEmpty(t.Label) ? Sfx.HitLog : Sfx.HitMonster);

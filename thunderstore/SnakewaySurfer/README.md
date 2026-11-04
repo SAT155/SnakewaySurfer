@@ -77,6 +77,10 @@ and for players without the mod.
 
 ## Changes
 
+- **1.9**: the Elder splits the path into branches (root walls between the lanes, so pick
+  early; some branches end in roots, but a torch under a low root burns them if you slide
+  under it); every star lap teaches each boss a new trick (charges down your lane, double
+  shots, poison and fire walls, more creatures, branches for the Queen).
 - **1.8**: three strikes and you're out (Lives, default 3; you blink for a moment after a hit);
   Moder's bolts stop the run so you aim the ballista yourself (A/D/W/S, Space to fire; a miss
   wastes the bolt); boss arenas take on the boss's colour, fog and light; standing bosses rise

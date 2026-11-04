@@ -195,6 +195,19 @@ internal sealed partial class SurfGame
 			m_nextRowZ = end + 14f;
 		}
 		m_nextItemZ = Mathf.Min(m_nextItemZ, end);
+		// Root walls splitting the lanes end where the stretch does.
+		for (int i = m_dividers.Count - 1; i >= 0; i--)
+		{
+			(float z0, float z1, int boundary) = m_dividers[i];
+			if (z0 >= end)
+			{
+				m_dividers.RemoveAt(i);
+			}
+			else if (z1 > end)
+			{
+				m_dividers[i] = (z0, end, boundary);
+			}
+		}
 	}
 
 	// Each frame while running: items, the gate out of the biome, and the boss.
@@ -408,6 +421,7 @@ internal sealed partial class SurfGame
 		m_boss = null;
 		m_bossSeg = null;
 		m_bossSink = -1f;
+		m_bossHidden = 0f;
 	}
 
 	private void UpdateBoss(float dt)
@@ -416,6 +430,7 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
+		UpdateBossHidden(dt);
 		BossDef def = m_boss;
 		if (m_bossSink >= 0f)
 		{
@@ -482,11 +497,18 @@ internal sealed partial class SurfGame
 		m_bossAttackTimer -= dt;
 		if (m_bossAttackTimer <= 0f)
 		{
-			string[] moves = def.Moves[phase];
-			string move = moves[m_bossMove++ % moves.Length];
+			// Each star lap adds one more trick to every phase.
+			List<string> moves = new(def.Moves[phase]);
+			int stars = m_bossSeg?.Stars ?? 0;
+			for (int i = 0; i < Mathf.Min(stars, def.StarMoves.Length); i++)
+			{
+				moves.Add(def.StarMoves[i]);
+			}
+			string move = moves[m_bossMove++ % moves.Count];
 			BossMove(def, move);
 			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.12f * (m_bossSeg?.Stars ?? 0));
-			m_bossAttackTimer = interval;
+			// Some moves (branches, the dash) hold the next one back themselves.
+			m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, interval);
 		}
 		m_bossHitTimer -= dt;
 		if (m_bossHitTimer <= 0f)
@@ -523,9 +545,44 @@ internal sealed partial class SurfGame
 	{
 		Thing boss = m_bossThing!;
 		BiomeRuntime b = m_biomes[BiomeAt(m_z)];
+		string arg = "";
+		int colon = move.IndexOf(':');
+		if (colon > 0)
+		{
+			arg = move.Substring(colon + 1);
+			move = move.Substring(0, colon);
+		}
 		BossAnimate();
 		switch (move)
 		{
+			case "shot2":
+				// Two shots at once: your lane and the one beside it.
+				if (boss.Info != null && boss.Info.PickRanged() is CreatureAttack r2 && r2.Projectile != null)
+				{
+					CreatureAttack keep = boss.Attack!;
+					boss.Attack = r2;
+					boss.Z = Mathf.Min(m_bossZ, m_z + 30f);
+					int was = m_lane;
+					FireShot(boss);
+					m_lane = NearLane(was);
+					FireShot(boss);
+					m_lane = was;
+					boss.Attack = keep;
+				}
+				else
+				{
+					BossStrike(def, new[] { m_lane, NearLane(m_lane) }, AheadZ(1.4f), 2.2f, "strike");
+				}
+				break;
+			case "gaswall":
+				BossStrike(def, new[] { m_lane, NearLane(m_lane) }, AheadZ(1.8f), 8f, "gas");
+				break;
+			case "firewall":
+				BossStrike(def, new[] { m_lane, NearLane(m_lane) }, AheadZ(1.8f), 8f, "wall");
+				break;
+			case "dash":
+				BossDash(def);
+				break;
 			case "shot":
 				if (boss.Info != null && boss.Info.PickRanged() is CreatureAttack ranged && ranged.Projectile != null)
 				{
@@ -643,7 +700,8 @@ internal sealed partial class SurfGame
 			}
 			case "minions":
 			{
-				GameObject? prefab = def.Minion.Length > 0 ? Pictures.Monster(def.Minion) : null;
+				string who = arg.Length > 0 ? arg : def.Minion;
+				GameObject? prefab = who.Length > 0 ? Pictures.Monster(who) : null;
 				SpawnEntry? e = prefab != null ? new SpawnEntry { Prefab = prefab, Label = SpawnTables.Label(prefab) } : SpawnTables.Pick(b.Monsters);
 				if (e != null)
 				{
@@ -658,6 +716,9 @@ internal sealed partial class SurfGame
 				}
 				break;
 			}
+			case "branches":
+				SpawnBranches(def, b, m_bossHits >= 2 ? 3 : 2);
+				break;
 			case "grab":
 			{
 				// It reaches out of the wall on its side: the lane nearest it glows first.
@@ -703,6 +764,13 @@ internal sealed partial class SurfGame
 			if (look == "gas")
 			{
 				strike = MakeCloud(lane, z);
+				if (length > 3f)
+				{
+					// A long poison cloud lying down the lane.
+					Vector3 cs = strike.transform.localScale;
+					strike.transform.localScale = new Vector3(cs.x, cs.y, length);
+					strike.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.9f, z + length * 0.5f - 1f);
+				}
 			}
 			else
 			{
@@ -738,11 +806,11 @@ internal sealed partial class SurfGame
 				Go = root,
 				Kind = Kind.Block,
 				Lane = lane,
-				Z = look == "wall" ? z + length * 0.5f - 1f : z,
-				HalfLength = look == "wall" ? length * 0.5f : 1.2f,
+				Z = length > 3f ? z + length * 0.5f - 1f : z,
+				HalfLength = length > 3f ? length * 0.5f : 1.2f,
 				Label = def.Name,
 				CrashText = $"{def.Name} got you in the {biome}! (Watch the marked lanes.)",
-				Life = arrive + 1.5f + (look == "wall" ? length / Mathf.Max(1f, m_speed) : 0f),
+				Life = arrive + 1.5f + (length > 3f ? length / Mathf.Max(1f, m_speed) : 0f),
 				FireIn = Mathf.Max(0.05f, arrive - 0.5f),
 				Moving = strike.transform,
 			});
@@ -847,6 +915,8 @@ internal sealed partial class SurfGame
 		DestroySchemaLobs();
 		CloseSegment(seg, m_z + 45f);
 		m_bossSink = 0f;
+		m_bossHidden = 0f;
+		m_bossGo.SetActive(true);
 	}
 
 	private void DestroySchemaLobs()
@@ -1039,5 +1109,70 @@ internal sealed partial class SurfGame
 		Shadowed(new Rect(x - 60 * k, y - 60 * k, 120 * k, 120 * k), "+", m_big!);
 		Shadowed(new Rect(w * 0.1f, h * 0.12f, w * 0.8f, 100 * k),
 			$"Aim the ballista!  A/D/W/S to aim, Space to fire  ({Mathf.Max(0f, m_aimTime):0.0} s)", m_mid!);
+	}
+
+	// ---------------------------------------------------------------- the dash (star trick)
+
+	private float m_bossHidden;
+
+	// The boss itself charges back down a marked lane at you, then returns to its place.
+	private void BossDash(BossDef def)
+	{
+		if (m_bossGo == null || m_bossHidden > 0f)
+		{
+			return;
+		}
+		GameObject? prefab = Pictures.Prefab(def.Prefab);
+		if (prefab == null || m_bossInfo == null)
+		{
+			return;
+		}
+		int lane = m_lane;
+		float z = m_z + 42f;
+		float speed = 13f;
+		float scale = m_bossInfo.Height > 0.3f ? Mathf.Min(1f, Mathf.Min(def.MaxHeight, 4.5f) / m_bossInfo.Height) : 1f;
+		GameObject copy = Creature(prefab, Quaternion.Euler(0f, 180f, 0f), scale);
+		copy.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
+		Animator anim = copy.GetComponentInChildren<Animator>();
+		if (anim != null)
+		{
+			SetParam(anim, "forward_speed", 12f);
+			SetParam(anim, "onGround", true);
+		}
+		// The lane it will charge down glows the whole way.
+		float travel = z - m_z;
+		GameObject marker = MakeMarker(lane, m_z + travel * 0.5f, travel, m_markerMaterial);
+		marker.transform.SetParent(copy.transform, true);
+		float seconds = travel / (speed + Mathf.Max(1f, m_speed));
+		m_things.Add(new Thing
+		{
+			Go = copy,
+			Kind = Kind.Block,
+			Lane = lane,
+			Z = z,
+			HalfLength = 1.2f,
+			Speed = speed,
+			Label = def.Name,
+			CrashText = $"{def.Name} ran you down! (Get out of the glowing lane.)",
+			Life = seconds + 2f,
+		});
+		m_bossGo.SetActive(false);
+		m_bossHidden = seconds + 1.5f;
+		// It can't attack from its place while it's charging at you.
+		m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, m_bossHidden + 0.5f);
+		m_banner = $"{def.Name} charges!";
+		m_bannerTime = 1.2f;
+	}
+
+	private void UpdateBossHidden(float dt)
+	{
+		if (m_bossHidden > 0f)
+		{
+			m_bossHidden -= dt;
+			if (m_bossHidden <= 0f && m_bossGo != null)
+			{
+				m_bossGo.SetActive(true);
+			}
+		}
 	}
 }
