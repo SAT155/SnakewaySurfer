@@ -79,8 +79,9 @@ internal sealed partial class SurfGame
 		{
 			float z = m_nextTorchZ;
 			m_nextTorchZ += 12f;
-			if (ArenaWeight(z, out BossDef? def) < 0.5f || def == null)
+			if (ArenaWeight(z, out BossDef? def) < 0.5f || def == null || ShoreWeight(z) > 0.15f)
 			{
+				// (Not down the beach to a crossing, 1.16.)
 				continue;
 			}
 			GameObject? prefab = Pictures.Prefab(def.Torch) ?? Pictures.Prefab("piece_groundtorch_wood");

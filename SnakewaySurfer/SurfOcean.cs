@@ -536,14 +536,13 @@ internal sealed partial class SurfGame
 			return;
 		}
 		int i0 = m_fv.Count;
-		Vector2[] corners = { centre - halfAlong - halfSide, centre - halfAlong + halfSide, centre + halfAlong + halfSide, centre + halfAlong - halfSide };
-		Vector2[] uvs = { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f) };
 		Color c = new Color(0.95f, 0.97f, 1f, Mathf.Clamp01(alpha));
+		// Corner by corner (no arrays: hundreds of quads a frame).
 		for (int k = 0; k < 4; k++)
 		{
-			Vector2 p = corners[k];
+			Vector2 p = centre + (k < 2 ? -halfAlong : halfAlong) + (k == 1 || k == 2 ? halfSide : -halfSide);
 			m_fv.Add(new Vector3(p.x, SeaHeight(p.x, p.y) + 0.07f, p.y));
-			m_fuv.Add(uvs[k]);
+			m_fuv.Add(new Vector2(k == 1 || k == 2 ? 1f : 0f, k < 2 ? 0f : 1f));
 			m_fc.Add(c);
 		}
 		m_ft.Add(i0); m_ft.Add(i0 + 1); m_ft.Add(i0 + 2);
