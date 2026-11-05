@@ -338,7 +338,7 @@ internal sealed partial class SurfGame
 				Label = t.Label,
 				JumpOrSlide = t.Move == "gas3",
 				CrashText = gas ? $"You choked in a {t.Label}'s cloud in the {biome}!" : $"A {t.Label}'s sweep caught you in the {biome}!",
-				Life = gas ? 2.5f : 0.6f,
+				Life = gas ? 5f : 0.6f,
 			});
 		}
 		if (gas && t.Move == "sweep")
@@ -381,6 +381,7 @@ internal sealed partial class SurfGame
 			Label = t.Label,
 			CrashText = $"A {t.Label}'s smash flattened you in the {m_biomes[BiomeAt(t.Z)].Def.Name}!",
 			Life = 2.4f,
+			Heavy = true,
 		});
 	}
 
@@ -815,7 +816,7 @@ internal sealed partial class SurfGame
 		m_markerMaterial = new Material(shader) { name = "SurfMarker", color = new Color(1f, 0.25f, 0.05f, 0.6f), renderQueue = 3100 };
 		m_jumpMaterial = new Material(shader) { name = "SurfJump", color = new Color(1f, 0.78f, 0.05f, 0.65f), renderQueue = 3100 };
 		m_slideMaterial = new Material(shader) { name = "SurfSlide", color = new Color(0.2f, 0.6f, 1f, 0.6f), renderQueue = 3100 };
-		m_gasMaterial = new Material(shader) { name = "SurfGas", color = new Color(0.45f, 0.75f, 0.2f, 0.4f), renderQueue = 3100 };
+		m_gasMaterial = new Material(shader) { name = "SurfGas", color = new Color(0.45f, 0.75f, 0.2f, 0.3f), renderQueue = 3100 };
 		m_tarMaterial = new Material(shader) { name = "SurfTar", color = new Color(0.05f, 0.04f, 0.03f, 0.85f), renderQueue = 3100 };
 	}
 
@@ -857,22 +858,101 @@ internal sealed partial class SurfGame
 		return patch;
 	}
 
+	private static Texture2D? s_puff;
+	private Material? m_puffMaterial;
+
+	// A soft round puff for gas particles.
+	private static Texture2D Puff()
+	{
+		if (s_puff != null)
+		{
+			return s_puff;
+		}
+		const int n = 64;
+		Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+		Color[] px = new Color[n * n];
+		for (int y = 0; y < n; y++)
+		{
+			for (int x = 0; x < n; x++)
+			{
+				float dx = (x + 0.5f) / n * 2f - 1f;
+				float dy = (y + 0.5f) / n * 2f - 1f;
+				float r = Mathf.Sqrt(dx * dx + dy * dy);
+				float a = Mathf.Clamp01(1f - r);
+				px[y * n + x] = new Color(1f, 1f, 1f, a * a * (0.75f + 0.25f * Mathf.PerlinNoise(x * 0.15f, y * 0.15f)));
+			}
+		}
+		tex.SetPixels(px);
+		tex.Apply();
+		s_puff = tex;
+		return tex;
+	}
+
+	// 1.14.2 (Sam: the gas was a green see-through ball): a drifting, churning cloud of soft
+	// green puffs filling the lane, over a faint green patch on the ground. Scaling the returned
+	// object stretches the cloud (only its shape, not the puffs).
 	private GameObject MakeCloud(int lane, float z)
 	{
 		if (m_markerMaterial == null)
 		{
 			MakeMarkerMaterials();
 		}
-		GameObject cloud = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-		Destroy(cloud.GetComponent<Collider>());
-		cloud.name = "GasCloud";
+		if (m_puffMaterial == null)
+		{
+			Shader shader = Shader.Find("Sprites/Default") ?? Shader.Find("Legacy Shaders/Particles/Alpha Blended");
+			m_puffMaterial = new Material(shader) { name = "SurfGasPuff", mainTexture = Puff(), renderQueue = 3105 };
+		}
+		GameObject cloud = new GameObject("GasCloud");
 		cloud.layer = m_layer;
 		cloud.transform.SetParent(m_stage, false);
 		cloud.transform.localScale = new Vector3(LaneWidth * 0.95f, 1.6f, 3.2f);
 		cloud.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.9f, z);
-		Renderer r = cloud.GetComponent<Renderer>();
-		r.sharedMaterial = m_gasMaterial;
-		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+
+		GameObject puffs = new GameObject("Puffs");
+		puffs.layer = m_layer;
+		puffs.transform.SetParent(cloud.transform, false);
+		ParticleSystem ps = puffs.AddComponent<ParticleSystem>();
+		ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+		ParticleSystem.MainModule main = ps.main;
+		main.duration = 1f;
+		main.loop = true;
+		main.prewarm = true;
+		main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2.6f);
+		main.startSpeed = new ParticleSystem.MinMaxCurve(0.1f, 0.5f);
+		main.startSize = new ParticleSystem.MinMaxCurve(1.1f, 2.2f);
+		main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+		main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.42f, 0.7f, 0.12f, 0.45f), new Color(0.6f, 0.82f, 0.25f, 0.3f));
+		main.gravityModifier = -0.03f;
+		main.simulationSpace = ParticleSystemSimulationSpace.Local;
+		main.scalingMode = ParticleSystemScalingMode.Shape;
+		main.maxParticles = 80;
+		ParticleSystem.EmissionModule emission = ps.emission;
+		emission.rateOverTime = 26f;
+		ParticleSystem.ShapeModule shape = ps.shape;
+		shape.shapeType = ParticleSystemShapeType.Box;
+		shape.scale = new Vector3(0.9f, 0.6f, 0.9f);
+		ParticleSystem.RotationOverLifetimeModule spin = ps.rotationOverLifetime;
+		spin.enabled = true;
+		spin.z = new ParticleSystem.MinMaxCurve(-0.6f, 0.6f);
+		ParticleSystem.SizeOverLifetimeModule grow = ps.sizeOverLifetime;
+		grow.enabled = true;
+		grow.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.6f, 1f, 1.3f));
+		ParticleSystem.ColorOverLifetimeModule fade = ps.colorOverLifetime;
+		fade.enabled = true;
+		Gradient g = new Gradient();
+		g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+			new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(0.8f, 0.7f), new GradientAlphaKey(0f, 1f) });
+		fade.color = g;
+		ParticleSystemRenderer pr = puffs.GetComponent<ParticleSystemRenderer>();
+		pr.sharedMaterial = m_puffMaterial;
+		pr.renderMode = ParticleSystemRenderMode.Billboard;
+		pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		pr.receiveShadows = false;
+		ps.Play(true);
+
+		// The poisoned ground under it.
+		GameObject patch = MakeMarker(lane, z, 3.2f, m_gasMaterial);
+		patch.transform.SetParent(cloud.transform, true);
 		return cloud;
 	}
 

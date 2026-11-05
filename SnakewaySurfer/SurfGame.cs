@@ -105,6 +105,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// Bats (SurfBats.cs): a nuisance, not a crash.
 		public bool Nuisance;
 		public float Seed;
+		// Too heavy to block (trolls, smashes, shockwaves): only a parry stops it (1.14.2, Sam).
+		public bool Heavy;
+		// A second lane the same blow covers (a troll's long log), collidable with it.
+		public Thing? Partner;
 		public int Phase;
 		public float PhaseTime;
 		public float FromX;
@@ -2289,7 +2293,20 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Side = side,
 			Anim = anim,
 			Attack = attack,
+			Heavy = true,
 		});
+		// 1.14.2 (Sam): a grown troll's log is long enough to sweep the middle lane too, now and
+		// then (both lanes are marked).
+		if (attack != null && Random.value < 0.5f)
+		{
+			Thing swing = m_things[m_things.Count - 1];
+			GameObject reach = new GameObject("TrollReach");
+			reach.transform.SetParent(m_stage, false);
+			reach.transform.localPosition = new Vector3(LaneX(1), RoadY(z), z);
+			Thing partner = new Thing { Go = reach, Kind = Kind.Block, Lane = 1, Z = z, HalfLength = 0.7f, Label = label, CrashText = swing.CrashText, Collidable = false, Heavy = true };
+			swing.Partner = partner;
+			m_things.Add(partner);
+		}
 	}
 
 	private Transform ClassicClub(Transform root, float trollX, int side, BiomeRuntime b, float size)
@@ -2351,6 +2368,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			HalfLength = 0.9f,
 			Label = label,
 			CrashText = legs,
+			Heavy = true,
 			Special = Special.Drop,
 			Moving = body.transform,
 			Side = side,
@@ -2368,7 +2386,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			GameObject marker = new GameObject("TrollLane");
 			marker.transform.SetParent(m_stage, false);
 			marker.transform.localPosition = new Vector3(LaneX(lane), 0f, z);
-			m_things.Add(new Thing { Go = marker, Kind = kind, Lane = lane, Z = z, HalfLength = 0.9f, Label = label, CrashText = text });
+			m_things.Add(new Thing { Go = marker, Kind = kind, Lane = lane, Z = z, HalfLength = 0.9f, Label = label, CrashText = text, Heavy = true });
 		}
 	}
 
@@ -2396,6 +2414,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				if (swing)
 				{
 					t.Markers.Add(MakeMarker(t.Lane, t.Z, 2.6f, m_markerMaterial));
+					if (t.Partner != null)
+					{
+						t.Markers.Add(MakeMarker(t.Partner.Lane, t.Z, 2.6f, m_markerMaterial));
+					}
 				}
 				else
 				{
@@ -2447,6 +2469,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 					if (t.FireIn < 0f)
 					{
 						t.Collidable = true;
+						if (t.Partner != null)
+						{
+							t.Partner.Collidable = true;
+						}
 						m_audio.Play(Sfx.TrollSlam, Mathf.Clamp01(1.1f - Mathf.Abs(distance) / 30f));
 					}
 				}
@@ -2822,6 +2848,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			// creature's body reaches you before its middle does, and a beat early so the blow is
 			// seen landing rather than after you've run into it.
 			float reach = t.Smashes > 0 ? (m_speed + t.Speed) * (windup + 1.2f) + 6f : (m_speed + t.Speed) * (windup + 0.15f) + 1.5f + t.HalfLength;
+			if (t.Move.StartsWith("gas"))
+			{
+				// 1.14.2 (Sam): gas goes out early, so its cloud is already hanging there as you
+				// come, about a second and a half ahead.
+				reach = (m_speed + t.Speed) * (windup + 1.5f) + 4f + t.HalfLength;
+			}
 			if (t.Smashes > 0 && t.Markers.Count == 0 && t.Move.Length == 0 && distance < reach + (m_speed + t.Speed) * 1.2f)
 			{
 				// All three lanes glow before a smash: its shockwave will need jumping.
@@ -2935,6 +2967,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				Label = t.Label,
 				CrashText = $"A {t.Label}'s smash knocked you flat in the {b.Def.Name}!",
 				Life = 4f,
+				Heavy = true,
 			});
 		}
 	}
@@ -3202,7 +3235,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		// A chasing boss: the camera swings round you (over the side, a little higher on the
 		// way) to look back at it, and back again when the fight is over.
-		bool back = m_chase && m_boss != null && m_bossSink < 0f && m_state != State.Countdown;
+		// It stays in view while it falls.
+		bool back = m_chase && m_boss != null && m_bossSink < 2.2f && m_state != State.Countdown;
 		m_camBack = Mathf.MoveTowards(m_camBack, back ? 1f : 0f, dt / 1.4f);
 		float swing = Mathf.SmoothStep(0f, 1f, m_camBack) * Mathf.PI;
 		float dist = Plugin.CameraDistance.Value * (1f + 0.25f * Mathf.Sin(swing));

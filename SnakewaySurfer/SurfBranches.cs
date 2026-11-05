@@ -51,10 +51,22 @@ internal sealed partial class SurfGame
 			{
 				m_dividers.Add((zs, ze, boundary));
 				float x = (boundary - 0.5f) * LaneWidth;
-				for (float pz = zs; pz < ze - 0.1f; pz += 6f)
+				// 1.14.2 (Sam): the road splits into separate paths with a strip of wild ground
+				// between them, overgrown with the Elder's tangled vines (no more logs).
+				GroundStrip(b, x, zs - 0.5f, ze + 0.5f, 0.8f);
+				bool vines = false;
+				for (float pz = zs; pz < ze; pz += 1.6f)
 				{
-					float piece = Mathf.Min(6f, ze - pz);
-					RootPiece(b, def, new Vector3(x, 0f, pz + piece * 0.5f), new Vector3(0.45f, 1.3f, piece + 0.3f), Quaternion.Euler(90f, 0f, 0f));
+					Quaternion lean = Quaternion.Euler(Random.Range(-22f, 22f), Random.Range(0f, 360f), Random.Range(-22f, 22f));
+					vines |= VinePiece(def, new Vector3(x + Random.Range(-0.2f, 0.2f), 0f, pz + Random.Range(-0.5f, 0.5f)), Random.Range(1.2f, 2.3f), lean) != null;
+				}
+				if (!vines)
+				{
+					for (float pz = zs; pz < ze - 0.1f; pz += 6f)
+					{
+						float piece = Mathf.Min(6f, ze - pz);
+						RootPiece(b, def, new Vector3(x, 0f, pz + piece * 0.5f), new Vector3(0.45f, 1.3f, piece + 0.3f), Quaternion.Euler(90f, 0f, 0f));
+					}
 				}
 			}
 			// One or two open branches; each blocked one has a torch under a root more often than not.
@@ -70,7 +82,27 @@ internal sealed partial class SurfGame
 			foreach (int lane in lanes)
 			{
 				float wz = ze - 1.5f;
-				GameObject wall = RootPiece(b, def, new Vector3(LaneX(lane), 0f, wz), new Vector3(LaneWidth * 0.9f, 2.6f, 1f), Quaternion.Euler(0f, 0f, 90f), false);
+				// A thicket of vines closing the path.
+				GameObject wall = new GameObject("VineWall");
+				wall.layer = m_layer;
+				wall.transform.SetParent(m_stage, false);
+				wall.transform.localPosition = new Vector3(LaneX(lane), RoadY(wz), wz);
+				int grown = 0;
+				for (int k = 0; k < 4; k++)
+				{
+					GameObject? v = VinePiece(def, new Vector3(LaneX(lane) + (k - 1.5f) * LaneWidth * 0.27f, 0f, wz + Random.Range(-0.3f, 0.3f)), Random.Range(2.3f, 3f),
+						Quaternion.Euler(Random.Range(-12f, 12f), Random.Range(0f, 360f), (k - 1.5f) * -9f), false);
+					if (v != null)
+					{
+						v.transform.SetParent(wall.transform, true);
+						grown++;
+					}
+				}
+				if (grown == 0)
+				{
+					Destroy(wall);
+					wall = RootPiece(b, def, new Vector3(LaneX(lane), 0f, wz), new Vector3(LaneWidth * 0.9f, 2.6f, 1f), Quaternion.Euler(0f, 0f, 90f), false);
+				}
 				m_things.Add(new Thing
 				{
 					Go = wall,
@@ -130,21 +162,36 @@ internal sealed partial class SurfGame
 	// A low root to slide under, with a burning torch beneath it.
 	private void SpawnTorchRoot(BiomeRuntime b, int lane, float z, int group, BossDef def)
 	{
-		GameObject root = RootPiece(b, def, new Vector3(LaneX(lane), 1.3f, z), new Vector3(LaneWidth, 0.6f, 0.6f), Quaternion.Euler(0f, 0f, 90f), false);
+		// A vine arching across the path at head height (1.14.2, Sam: vines, not logs), its ends
+		// rooted beside the path.
+		GameObject root = new GameObject("TorchVine");
+		root.layer = m_layer;
+		root.transform.SetParent(m_stage, false);
+		root.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 1.3f, z);
+		bool vine = false;
 		foreach (float side in new[] { -1f, 1f })
 		{
-			RootPiece(b, def, new Vector3(LaneX(lane) + side * LaneWidth * 0.46f, 0f, z), new Vector3(0.3f, 1.35f, 0.3f), Quaternion.identity);
+			// Two vines leaning in from each side, meeting over the middle.
+			GameObject? v = VinePiece(def, new Vector3(LaneX(lane) + side * LaneWidth * 0.5f, 0f, z + side * 0.15f), 2.3f,
+				Quaternion.Euler(0f, Random.Range(0f, 360f), side * 58f), false);
+			if (v != null)
+			{
+				v.transform.SetParent(root.transform, true);
+				vine = true;
+			}
+		}
+		if (!vine)
+		{
+			GameObject bar = RootPiece(b, def, new Vector3(LaneX(lane), 1.3f, z), new Vector3(LaneWidth, 0.6f, 0.6f), Quaternion.Euler(0f, 0f, 90f), false);
+			bar.transform.SetParent(root.transform, true);
 		}
 		GameObject? torch = Pictures.Prefab("piece_groundtorch_wood");
 		if (torch != null)
 		{
 			GameObject t = Instantiate(Picture(torch), root.transform, true);
-			t.transform.position = root.transform.position + new Vector3(0f, -1.3f, 0f);
-			t.transform.rotation = Quaternion.identity;
-			foreach (ParticleSystem ps in t.GetComponentsInChildren<ParticleSystem>(true))
-			{
-				ps.Play(true);
-			}
+			t.transform.position = root.transform.position - m_stage.up * 1.3f;
+			t.transform.rotation = m_stage.rotation;
+			LightUp(t);
 		}
 		Light glow = new GameObject("TorchGlow").AddComponent<Light>();
 		glow.gameObject.layer = m_layer;
@@ -178,15 +225,12 @@ internal sealed partial class SurfGame
 			Thing t = m_things[i];
 			if (t.Kind == Kind.Block && t.Group == torch.Group && t.Lane == torch.Lane)
 			{
-				GameObject? fire = Pictures.Prefab("piece_groundtorch_wood");
+				GameObject? fire = FindFx("vfx_FireAddFuel|vfx_fireball_hit|fx_fireball_staff_explosion|piece_groundtorch_wood");
 				if (fire != null)
 				{
 					GameObject f = Instantiate(Picture(fire), m_stage, false);
 					f.transform.localPosition = t.Go.transform.localPosition;
-					foreach (ParticleSystem ps in f.GetComponentsInChildren<ParticleSystem>(true))
-					{
-						ps.Play(true);
-					}
+					LightUp(f);
 					m_things.Add(new Thing { Go = f, Kind = Kind.Scenery, Z = t.Z, HalfLength = 1f, Life = 4f });
 				}
 				DestroyThing(t);
@@ -197,5 +241,48 @@ internal sealed partial class SurfGame
 		m_audio.Play(Sfx.Coin, 1f, 0.6f);
 		m_banner = burned ? "You grab the torch: the roots ahead burn away!" : "You grab a torch.";
 		m_bannerTime = 1.6f;
+	}
+
+	// One of the Elder's vines (its TentaRoot), standing still at a local spot, about `height`
+	// tall. Null if the boss has no vines.
+	private GameObject? VinePiece(BossDef def, Vector3 at, float height, Quaternion rotation, bool scenery = true)
+	{
+		GameObject? prefab = def.Vines.Length > 0 ? Pictures.Prefab(def.Vines) : null;
+		if (prefab == null)
+		{
+			return null;
+		}
+		CreatureInfo info = CreatureInfo.Of(prefab);
+		float scale = info.Height > 0.3f ? Mathf.Clamp(height / info.Height, 0.15f, 3f) : height / 2.6f;
+		GameObject go = Creature(prefab, rotation, scale);
+		go.transform.localPosition = new Vector3(at.x, RoadY(at.z) + at.y - 0.15f, at.z);
+		if (scenery)
+		{
+			m_things.Add(new Thing { Go = go, Kind = Kind.Scenery, Z = at.z, HalfLength = 1f });
+		}
+		return go;
+	}
+
+	// A strip of the land's own ground laid over the road, splitting it into separate paths.
+	private void GroundStrip(BiomeRuntime b, float x, float z0, float z1, float width)
+	{
+		for (float z = z0; z < z1; z += 4f)
+		{
+			float len = Mathf.Min(4.2f, z1 - z + 0.2f);
+			GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+			Destroy(quad.GetComponent<Collider>());
+			quad.name = "PathDivide";
+			quad.layer = m_layer;
+			quad.transform.SetParent(m_stage, false);
+			float zc = z + len * 0.5f;
+			float slope = Mathf.Atan2(RoadY(zc + 1f) - RoadY(zc - 1f), 2f) * Mathf.Rad2Deg;
+			quad.transform.localPosition = new Vector3(x, RoadY(zc) + 0.05f, zc);
+			quad.transform.localRotation = Quaternion.Euler(90f - slope, 0f, 0f);
+			quad.transform.localScale = new Vector3(width, len, 1f);
+			Renderer r = quad.GetComponent<Renderer>();
+			r.sharedMaterial = b.Ground;
+			r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+			m_things.Add(new Thing { Go = quad, Kind = Kind.Scenery, Z = zc, HalfLength = len * 0.5f });
+		}
 	}
 }

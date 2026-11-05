@@ -95,10 +95,7 @@ internal sealed partial class SurfGame
 				GameObject go = Instantiate(Picture(prefab), m_stage, false);
 				go.transform.localPosition = new Vector3(x, HillHeight(x, z), z);
 				go.transform.localRotation = Quaternion.identity;
-				foreach (ParticleSystem ps in go.GetComponentsInChildren<ParticleSystem>(true))
-				{
-					ps.Play(true);
-				}
+				LightUp(go);
 				// One light per pair, on alternating sides: enough to light the path, without
 				// dozens of lights.
 				if ((m_torchCount & 1) == (side < 0 ? 0 : 1))

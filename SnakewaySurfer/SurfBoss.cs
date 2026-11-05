@@ -522,13 +522,28 @@ internal sealed partial class SurfGame
 		{
 			// Beaten: it sinks away while you run on.
 			m_bossSink += dt;
-			if (!m_chase)
+			if (!m_chase || m_bossSink < 1.6f)
 			{
 				m_bossZ += m_speed * dt;
 			}
+			// It reels, then topples onto its side, lies there a moment, then sinks into the ground
+			// (a flyer falls out of the sky first).
 			Vector3 p = m_bossGo.transform.localPosition;
-			m_bossGo.transform.localPosition = new Vector3(p.x, RoadY(m_bossZ) + def.Fly - m_bossSink * 2.5f, m_bossZ);
-			if (m_bossSink > 3f)
+			float fall = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((m_bossSink - 0.4f) / 1.1f));
+			float fly = def.Fly * (1f - fall);
+			float sink = Mathf.Max(0f, m_bossSink - 2.8f) * 2f;
+			m_bossGo.transform.localPosition = new Vector3(p.x, RoadY(m_bossZ) + fly - sink, m_bossZ);
+			m_bossGo.transform.localRotation = m_bossDeathRot * Quaternion.Euler(0f, 0f, m_bossDeathSide * 82f * fall);
+			if (m_bossSink > 1.5f && m_bossAnim != null)
+			{
+				m_bossAnim.speed = Mathf.MoveTowards(m_bossAnim.speed, 0f, dt * 2f);
+			}
+			if (m_bossSink > 1.45f && m_bossSink - dt <= 1.45f)
+			{
+				m_shake = Mathf.Max(m_shake, 0.35f);
+				m_audio.Play(Sfx.TrollSlam, 1f, 0.7f);
+			}
+			if (m_bossSink > 5f)
 			{
 				EndBoss();
 			}
@@ -1189,6 +1204,40 @@ internal sealed partial class SurfGame
 		m_bossSink = 0f;
 		m_bossHidden = 0f;
 		m_bossGo.SetActive(true);
+		BossDeath(def);
+	}
+
+	private Quaternion m_bossDeathRot;
+	private float m_bossDeathSide = 1f;
+
+	// 1.14.2 (Sam: bosses just sank away): its own death, from the game: the death effects and
+	// sounds (Character.m_deathEffects, minus the ragdoll, which needs physics), a last stagger,
+	// and it topples over before the ground takes it.
+	private void BossDeath(BossDef def)
+	{
+		m_bossDeathRot = m_bossGo != null ? m_bossGo.transform.localRotation : Quaternion.identity;
+		m_bossDeathSide = Random.value < 0.5f ? -1f : 1f;
+		if (m_bossAnim != null)
+		{
+			SetTrigger(m_bossAnim, "stagger");
+		}
+		GameObject? prefab = Pictures.Prefab(def.Prefab);
+		Character? c = prefab != null ? prefab.GetComponent<Character>() : null;
+		if (c?.m_deathEffects?.m_effectPrefabs == null || m_bossGo == null)
+		{
+			m_audio.Play(Sfx.HitMonster, 1f, 0.6f);
+			return;
+		}
+		m_audio.PlayEffects(c.m_deathEffects, 1f);
+		foreach (EffectList.EffectData e in c.m_deathEffects.m_effectPrefabs)
+		{
+			if (e?.m_prefab == null || !e.m_enabled || e.m_prefab.GetComponentInChildren<Ragdoll>(true) != null
+				|| e.m_prefab.GetComponentInChildren<ParticleSystem>(true) == null)
+			{
+				continue;
+			}
+			PlayFx(e.m_prefab, m_bossGo.transform.localPosition + Vector3.up * 1f, Quaternion.identity, 6f);
+		}
 	}
 
 	private void DestroySchemaLobs()

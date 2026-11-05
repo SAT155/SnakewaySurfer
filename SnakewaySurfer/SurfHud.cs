@@ -72,6 +72,8 @@ internal sealed partial class SurfGame
 		{
 			return false;
 		}
+		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
+		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise;
 		if (m_runTime - m_blockPressed <= Plugin.ParryWindow.Value)
 		{
 			t.Collidable = false;
@@ -93,6 +95,12 @@ internal sealed partial class SurfGame
 		}
 		float cost = Plugin.BlockStamina.Value;
 		m_staminaIdle = 0f;
+		if (heavy)
+		{
+			// Too heavy: it smashes through the guard.
+			m_audio.Play("sfx_unarmed_blocked|sfx_wood_blocked", 1f, 0.7f);
+			return false;
+		}
 		if (m_stamina < cost)
 		{
 			// Guard broken: the hit gets through.

@@ -64,6 +64,30 @@ internal sealed partial class SurfGame
 		return go;
 	}
 
+	// A torch or fire copy burning: a fireplace keeps its flames on inactive children (its
+	// "enabled" objects, switched by fuel), which a lifeless copy never turns on (1.14.2, Sam:
+	// the torches weren't lit).
+	private void LightUp(GameObject go)
+	{
+		foreach (Transform child in go.GetComponentsInChildren<Transform>(true))
+		{
+			string n = child.name.ToLowerInvariant();
+			if (!child.gameObject.activeSelf && !n.Contains("disabled") && !n.Contains("low") && !n.Contains("smoke_low")
+				&& (n.Contains("enabled") || n.Contains("fire") || n.Contains("flame")))
+			{
+				child.gameObject.SetActive(true);
+			}
+		}
+		foreach (ParticleSystem ps in go.GetComponentsInChildren<ParticleSystem>(true))
+		{
+			ps.Play(true);
+		}
+		foreach (Light l in go.GetComponentsInChildren<Light>(true))
+		{
+			l.cullingMask = 1 << m_layer;
+		}
+	}
+
 	private void AttackSound(CreatureAttack? attack, bool impact, float volume)
 	{
 		if (attack == null)
