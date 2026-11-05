@@ -14,6 +14,8 @@ internal sealed partial class SurfGame
 	private readonly HashSet<(int biome, int stars)> m_unlocked = new();
 	private int m_menuCols;
 	private int m_menuRows;
+	// 1.16: the Ocean's column (the crossing before the Plains), or -1.
+	private int m_menuSeaCol = -1;
 	private static Texture2D? s_white;
 
 	private void EnterMenu()
@@ -22,18 +24,37 @@ internal sealed partial class SurfGame
 		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
 		int allowed = Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
 		int maxStars = 0;
+		m_menuSeaCol = Crossing && allowed > SeaTo ? SeaTo : -1;
 		foreach ((int b, int s) in Progress.Checkpoints(m_player))
 		{
 			if (b < allowed)
 			{
-				m_unlocked.Add((b, s));
+				if (m_menuSeaCol >= 0 && b == SeaTo)
+				{
+					// Beating Moder opens the crossing; making it opens the Plains.
+					m_unlocked.Add((m_menuSeaCol, s));
+					if (Progress.Landed(m_player, s, SeaTo))
+					{
+						m_unlocked.Add((m_menuSeaCol + 1, s));
+					}
+				}
+				else
+				{
+					m_unlocked.Add((MenuColumnOf(b), s));
+				}
 				maxStars = Mathf.Max(maxStars, s);
 			}
 		}
 		m_unlocked.Add((0, 0));
-		m_menuCols = allowed;
+		m_menuCols = allowed + (m_menuSeaCol >= 0 ? 1 : 0);
 		m_menuRows = Plugin.LoopBiomes.Value <= 0 ? 1 : Mathf.Min(4, maxStars + 1);
-		(m_menuCol, m_menuRow) = (Mathf.Clamp(m_startBiome, 0, m_menuCols - 1), Mathf.Clamp(m_startStars, 0, m_menuRows - 1));
+		int startCol = m_startSea && m_menuSeaCol >= 0 ? m_menuSeaCol : MenuColumnOf(m_startBiome);
+		(m_menuCol, m_menuRow) = (Mathf.Clamp(startCol, 0, m_menuCols - 1), Mathf.Clamp(m_startStars, 0, m_menuRows - 1));
+		if (!m_unlocked.Contains((m_menuCol, m_menuRow)) && m_menuSeaCol >= 0 && m_menuCol == m_menuSeaCol + 1)
+		{
+			// The Plains not reached yet this lap: its crossing, then.
+			m_menuCol = m_menuSeaCol;
+		}
 		if (!m_unlocked.Contains((m_menuCol, m_menuRow)))
 		{
 			(m_menuCol, m_menuRow) = (0, 0);
@@ -86,25 +107,44 @@ internal sealed partial class SurfGame
 		}
 		if (m_stateTime > 0.3f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
 		{
-			StartFrom(m_menuCol, m_menuRow);
+			StartColumn(m_menuCol, m_menuRow);
 		}
 	}
 
-	private void StartFrom(int biome, int stars)
+	// The menu's column for a biome (past the Ocean's column, one further along).
+	private int MenuColumnOf(int biome) => m_menuSeaCol >= 0 && biome >= SeaTo ? biome + 1 : biome;
+
+	// The biome a menu column starts in, and whether it's the crossing before it.
+	private (int biome, bool sea) MenuColumn(int col) =>
+		m_menuSeaCol < 0 || col < m_menuSeaCol ? (col, false) : col == m_menuSeaCol ? (SeaTo, true) : (col - 1, false);
+
+	private void StartColumn(int col, int stars)
+	{
+		(int biome, bool sea) = MenuColumn(col);
+		StartFrom(biome, stars, sea);
+	}
+
+	private void StartFrom(int biome, int stars, bool sea = false)
 	{
 		m_startBiome = biome;
 		m_startStars = stars;
+		m_startSea = sea;
 		// "Run again" keeps this start.
 		m_explicitStart = true;
 		m_audio.Play(Sfx.Go);
 		ResetRun();
 	}
 
-	// Where you fell: that biome (a boss arena counts as its biome) and lap.
-	private (int biome, int stars) CrashPlace()
+	// Where you fell: that biome (a boss arena counts as its biome) and lap, or the crossing
+	// (its coast included).
+	private (int biome, int stars, bool sea) CrashPlace()
 	{
 		Segment s = SegAt(m_z);
-		return (s.Biome, s.Rush ? 3 : s.Stars);
+		if (m_atSea || s.Sea || s.Shore)
+		{
+			return (SeaTo, s.Stars, true);
+		}
+		return (s.Biome, s.Rush ? 3 : s.Stars, false);
 	}
 
 	private static Texture2D White()
@@ -166,12 +206,13 @@ internal sealed partial class SurfGame
 				if (hover && e.type == EventType.MouseDown && e.button == 0)
 				{
 					e.Use();
-					StartFrom(c, r);
+					StartColumn(c, r);
 					return;
 				}
 				if (e.type == EventType.Repaint)
 				{
-					MenuButton(rect, c, r, open, open && m_menuCol == c && m_menuRow == r, k);
+					(int biome, bool sea) = MenuColumn(c);
+					MenuButton(rect, biome, r, open, open && m_menuCol == c && m_menuRow == r, k, sea);
 				}
 			}
 		}
@@ -181,10 +222,15 @@ internal sealed partial class SurfGame
 
 	// One button: the biome's sky over its ground, its name, its boss's summoning item, and a
 	// star for each lap. Locked ones are dark.
-	private void MenuButton(Rect r, int biome, int stars, bool open, bool selected, float k)
+	private void MenuButton(Rect r, int biome, int stars, bool open, bool selected, float k, bool sea = false)
 	{
 		BiomeRuntime b = m_biomes[Mathf.Clamp(biome, 0, m_biomes.Count - 1)];
 		float dim = open ? 1f : 0.3f;
+		if (sea)
+		{
+			OceanButton(r, stars, open, selected, k);
+			return;
+		}
 		if (selected)
 		{
 			float pulse = 0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * 6f);
@@ -211,6 +257,40 @@ internal sealed partial class SurfGame
 		Color text = style.normal.textColor;
 		style.normal.textColor = open ? Color.white : new Color(0.6f, 0.6f, 0.6f);
 		Shadowed(new Rect(r.x + 8 * k, r.y, r.width - 16 * k, r.height - 6 * k), b.Def.Name, style);
+		style.alignment = anchor;
+		style.normal.textColor = text;
+		for (int i = 0; i < stars; i++)
+		{
+			Star(new Vector2(r.x + 18 * k + i * 22 * k, r.y + 18 * k), 18 * k, open ? new Color(1f, 0.82f, 0.2f) : new Color(0.4f, 0.4f, 0.4f));
+		}
+	}
+
+	// The Ocean's button: sky over grey-green sea with a line of surf, the serpent's trophy.
+	private void OceanButton(Rect r, int stars, bool open, bool selected, float k)
+	{
+		float dim = open ? 1f : 0.3f;
+		if (selected)
+		{
+			float pulse = 0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * 6f);
+			Fill(new Rect(r.x - 5 * k, r.y - 5 * k, r.width + 10 * k, r.height + 10 * k), new Color(1f, 0.85f, 0.35f, pulse));
+		}
+		Color sky = new Color(0.55f * dim, 0.68f * dim, 0.8f * dim, 1f);
+		sky = Color.Lerp(sky, new Color(0.05f, 0.06f, 0.15f), stars * 0.2f);
+		Color water = new Color(0.1f * dim, 0.27f * dim, 0.33f * dim, 1f);
+		Fill(new Rect(r.x, r.y, r.width, r.height * 0.55f), sky);
+		Fill(new Rect(r.x, r.y + r.height * 0.55f, r.width, r.height * 0.45f), water);
+		Fill(new Rect(r.x, r.y + r.height * 0.55f - 1 * k, r.width, 3 * k), new Color(0.85f * dim, 0.9f * dim, 0.95f * dim, 0.8f));
+		if (ItemIcon("TrophySerpent") is Sprite icon)
+		{
+			float s = r.height * 0.42f;
+			DrawSprite(new Rect(r.xMax - s - 6 * k, r.y + 6 * k, s, s), icon, new Color(1f, 1f, 1f, open ? 1f : 0.35f));
+		}
+		GUIStyle style = m_small!;
+		TextAnchor anchor = style.alignment;
+		style.alignment = TextAnchor.LowerLeft;
+		Color text = style.normal.textColor;
+		style.normal.textColor = open ? Color.white : new Color(0.6f, 0.6f, 0.6f);
+		Shadowed(new Rect(r.x + 8 * k, r.y, r.width - 16 * k, r.height - 6 * k), "Ocean", style);
 		style.alignment = anchor;
 		style.normal.textColor = text;
 		for (int i = 0; i < stars; i++)

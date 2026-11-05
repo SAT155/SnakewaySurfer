@@ -52,6 +52,39 @@ winged emblem: +15% movement speed, and at full adrenaline another 5% plus 2.5x 
 You only get them once per character, and only players with the mod can see them. Don't drop
 them on a shared server, because players without the mod can't load them.
 
+## The ocean crossing
+
+Between the Mountains and the Plains you cross the sea. The track runs down a beach into the
+shallows, where a longship waits stern to the shore; you leap aboard at the helm and the camera
+rises high above the ship, ahead always up the screen. Steer with the rudder (A / D) and set the
+sail with W / S, as in the game: oars (slow but steady, and the tightest turns), half sail or
+full sail. The wind never stops, and now and then it turns (a gust, and the wind arrow on the
+rose by the stamina bar swings round). As in the game, a sail is fastest with the wind from the
+side, a little slower with it behind, and useless heading into it: tack across a headwind. The
+arrow is bright when the wind fills your sail and dark when it doesn't. Holding sprint puts the
+crew to the oars as well.
+
+The bow ballista (left mouse) fires along your heading. Off the Mountains coast drakes come down
+from the peaks to spit at where you're going (a red ring on the water), serpents swim in under
+the surface, rear up beside the ship and lunge along a red streak (only a parry stops a lunge),
+leviathans drift across your way until a bolt makes them shake and dive, sea stacks stand in the
+channel, and barrels, chests and driftwood float by: sail through them for coins, and driftwood
+mends the hull (a life back). Gulls wheel overhead.
+
+A third of the way across the sky darkens into a storm. Big rolling waves come with the wind:
+meet them bow or stern first and you surf down their backs, but side on they roll the ship. A
+pale band on the water shows the safe way to meet the next one, and it turns red while you're
+side on. Lightning strikes on red rings. In the heart of the storm the **serpent of the deep**
+rises: it circles the ship, lunges, slams the sea into a wave at you, and comes up from under
+the keel (a red ring follows the ship; get off it). Hit it with the ballista while it's above
+the water. Once it's beaten the storm clears, the Plains' deathsquitos come out over the
+shallows, and the ship runs up the far beach; you run the length of the deck, leap off the bow
+and carry on.
+
+Beating Moder saves a checkpoint at the crossing, and the start menu gets an **Ocean** button
+before the Plains; making the crossing opens the Plains themselves (`surfsup ocean` starts there
+too). Ocean Crossing in the config turns it off.
+
 Beside the track you pass the biome's own things: greydwarf nests and bone piles near their
 creatures, fuling totems, Dvergr crates and lanterns, and the plants, mushrooms and stones you'd
 pick up there.
@@ -69,7 +102,9 @@ Friends without the mod see that too.
 | Shift (hold) | Sprint: faster, uses stamina, to get past an attack before it lands |
 | Right mouse (hold) | Block a creature's attack (stamina per blow; you run a little slower) |
 | Right mouse just before a hit | Parry: free, and the attacker staggers |
-| Left mouse | Throw a spear you picked up (Eikthyr) |
+| Left mouse | Throw a spear you picked up (Eikthyr); at sea, fire the bow ballista |
+| A / D at sea | Rudder: steer left and right |
+| W / S at sea | Set the sail: oars, half sail, full sail |
 | P | Pause and carry on |
 | Space (after a crash) | Run again |
 | Esc | Stop and go back to the world |
@@ -117,6 +152,12 @@ game's normal syncing, so they work on a vanilla dedicated server, with or witho
 and for players without the mod.
 
 ## Changes
+
+- **1.16**: the ocean crossing between the Mountains and the Plains: a longship seen from
+  above, steered with the rudder and sailed by the wind as in the game (it turns now and then),
+  a bow ballista, drakes, serpents, leviathans, sea stacks and floating loot, and in the middle a
+  storm with rolling waves, lightning and the serpent of the deep. The beaches slope into the
+  sea with surf washing up the sand and splashes in the shallows. An Ocean start in the menu.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

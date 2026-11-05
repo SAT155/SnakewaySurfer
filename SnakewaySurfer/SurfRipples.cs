@@ -18,7 +18,10 @@ internal sealed partial class SurfGame
 	private Material? m_rippleMaterial;
 	private static Texture2D? s_ring;
 
-	private bool InWater => m_biomes.Count > 0 && WaterWeight(m_z) > 0.5f && m_y < 0.2f;
+	private bool InWater => m_biomes.Count > 0 && m_y < 0.2f && (WaterWeight(m_z) > 0.5f || InShallows);
+
+	// 1.16: wading through the shallows of a crossing's beach.
+	private bool InShallows => !m_atSea && ShoreWeight(m_z) > 0f && RoadY(m_z) < SeaHeight(m_x, m_z) - 0.05f;
 
 	private static Texture2D Ring()
 	{
@@ -69,7 +72,8 @@ internal sealed partial class SurfGame
 		quad.name = "Ripple";
 		quad.layer = m_layer;
 		quad.transform.SetParent(m_stage, false);
-		quad.transform.localPosition = new Vector3(m_x + Random.Range(-0.2f, 0.2f), RoadY(m_z) + WaterDepth + 0.02f, m_z);
+		float surface = InShallows ? SeaHeight(m_x, m_z) : RoadY(m_z) + WaterDepth;
+		quad.transform.localPosition = new Vector3(m_x + Random.Range(-0.2f, 0.2f), surface + 0.02f, m_z);
 		quad.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
 		Renderer r = quad.GetComponent<Renderer>();
 		r.sharedMaterial = new Material(m_rippleMaterial);

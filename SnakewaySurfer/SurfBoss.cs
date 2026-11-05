@@ -27,6 +27,11 @@ internal sealed partial class SurfGame
 		// One fight of the boss rush (after the 3-star lap): every boss in a row.
 		public bool Rush;
 		public int RushIndex;
+		// 1.16: the ocean crossing before the Plains (SurfSea.cs), the stretch of Mountains coast
+		// a crossing starts from, and the land just after a crossing.
+		public bool Sea;
+		public bool Shore;
+		public bool PrevSea;
 
 		public float Level => Biome + 1.5f * Stars;
 	}
@@ -79,7 +84,11 @@ internal sealed partial class SurfGame
 		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
 		m_lapBiomes = Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
 		int biome = Mathf.Clamp(m_startBiome, 0, m_lapBiomes - 1);
-		Segment first = NewSegment(0f, biome, Plugin.LoopBiomes.Value <= 0 ? 0 : m_startStars, false, false);
+		int stars = Plugin.LoopBiomes.Value <= 0 ? 0 : m_startStars;
+		// A start past the Mountains begins with the crossing, until you've made it this lap
+		// (or picked the Ocean).
+		bool sea = Crossing && biome == SeaTo && (m_startSea || m_player == null || !Progress.Landed(m_player, stars, SeaTo));
+		Segment first = sea ? ShoreSegment(stars) : NewSegment(0f, biome, stars, false, false);
 		first.PrevBiome = first.Biome;
 		first.PrevLevel = first.Level;
 		m_segments.Add(first);
@@ -100,7 +109,7 @@ internal sealed partial class SurfGame
 
 	private BossDef? BossFor(Segment s)
 	{
-		if (s.Boss || s.Repeat || !Plugin.BossFights.Value)
+		if (s.Boss || s.Repeat || s.Sea || s.Shore || !Plugin.BossFights.Value)
 		{
 			return null;
 		}
@@ -137,6 +146,11 @@ internal sealed partial class SurfGame
 		int biome = s.Biome + 1;
 		int stars = s.Stars;
 		bool repeat = false;
+		if (Crossing && !s.Sea && biome == SeaTo && biome < m_lapBiomes)
+		{
+			// Across the sea to the Plains.
+			return SeaSegment(s.End, s.Stars);
+		}
 		if (biome >= m_lapBiomes)
 		{
 			if (Plugin.LoopBiomes.Value <= 0 || m_lapBiomes <= 0)
@@ -193,6 +207,13 @@ internal sealed partial class SurfGame
 			next.PrevBiome = last.Biome;
 			next.PrevLevel = last.Level;
 			next.PrevBoss = last.Boss;
+			next.PrevSea = last.Sea;
+			if (last.Sea)
+			{
+				// A new land over the water: no blend with the one left behind.
+				next.PrevBiome = next.Biome;
+				next.PrevLevel = next.Level;
+			}
 			m_segments.Add(next);
 		}
 		for (int i = m_segments.Count - 1; i >= 0; i--)
@@ -1190,8 +1211,9 @@ internal sealed partial class SurfGame
 		}
 		else
 		{
-			Progress.SaveCheckpoint(m_player, next.Biome, next.Stars);
-			m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Biome, next.Stars)}";
+			// Beating Moder saves the crossing: a start there begins on the coast.
+			Progress.SaveCheckpoint(m_player, next.Sea ? SeaTo : next.Biome, next.Stars);
+			m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Sea ? SeaTo : next.Biome, next.Stars, next.Sea)}";
 			if (next.Rush)
 			{
 				m_banner += "\nBut first... the boss rush!";
@@ -1199,7 +1221,7 @@ internal sealed partial class SurfGame
 		}
 		m_bannerTime = 3.5f;
 		m_audio.Play(Sfx.Biome, 1f, 1.1f);
-		Plugin.Log.LogInfo($"Beat {def.Name}; checkpoint {next.Biome}:{next.Stars}.");
+		Plugin.Log.LogInfo($"Beat {def.Name}; checkpoint {(next.Sea ? "the ocean" : next.Biome.ToString())}:{next.Stars}.");
 		for (int i = m_things.Count - 1; i >= 0; i--)
 		{
 			Thing t = m_things[i];
@@ -1211,7 +1233,16 @@ internal sealed partial class SurfGame
 		}
 		DestroySchemaLobs();
 		ClearChase();
-		CloseSegment(seg, m_z + 45f);
+		if (next.Sea)
+		{
+			// The coast: far enough on for the beach to slope down to the ship.
+			CloseSegment(seg, m_z + 110f);
+			ReshapeShore(seg.End);
+		}
+		else
+		{
+			CloseSegment(seg, m_z + 45f);
+		}
 		m_bossSink = 0f;
 		m_bossHidden = 0f;
 		m_bossGo.SetActive(true);
@@ -1334,8 +1365,12 @@ internal sealed partial class SurfGame
 
 	private void PlaceBeside(GameObject prefab, float z, int side, float near, float far, float scale)
 	{
-		GameObject go = Instantiate(Picture(prefab), m_stage, false);
 		float x = side * (TrackHalf + ExtraFlat(z) + Random.Range(near, far));
+		if (UnderSea(x, z))
+		{
+			return;
+		}
+		GameObject go = Instantiate(Picture(prefab), m_stage, false);
 		go.transform.localPosition = new Vector3(x, HillHeight(x, z) - 0.05f, z);
 		go.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 		go.transform.localScale = Vector3.one * scale;

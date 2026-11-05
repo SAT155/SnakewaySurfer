@@ -281,9 +281,10 @@ internal sealed partial class SurfGame
 			return;
 		}
 		float side = Random.value < 0.5f ? -1f : 1f;
-		float z = m_z + ChaseSign * Random.Range(25f, 70f);
-		float x = side * Random.Range(TrackHalf + 10f, TrackHalf + 40f);
-		Vector3 ground = new Vector3(x, LandAt(x, z, out _, out _), z);
+		float z = m_z + (m_atSea ? Random.Range(5f, 60f) : ChaseSign * Random.Range(25f, 70f));
+		// At sea, out on the water either side of the ship, where the camera above can see it.
+		float x = m_atSea ? m_x + side * Random.Range(28f, 60f) : side * Random.Range(TrackHalf + 10f, TrackHalf + 40f);
+		Vector3 ground = new Vector3(x, m_atSea ? SeaHeight(x, z) : LandAt(x, z, out _, out _), z);
 		PlayFx(bolt, ground, Quaternion.identity, 3f);
 		// 1.15.2: a visible streak from the clouds, not just the flash.
 		LightningBolt(ground + new Vector3(Random.Range(-10f, 10f), 70f, 0f), ground, 0.9f, 0.4f, 0f, m_bossEnvDef?.Tint ?? new Color(0.6f, 0.8f, 1f));
@@ -321,8 +322,12 @@ internal sealed partial class SurfGame
 			sky = Color.Lerp(sky, env.m_fogColorDay, w * 0.8f);
 			if (m_bossEnvDef != null && m_bossEnvDef.Storm)
 			{
-				// A storm closes in: thick fog and a dark sky whatever the zone's daytime says.
-				fog = Mathf.Lerp(fog, Mathf.Max(fog, 0.03f * Plugin.FogStrength.Value), w);
+				// A storm closes in: thick fog and a dark sky whatever the zone's daytime says
+				// (not at sea, where the ship must stay in sight from above).
+				if (m_bossEnvDef != s_seaStorm)
+				{
+					fog = Mathf.Lerp(fog, Mathf.Max(fog, 0.03f * Plugin.FogStrength.Value), w);
+				}
 				Color storm = new Color(0.32f, 0.35f, 0.4f);
 				fogColor = Color.Lerp(fogColor, storm, w * 0.6f);
 				sky = Color.Lerp(sky, storm, w * 0.7f);

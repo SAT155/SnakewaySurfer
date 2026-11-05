@@ -304,7 +304,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 
 		int lap = Plugin.LoopBiomes.Value <= 0 ? Biomes.Defaults.Length : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, Biomes.Defaults.Length);
-		(int biome, int stars)? start = Progress.ParseStart(player, args ?? new string[0], lap, out string error, out bool explicitStart);
+		(int biome, int stars)? start = Progress.ParseStart(player, args ?? new string[0], lap, out string error, out bool explicitStart, out bool startSea);
 		if (start == null)
 		{
 			Say(error);
@@ -325,6 +325,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		game.m_startBiome = start.Value.biome;
 		game.m_startStars = start.Value.stars;
 		game.m_explicitStart = explicitStart;
+		game.m_startSea = startSea;
 		game.Init(player);
 	}
 
@@ -442,6 +443,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		DestroySchemaObjects();
 		ReleaseLocations();
+		StopSeaLoops();
+		DestroyOcean();
 		if (m_mainCamera != null)
 		{
 			m_mainCamera.cullingMask = m_mainMask;
@@ -1152,6 +1155,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			DestroyThing(t);
 		}
 		m_things.Clear();
+		ResetSea();
 		m_state = State.Countdown;
 		m_stateTime = 0f;
 		m_z = 0f;
@@ -1192,6 +1196,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			// Again from the latest checkpoint (a boss beaten this run moves it on).
 			int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
 			(m_startBiome, m_startStars) = Progress.Latest(m_player, Progress.AllowedBiomes(lap));
+			m_startSea = false;
 		}
 		ResetSegments();
 		SpawnAhead();
@@ -1208,7 +1213,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_stateTime = 0f;
 		m_crashText = why;
 		SetTrigger("stagger");
-		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, m_runTime, m_biomes.ConvertAll(b => b.Def));
+		// Run XP for the running: time at sea is sailing.
+		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def));
 		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
 	}
 
@@ -1320,6 +1326,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 					m_audio.Play(Sfx.Tick);
 				}
 				m_lastTick = tick;
+				// A crossing's ship already waits on the beach ahead.
+				UpdateShore(dt);
 				if (m_stateTime >= Plugin.Countdown.Value)
 				{
 					m_state = State.Running;
@@ -1329,7 +1337,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 				break;
 			}
 			case State.Running:
-				if (m_aimTime > 0f)
+				if (m_atSea)
+				{
+					UpdateSea(dt, canInput);
+				}
+				else if (m_aimTime > 0f)
 				{
 					UpdateAim(dt, canInput);
 				}
@@ -1345,8 +1357,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.R))
 				{
-					(int b, int s) = CrashPlace();
-					StartFrom(b, s);
+					(int b, int s, bool sea) = CrashPlace();
+					StartFrom(b, s, sea);
 				}
 				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.M))
 				{
@@ -1363,6 +1375,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 			// Aiming the ballista stops the run, and everything on the track with it.
 			UpdateThings(dt);
 		}
+		if (m_atSea && m_state != State.Running && m_seaPhase == 2)
+		{
+			// Wrecked or not, the ship still rides the waves.
+			m_turnRate = Mathf.MoveTowards(m_turnRate, 0f, 120f * dt);
+			PlaceShip(dt, m_x, m_z);
+			UpdateSeaLoops(dt);
+		}
+		UpdateOcean(dt);
 		UpdateRipples(dt);
 		UpdateBolts(dt);
 		PlaceAvatar(dt);
@@ -1550,6 +1570,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		UpdateStretch(dt);
 		SpawnAhead();
 		UpdateHints();
+		UpdateShore(dt);
 	}
 
 	private void CheckCollisions()
@@ -1808,6 +1829,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 				m_nextRowZ += 10f;
 				continue;
 			}
+			if (ShoreWeight(m_nextRowZ) > 0.05f)
+			{
+				// A clear run down the beach to the ship, and nothing on the sea itself
+				// (the crossing has its own dangers, SurfSeaFoes.cs).
+				m_nextRowZ += 10f;
+				continue;
+			}
 			SpawnRow(m_nextRowZ);
 			float difficulty = Mathf.Clamp01(ProgressAt(m_nextRowZ) / m_biomes.Count);
 			m_nextRowZ += Mathf.Lerp(30f, 16f, difficulty) + Random.Range(0f, 9f);
@@ -1816,6 +1844,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void SpawnGround(float centerZ)
 	{
+		if (SegAt(centerZ).Sea)
+		{
+			// Open sea (SurfOcean.cs): no land under it.
+			return;
+		}
 		BiomeRuntime b = m_biomes[BiomeAt(centerZ)];
 		float trackWidth = LaneWidth * 3f + 0.8f;
 		GameObject root = new GameObject("Ground");
@@ -1893,7 +1926,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		float biomes = LevelAt(z);
 		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value * ArenaFlatten(z);
 		float n = (Mathf.PerlinNoise(z * 0.011f + 3.1f, 7.3f) - 0.5f) * 2f + (Mathf.PerlinNoise(z * 0.037f + 11f, 1.9f) - 0.5f) * 0.5f;
-		return amplitude * n;
+		// Down a beach into the sea and up the far one (SurfSea.cs).
+		return ShoreRoad(amplitude * n, z);
 	}
 
 	// Ground height beside the track (SurfTerrain.cs): this world's real ground for the biome, or
@@ -2047,8 +2081,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		GameObject prefab = b.Scenery[Random.Range(0, b.Scenery.Count)];
-		GameObject go = Instantiate(Picture(prefab), m_stage, false);
 		float x = side * (LaneWidth * 1.5f + Random.Range(3f, 26f));
+		if (UnderSea(x, z))
+		{
+			return;
+		}
+		GameObject go = Instantiate(Picture(prefab), m_stage, false);
 		go.transform.localPosition = new Vector3(x, HillHeight(x, z) - 0.3f, z);
 		go.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 		go.transform.localScale = Vector3.one * Random.Range(0.85f, 1.15f);
@@ -3226,7 +3264,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void PlaceAvatar(float dt)
 	{
-		if (m_avatar == null)
+		if (m_avatar == null || PlaceSeaAvatar())
 		{
 			return;
 		}
@@ -3289,6 +3327,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camera.fieldOfView = Fov;
 		m_camFinal = m_camera.transform.position;
 		m_camFinalRot = m_camera.transform.rotation;
+		// At sea the camera rises high over the ship (SurfSea.cs).
+		PlaceSeaCamera(dt);
 
 		if (m_biomes.Count == 0)
 		{
@@ -3321,8 +3361,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 		Color sunColor = Color.Lerp(b.SunColor, Color.Lerp(b.SunColor, tint, 0.3f), arena);
 		float sunIntensity = b.SunIntensity * (1f - 0.3f * arena);
 		// The boss's own weather over its arena (and its lightning).
-		float weather = UpdateBossWeather(dt, arena > 0f ? bd0 : null, arena);
+		BossDef? weatherDef = arena > 0f ? bd0 : null;
+		float weatherWeight = arena;
+		if (m_atSea && m_storm > 0f)
+		{
+			// The storm of the crossing comes in like a boss's weather.
+			weatherDef = s_seaStorm;
+			weatherWeight = m_storm;
+		}
+		float weather = UpdateBossWeather(dt, weatherDef, weatherWeight);
 		ApplyBossWeather(weather, ref fog, ref fogColor, ref ambient, ref sunColor, ref sunIntensity, ref sky);
+		ApplySeaWeather(ref fog, ref fogColor, ref sky, ref ambient);
 		m_skyBase = Color.Lerp(m_skyBase, sky, k);
 		m_fogNow = Mathf.Lerp(m_fogNow, fog, k);
 		m_fogColorNow = Color.Lerp(m_fogColorNow, fogColor, k);
@@ -3372,7 +3421,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_mid!.fontSize = Mathf.RoundToInt(34 * k);
 		m_small!.fontSize = Mathf.RoundToInt(26 * k);
 
-		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z)) : "";
+		bool sea = m_biomes.Count > 0 && (m_atSea || SegAt(m_z).Sea);
+		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z), sea) : "";
 		string stretch = (m_biomes.Count > 0 ? StretchHud() : "") + (Plugin.Lives.Value > 1 ? $"   ·   lives {m_lives}" : "");
 		Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k),
 			$"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}", m_small);
@@ -3389,8 +3439,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				int n = Mathf.CeilToInt(Plugin.Countdown.Value - m_stateTime);
 				Shadowed(new Rect(0, h * 0.25f, w, 120 * k), n > 0 ? n.ToString() : "Run!", m_big);
-				Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-					$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: stop running", m_mid);
+				if (m_segments.Count > 0 && m_segments[0].Shore)
+				{
+					// Starting on the coast: the longship's controls.
+					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
+						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: stop", m_mid);
+				}
+				else
+				{
+					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
+						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: stop running", m_mid);
+				}
 				break;
 			}
 			case State.Running:
@@ -3411,9 +3470,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 				Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
 				Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
 					$"{m_z:0} m, {m_coins} coins, reached {m_biomes[m_highestBiome].Def.Name}\n\n{m_rewardText}", m_mid);
-				(int cb, int cs) = CrashPlace();
+				(int cb, int cs, bool csea) = CrashPlace();
 				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
-					$"Space: run again     R: retry {Progress.Describe(cb, cs)}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+					$"Space: run again     R: retry {Progress.Describe(cb, cs, csea)}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
 				break;
 			case State.Menu:
 				MenuGui(k, w, h);

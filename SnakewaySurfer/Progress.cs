@@ -272,12 +272,53 @@ internal static class Progress
 	public static string Describe(int biome, int stars) =>
 		Biomes.Defaults[Mathf.Clamp(biome, 0, Biomes.Defaults.Length - 1)].Name + (stars > 0 ? $" ({stars} star{(stars > 1 ? "s" : "")})" : "");
 
+	// 1.16: `sea` is the ocean crossing before that biome.
+	public static string Describe(int biome, int stars, bool sea) =>
+		sea ? "the Ocean" + (stars > 0 ? $" ({stars} star{(stars > 1 ? "s" : "")})" : "") : Describe(biome, stars);
+
+	// 1.16: the laps (stars) whose ocean crossing you've made in this world. Once made, the
+	// Plains themselves open as a start. Progress from before the crossing existed (a checkpoint
+	// past the Plains) counts as made.
+	private static string LandedKey() => "SnakewaySurfer.Landed." + WorldId();
+
+	public static bool Landed(Player player, int stars, int plains)
+	{
+		if (player.m_customData.TryGetValue(LandedKey(), out string value))
+		{
+			foreach (string part in value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+			{
+				if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int s) && s == stars)
+				{
+					return true;
+				}
+			}
+		}
+		return Checkpoints(player).Exists(c => c.stars == stars && c.biome > plains);
+	}
+
+	public static void SaveLanded(Player player, int stars)
+	{
+		if (player.m_customData.TryGetValue(LandedKey(), out string value))
+		{
+			foreach (string part in value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+			{
+				if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int s) && s == stars)
+				{
+					return;
+				}
+			}
+		}
+		string add = stars.ToString(CultureInfo.InvariantCulture);
+		player.m_customData[LandedKey()] = string.IsNullOrEmpty(value) ? add : value + "," + add;
+	}
+
 	// "surfsup", "surfsup swamp", "surfsup 3 1", "surfsup black forest 2": where to start.
 	// Returns null and an explanation when the start isn't allowed.
-	public static (int biome, int stars)? ParseStart(Player player, string[] args, int lap, out string error, out bool explicitStart)
+	public static (int biome, int stars)? ParseStart(Player player, string[] args, int lap, out string error, out bool explicitStart, out bool sea)
 	{
 		error = "";
 		explicitStart = false;
+		sea = false;
 		int allowed = AllowedBiomes(lap);
 		List<string> words = new();
 		for (int i = 1; i < args.Length; i++)
@@ -307,6 +348,12 @@ internal static class Progress
 		else if (what == "start")
 		{
 			biome = 0;
+		}
+		else if (what == "ocean" || what == "sea" || what == "crossing")
+		{
+			// The crossing before the Plains: its checkpoint is the Plains'.
+			biome = 4;
+			sea = true;
 		}
 		else
 		{

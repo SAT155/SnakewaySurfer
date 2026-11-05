@@ -163,6 +163,13 @@ internal sealed partial class SurfGame
 	// vegetation alpha there (for the shader and the grass).
 	private float LandAt(float x, float z, out float realH, out float veg)
 	{
+		float y = LandBase(x, z, out realH, out veg);
+		// 1.16: sinking under the sea at a crossing's shores (SurfSea.cs).
+		return ShoreLand(y, x, z, ref veg);
+	}
+
+	private float LandBase(float x, float z, out float realH, out float veg)
+	{
 		float road = RoadY(z);
 		float water = WaterWeight(z);
 		// Where bosses split the path into extra lanes (the Elder's roots), the ground beside
@@ -297,7 +304,12 @@ internal sealed partial class SurfGame
 		block.SetFloat(LodHide, 0f);
 		// The shader shades by height above the sea (shores, wet ground): put this tile's sea
 		// where the real sea level falls on it.
-		if (m_terrainLand.HasProperty("_WaterLevel") && SeaLocalY(g.CenterZ) is float sea)
+		if (m_terrainLand.HasProperty("_WaterLevel") && Mathf.Max(ShoreWeight(g.CenterZ - GroundTile * 0.5f), ShoreWeight(g.CenterZ + GroundTile * 0.5f)) > 0f)
+		{
+			// A crossing's shore: wet sand and shallows down to our own sea.
+			block.SetFloat("_WaterLevel", m_stage.position.y + SeaY);
+		}
+		else if (m_terrainLand.HasProperty("_WaterLevel") && SeaLocalY(g.CenterZ) is float sea)
 		{
 			block.SetFloat("_WaterLevel", m_stage.position.y + sea);
 		}

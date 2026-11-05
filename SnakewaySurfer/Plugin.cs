@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.15.2";
+	public const string PluginVersion = "1.16.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -105,6 +105,10 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> AmbientLight = null!;
 	internal static ConfigEntry<float> HillHeight = null!;
 	internal static ConfigEntry<float> TrackBrightness = null!;
+	internal static ConfigEntry<bool> OceanCrossing = null!;
+	internal static ConfigEntry<float> OceanLength = null!;
+	internal static ConfigEntry<float> SailSpeed = null!;
+	internal static ConfigEntry<bool> SeaSerpent = null!;
 
 	private void Awake()
 	{
@@ -369,6 +373,14 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
 			"Use the game's own terrain textures for the land beside the track when they can be found (else a generated texture tinted per biome).");
+		OceanCrossing = Config.Bind("1 - Run", "Ocean Crossing", true,
+			"Between the Mountains and the Plains the run crosses the ocean: the track runs down a beach to a longship and the camera rises above it. A / D steer, W / S set the sail (oars, half, full), the Throw Key fires the bow ballista and the Block Key blocks and parries. The wind never stops and turns now and then: as in the game a sail is fastest with the wind from the side and useless heading into it (tack across it). In the middle a storm brings rolling waves (meet them bow or stern first, never side on), lightning and a sea serpent. Beating Moder saves a checkpoint at the crossing; making it opens the Plains in the start menu. Off: the Plains follow the Mountains as before.");
+		OceanLength = Config.Bind("1 - Run", "Ocean Length", 900f,
+			new ConfigDescription("Metres of sea before the serpent rises in the storm; the far shore is about a third as far again after it.", new AcceptableValueRange<float>(300f, 4000f)));
+		SailSpeed = Config.Bind("1 - Run", "Sail Speed", 16f,
+			new ConfigDescription("The longship's speed (m/s) under full sail with the wind from the side; half sail is about 60% of it, the oars a steady 6.", new AcceptableValueRange<float>(6f, 40f)));
+		SeaSerpent = Config.Bind("1 - Run", "Sea Serpent", true,
+			"A sea serpent rises in the storm and must be beaten with the ballista to reach the far shore. Off: the storm just passes.");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 	}

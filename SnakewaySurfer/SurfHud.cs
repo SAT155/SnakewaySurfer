@@ -272,8 +272,21 @@ internal sealed partial class SurfGame
 			return;
 		}
 
+		// The serpent of the deep's health, with the ballista bolt that hurts it.
+		if (m_seaBoss != null && !m_seaBoss.Dead)
+		{
+			float bw = 520f * k;
+			Rect bar = new Rect((w - bw) * 0.5f, 62f * k, bw, 14f * k);
+			Shadowed(new Rect(0, 22f * k, w, 40f * k), m_seaBoss.Label, m_mid!);
+			Bar(bar, (float)m_seaBoss.Hp / Mathf.Max(1, m_seaBoss.MaxHp), Color.Lerp(new Color(0.75f, 0.08f, 0.05f), Color.white, m_seaBossFlash * 0.6f));
+			if (ItemIcon("TurretBoltWood|TurretBolt") is Sprite bolt)
+			{
+				float s = 44f * k;
+				DrawSprite(new Rect(bar.xMax + 12f * k, bar.center.y - s * 0.5f, s, s), bolt, Color.white);
+			}
+		}
 		// The boss's health, as in the game: its name over a red bar at the top.
-		if (m_boss != null && m_bossSink < 0f)
+		else if (m_boss != null && m_bossSink < 0f)
 		{
 			float bw = 520f * k;
 			Rect bar = new Rect((w - bw) * 0.5f, 62f * k, bw, 14f * k);
@@ -329,6 +342,12 @@ internal sealed partial class SurfGame
 			{
 				Star(new Vector2(w * 0.5f + 270f * k + i * 22f * k, h - 72f * k), 16f * k, new Color(1f, 0.82f, 0.2f));
 			}
+		}
+
+		// At sea: the wind, the ship and its sail (SurfSea.cs).
+		if (m_atSea && m_seaPhase == 2)
+		{
+			SeaHud(k, w, h);
 		}
 
 		// Stamina, as in the game: a yellow bar, shown while it isn't full.
