@@ -1064,7 +1064,7 @@ internal sealed partial class SurfGame
 		}
 		m_banner = $"Summoning {def.Name}...";
 		m_bannerTime = SummonRise + m_summonDelay;
-		m_audio.Play(Sfx.Biome, 0.8f, 0.6f);
+		m_audio.Play(Sfx.Biome, 0.8f * SummonVolume, 0.6f);
 	}
 
 	private void UpdateSummon(float dt, BossDef def)
@@ -1093,7 +1093,7 @@ internal sealed partial class SurfGame
 			m_summonFx.TryGetValue(def.Location, out var fx);
 			if (!PlayEffectList(fx.start, centre - Vector3.up * 1.5f))
 			{
-				m_audio.Play("sfx_offering|sfx_build_hammer_metal", 0.8f);
+				m_audio.Play("sfx_offering|sfx_build_hammer_metal", 0.8f * SummonVolume);
 			}
 			m_shake = Mathf.Max(m_shake, 0.1f);
 		}
@@ -1118,7 +1118,7 @@ internal sealed partial class SurfGame
 			m_shake = Mathf.Max(m_shake, 0.35f);
 			if (m_bossInfo != null && m_bossInfo.AlertSound.Length > 0)
 			{
-				m_audio.Play(m_bossInfo.AlertSound, 1f);
+				m_audio.Play(m_bossInfo.AlertSound, 0.75f);
 			}
 			m_banner = $"{def.Name}!";
 			m_bannerTime = 2f;
@@ -1148,6 +1148,9 @@ internal sealed partial class SurfGame
 
 	// Plays a game EffectList (its particles as silent pictures, its sounds through ours).
 	// False if it had nothing to show.
+	// 1.15.1 (Sam: the summoning was a little loud): its sounds play at 55%.
+	private const float SummonVolume = 0.55f;
+
 	private bool PlayEffectList(EffectList? list, Vector3 at)
 	{
 		if (list?.m_effectPrefabs == null)
@@ -1163,7 +1166,7 @@ internal sealed partial class SurfGame
 			}
 			if (e.m_prefab.GetComponentInChildren<ZSFX>(true) != null)
 			{
-				m_audio.Play(e.m_prefab.name, 1f);
+				m_audio.Play(e.m_prefab.name, SummonVolume);
 				any = true;
 			}
 			if (e.m_prefab.GetComponentInChildren<ParticleSystem>(true) != null || e.m_prefab.GetComponentInChildren<Light>(true) != null)
