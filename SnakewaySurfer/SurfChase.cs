@@ -33,7 +33,12 @@ internal sealed partial class SurfGame
 	private bool Mirrored => m_camBack > 0.5f;
 
 	// A chase is on or coming up soon (what's behind you stays, for the camera to show).
-	private bool ChaseAhead() => Plugin.BossChase.Value && Plugin.BossFights.Value && m_segments.Count > 0 && (SegAt(m_z).Boss || SegAt(m_z + AheadDistance).Boss);
+	private bool ChaseAhead() => Plugin.BossChase.Value && Plugin.BossFights.Value && m_segments.Count > 0 && (ChaseSeg(SegAt(m_z)) || ChaseSeg(SegAt(m_z + AheadDistance)));
+
+	private static bool ChaseSeg(Segment s) => s.Boss && Progress.BossOf(s.Biome) is BossDef d && Chases(d);
+
+	// Only Eikthyr chases you (Sam, 1.13): the others wait for you ahead, as before.
+	private static bool Chases(BossDef def) => Plugin.BossChase.Value && def.Mode == "run";
 
 	private static float ChaseDistance(BossDef def) => def.Chase > 0f ? def.Chase : Mathf.Max(12f, 6f + 1.6f * def.MaxHeight);
 
@@ -59,8 +64,8 @@ internal sealed partial class SurfGame
 		}
 		Segment s = SegAt(z);
 		float ramp = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((z - s.Start) / 30f));
-		bool here = s.Boss && Progress.BossOf(s.Biome) is BossDef cur && HasBranches(cur);
-		bool before = s.PrevBoss && Progress.BossOf(s.PrevBiome) is BossDef prev && HasBranches(prev);
+		bool here = s.Boss && Progress.BossOf(s.Biome) is BossDef cur && HasBranches(cur) && Chases(cur);
+		bool before = s.PrevBoss && Progress.BossOf(s.PrevBiome) is BossDef prev && HasBranches(prev) && Chases(prev);
 		float w = here ? (before ? 1f : ramp) : before ? 1f - ramp : 0f;
 		return w * (LaneWidth + 0.6f);
 	}

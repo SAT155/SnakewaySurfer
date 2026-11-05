@@ -26,7 +26,7 @@ the run stops and you aim the ballista yourself). Three hits
 wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
 `surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
 
-Bosses **chase** you: the camera swings round to look back at the boss running after you, and
+**Eikthyr chases** you: the camera swings round to look back at the boss running after you, and
 its attacks come up the lanes from behind or land where you are. A red band rides along in the
 lanes it's aiming at (at least a second's warning), then the blow lands with the boss's own
 effects and sounds: Eikthyr's lightning, the Elder's roots bursting from the road, Bonemass's
@@ -105,7 +105,8 @@ and for players without the mod.
 - **1.13**: the ground textures are really back: the game's terrain shader doesn't draw on the
   minigame's stage, so the land and the dirt path now use the game's own ground textures on a
   plain shader (Game Terrain Shader turns the old way back on for testing). Summoning items never
-  turn up in the first part of a biome. The log now notes each attack's timing.
+  turn up in the first part of a biome. Only Eikthyr chases you now; the other bosses wait for
+  you ahead again, and the Elder and Yagluth no longer sink and rise on every move. The log now notes each attack's timing.
 - **1.12**: bosses chase you from behind, with the camera facing back (see above); their real
   effects, sounds and weather; the summoning sequence; the Elder's extra lanes. Attacks are timed
   from the creatures' own animations (the moment the blow lands in the game), so deer, trolls and

@@ -423,7 +423,7 @@ internal sealed partial class SurfGame
 		m_bossSeg = seg;
 		m_bossInfo = CreatureInfo.Of(prefab);
 		float scale = m_bossInfo.Height > 0.3f ? Mathf.Min(1f, def.MaxHeight / m_bossInfo.Height) : 1f;
-		m_chase = Plugin.BossChase.Value;
+		m_chase = Chases(def);
 		m_bossScale = scale;
 		m_bossGo = Creature(prefab, Quaternion.identity, scale);
 		m_bossAnim = m_bossGo.GetComponentInChildren<Animator>();
@@ -542,16 +542,9 @@ internal sealed partial class SurfGame
 		switch (def.Mode)
 		{
 			case "stand":
-				// It stays put; when you get close it sinks and comes up further on.
-				if (m_bossZ - m_z < def.Distance * 0.45f)
-				{
-					m_bossZ = m_z + def.Distance;
-					m_bossRise = 1f;
-				}
-				if (m_bossIntro < 1f)
-				{
-					m_bossZ = Mathf.Lerp(m_bossZ, want, dt * 2f);
-				}
+				// It looms ahead, facing you, keeping its distance (1.13: no more sinking into
+				// the ground and rising again on every move).
+				m_bossZ = Mathf.Lerp(m_bossZ, want, m_bossIntro < 1f ? dt * 2f : 1f);
 				break;
 			default:
 				m_bossZ = Mathf.Lerp(m_bossZ, want, m_bossIntro < 1f ? dt * 1.5f : 1f);

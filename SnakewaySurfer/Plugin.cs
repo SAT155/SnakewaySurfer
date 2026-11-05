@@ -305,7 +305,7 @@ public class Plugin : BaseUnityPlugin
 		BossLandmarks = Config.Bind("1 - Run", "Boss Landmarks", true,
 			"Boss arenas show the boss's own place from the game (Eikthyr's altar, the Elder's stones, Moder's peak...) looming far ahead, with the land rising beside a flatter path and torches lining it. Off: arenas only take on the boss's colour.");
 		BossChase = Config.Bind("1 - Run", "Boss Chase", true,
-			"Bosses chase you from behind: the camera swings round to face them, and their attacks come up the lanes behind you (red lanes mark where they'll land). Left and right follow the screen while it faces back. Off: the boss stays ahead of you, as before 1.12.");
+			"Eikthyr chases you from behind: the camera swings round to face him, and his attacks come up the lanes behind you (red lanes mark where they will land). Left and right follow the screen while it faces back. The other bosses wait ahead. Off: Eikthyr stays ahead too.");
 		BossWeather = Config.Bind("3 - Look", "Boss Weather", true,
 			"A boss arena takes on the weather of the boss's own place in the game: Eikthyr's thunderstorm with lightning and thunder, the Elder's forest mist, Bonemass's rain, Moder's snowstorm...");
 		BossSummon = Config.Bind("1 - Run", "Boss Summoning", true,
