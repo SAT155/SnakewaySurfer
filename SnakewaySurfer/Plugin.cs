@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.12.0";
+	public const string PluginVersion = "1.13.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -56,7 +56,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> AllowPause = null!;
 	internal static ConfigEntry<bool> GameLighting = null!;
 	internal static ConfigEntry<bool> UseGameCamera = null!;
-	internal static ConfigEntry<bool> GameTerrain = null!;
+	internal static ConfigEntry<bool> GameTerrainShader = null!;
 	internal static ConfigEntry<bool> GameTerrainShape = null!;
 	internal static ConfigEntry<bool> GameGrass = null!;
 	internal static ConfigEntry<string> TrackStyle = null!;
@@ -270,8 +270,8 @@ public class Plugin : BaseUnityPlugin
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
 		Invincible = Config.Bind("9 - Debug", "Invincible", false,
 			"Testing: run through everything instead of crashing (a banner says what would have got you).");
-		GameTerrain = Config.Bind("3 - Look", "Game Terrain", true,
-			"Use the game's own terrain material for the land beside the track (real biome ground textures). Off: a generated texture tinted per biome.");
+		GameTerrainShader = Config.Bind("3 - Look", "Game Terrain Shader", false,
+			"Testing: draw the land with the game's own terrain shader. It doesn't draw on the minigame's stage (the ground shows the sky), so by default the land uses the game's ground textures on a plain shader (Game Ground Textures).");
 		GameTerrainShape = Config.Bind("3 - Look", "Game Terrain Shape", true,
 			"Shape the land beside the track like this world's real ground: each biome borrows a ring of terrain from a spot in your world where that biome is (the game's own height formulas, with its rivers, Mistlands cliffs and mountain slopes), plus the game's paint mask for the ground textures. Off: the minigame's own rolling hills.");
 		GameGrass = Config.Bind("3 - Look", "Game Grass", true,

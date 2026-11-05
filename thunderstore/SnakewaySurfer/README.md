@@ -102,6 +102,10 @@ and for players without the mod.
 
 ## Changes
 
+- **1.13**: the ground textures are really back: the game's terrain shader doesn't draw on the
+  minigame's stage, so the land and the dirt path now use the game's own ground textures on a
+  plain shader (Game Terrain Shader turns the old way back on for testing). Summoning items never
+  turn up in the first part of a biome. The log now notes each attack's timing.
 - **1.12**: bosses chase you from behind, with the camera facing back (see above); their real
   effects, sounds and weather; the summoning sequence; the Elder's extra lanes. Attacks are timed
   from the creatures' own animations (the moment the blow lands in the game), so deer, trolls and

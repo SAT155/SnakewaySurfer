@@ -62,6 +62,7 @@ internal static class AnimTiming
 		{
 			// A little for the transition into the clip.
 			s_delay[key] = guess + 0.1f;
+			Plugin.Log.LogInfo($"Attack timing {key}: guessed {guess + 0.1f:0.00} s from its clip.");
 			return guess + 0.1f;
 		}
 		return fallback;
@@ -99,7 +100,12 @@ internal static class AnimTiming
 
 	public static void Learn(Animator anim, string trigger, float delay)
 	{
-		s_delay[Key(anim, trigger)] = delay;
+		string key = Key(anim, trigger);
+		if (!s_delay.TryGetValue(key, out float old) || Mathf.Abs(old - delay) > 0.15f)
+		{
+			Plugin.Log.LogInfo($"Attack timing {key}: blow {delay:0.00} s after the trigger (was {(s_delay.ContainsKey(key) ? old.ToString("0.00") : "unknown")}).");
+		}
+		s_delay[key] = delay;
 	}
 
 	public static void ReportMissing(Animator anim, string trigger)

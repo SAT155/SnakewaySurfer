@@ -532,6 +532,18 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		m_groundTexture = MakeGroundTexture();
 		MakeTerrainMaterials();
+		string style = Plugin.TrackStyle.Value.Trim().ToLowerInvariant();
+		if (m_terrainTrack == null && m_trackMaterial != null && style != "stone" && Plugin.GameGroundTextures.Value
+			&& TerrainSlice(style == "paved" ? new Color(0.42f, 0.42f, 0.42f) : new Color(0.36f, 0.27f, 0.18f)) is Texture2D path)
+		{
+			// A dirt (or paved) path: the game's own ground texture for it.
+			m_trackMaterial.mainTexture = path;
+			m_trackMaterial.mainTextureScale = new Vector2(2f, 3f);
+			if (m_trackMaterial.HasProperty("_Color"))
+			{
+				m_trackMaterial.color = new Color(0.85f, 0.85f, 0.85f) * Plugin.TrackBrightness.Value;
+			}
+		}
 		m_waterMaterial = MakeWaterMaterial();
 	}
 
@@ -624,6 +636,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 				Plugin.Log.LogInfo("No terrain material found; using generated ground textures.");
 			}
 		}
+		// The game's ground textures live in a texture array (_DiffuseArrayTex): the layer whose
+		// colour is closest to the biome's ground.
+		if (BiomeGroundColor(biome) is Color want && TerrainSlice(want) is Texture2D slice)
+		{
+			return slice;
+		}
 		string[] keys = biome switch
 		{
 			"Meadows" => new[] { "grass" },
@@ -649,6 +667,114 @@ internal sealed partial class SurfGame : MonoBehaviour
 		return null;
 	}
 
+	private static List<(Texture2D tex, Color avg)>? s_slices;
+
+	private static Color? BiomeGroundColor(string biome)
+	{
+		foreach (BiomeDef d in Biomes.Defaults)
+		{
+			if (d.Name == biome)
+			{
+				return d.Ground;
+			}
+		}
+		return null;
+	}
+
+	// Each layer of the game's terrain texture array copied out on the GPU (the array isn't
+	// readable from scripts), with its average colour. The terrain's own shader doesn't draw on
+	// our stage (1.11-1.12: the ground showed the sky), so these go on a plain shader instead.
+	private static void LoadSlices()
+	{
+		if (s_slices != null)
+		{
+			return;
+		}
+		s_slices = new List<(Texture2D, Color)>();
+		try
+		{
+			Heightmap hm = Object.FindObjectOfType<Heightmap>();
+			Material? mat = hm != null ? hm.m_material : null;
+			Texture2DArray? array = mat != null && mat.HasProperty("_DiffuseArrayTex") ? mat.GetTexture("_DiffuseArrayTex") as Texture2DArray : null;
+			if (array == null)
+			{
+				Plugin.Log.LogInfo("No terrain texture array found; using generated ground textures.");
+				return;
+			}
+			List<string> seen = new();
+			for (int i = 0; i < array.depth; i++)
+			{
+				Texture2D tex = new Texture2D(array.width, array.height, array.format, array.mipmapCount, false)
+				{
+					name = $"terrain_layer_{i}",
+					wrapMode = TextureWrapMode.Repeat,
+					filterMode = FilterMode.Trilinear,
+					anisoLevel = 4,
+				};
+				for (int mip = 0; mip < array.mipmapCount; mip++)
+				{
+					Graphics.CopyTexture(array, i, mip, tex, 0, mip);
+				}
+				Color avg = AverageColor(tex);
+				s_slices.Add((tex, avg));
+				seen.Add($"{i}=({avg.r:0.00},{avg.g:0.00},{avg.b:0.00})");
+			}
+			Plugin.Log.LogInfo($"Terrain texture array {array.name}: {array.depth} layers {array.width}x{array.height} {array.format}, average colours {string.Join(" ", seen)}.");
+		}
+		catch (System.Exception e)
+		{
+			Plugin.Log.LogWarning($"Couldn't copy the terrain textures: {e.Message}");
+		}
+	}
+
+	private static Color AverageColor(Texture tex)
+	{
+		RenderTexture rt = RenderTexture.GetTemporary(8, 8, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+		RenderTexture previous = RenderTexture.active;
+		Texture2D read = new Texture2D(8, 8, TextureFormat.RGBA32, false);
+		try
+		{
+			Graphics.Blit(tex, rt);
+			RenderTexture.active = rt;
+			read.ReadPixels(new Rect(0, 0, 8, 8), 0, 0);
+			read.Apply();
+			Color sum = Color.black;
+			foreach (Color c in read.GetPixels())
+			{
+				sum += c;
+			}
+			return sum / 64f;
+		}
+		finally
+		{
+			RenderTexture.active = previous;
+			RenderTexture.ReleaseTemporary(rt);
+			Object.Destroy(read);
+		}
+	}
+
+	// The terrain layer closest in colour to `want` (by hue and brightness), or null.
+	private static Texture2D? TerrainSlice(Color want)
+	{
+		LoadSlices();
+		Texture2D? best = null;
+		float bestD = float.MaxValue;
+		Color.RGBToHSV(want, out float wh, out float ws, out float wv);
+		foreach ((Texture2D tex, Color avg) in s_slices!)
+		{
+			Color.RGBToHSV(avg, out float h, out float s, out float v);
+			float dh = Mathf.Abs(h - wh);
+			dh = Mathf.Min(dh, 1f - dh) * Mathf.Min(s, ws);
+			float d = dh * dh * 4f + (s - ws) * (s - ws) + (v - wv) * (v - wv) * 1.5f;
+			if (d < bestD)
+			{
+				bestD = d;
+				best = tex;
+			}
+		}
+		return best;
+	}
+
 	private Material? m_terrainLand;
 	private Material? m_terrainTrack;
 	private Texture2D? m_landMask;
@@ -659,7 +785,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// paved path in the world. The mask channels: red dirt, green cultivated, blue paved.
 	private void MakeTerrainMaterials()
 	{
-		if (!Plugin.GameTerrain.Value)
+		if (!Plugin.GameTerrainShader.Value)
 		{
 			return;
 		}
@@ -781,6 +907,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		if ((texture ?? m_groundTexture) != null && mat.HasProperty("_MainTex"))
 		{
 			mat.mainTexture = texture ?? m_groundTexture;
+			if (texture != null && texture.name.StartsWith("terrain_layer_"))
+			{
+				// uv is in 10 m units: the game's ground repeats every few metres.
+				mat.mainTextureScale = new Vector2(3.5f, 3.5f);
+			}
 		}
 		if (mat.HasProperty("_Glossiness"))
 		{

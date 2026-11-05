@@ -308,7 +308,8 @@ internal sealed partial class SurfGame
 	{
 		Segment s = SegAt(z);
 		BossDef? boss = BossFor(s);
-		if (boss == null || s.End != float.MaxValue || z < m_nextItemZ || (s == m_itemSeg && m_items >= boss.Amount))
+		// A good stretch of the biome first (also before the stretch's own bookkeeping starts).
+		if (boss == null || s.End != float.MaxValue || z < m_nextItemZ || z < s.Start + Plugin.BiomeLength.Value * 0.45f || (s == m_itemSeg && m_items >= boss.Amount))
 		{
 			return false;
 		}
