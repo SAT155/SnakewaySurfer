@@ -158,6 +158,7 @@ and for players without the mod.
   a bow ballista, drakes, serpents, leviathans, sea stacks and floating loot, and in the middle a
   storm with rolling waves, lightning and the serpent of the deep. The beaches slope into the
   sea with surf washing up the sand and splashes in the shallows. An Ocean start in the menu.
+  The dirt path is lighter.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

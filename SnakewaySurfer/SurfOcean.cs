@@ -30,8 +30,23 @@ internal sealed partial class SurfGame
 		public float Age;
 		// It has reached the boat (and been judged).
 		public bool Passed;
-		// A serpent's slam: a smaller wave from one spot.
+		// A serpent's slam: a smaller wave from one spot, spreading as it goes.
 		public bool Small;
+		public Vector2 Origin;
+		public float StartCrest;
+	}
+
+	// How much of a rolling wave reaches this spot across its front: all of a storm wave, but a
+	// serpent's slam only near the line it was sent along, widening as it travels.
+	private static float RollerReach(Roller r, float x, float z)
+	{
+		if (!r.Small)
+		{
+			return 1f;
+		}
+		float side = Mathf.Abs((x - r.Origin.x) * r.Dir.y - (z - r.Origin.y) * r.Dir.x);
+		float span = 7f + 0.55f * Mathf.Max(0f, r.Crest - r.StartCrest);
+		return Mathf.Clamp01(1.4f - side / span);
 	}
 
 	private sealed class Foam
@@ -60,6 +75,7 @@ internal sealed partial class SurfGame
 	private float m_streakTimer;
 	private Vector2 m_rippleDrift;
 	private float m_surfTimer;
+	private float m_reefTimer;
 	private Segment? m_beachSea;
 	private float m_beachNear = float.NaN;
 	private float m_beachFar = float.NaN;
@@ -86,7 +102,11 @@ internal sealed partial class SurfGame
 			{
 				continue;
 			}
-			float fade = Mathf.Clamp01(r.Age / 1.5f);
+			float fade = Mathf.Clamp01(r.Age / 1.5f) * RollerReach(r, x, z);
+			if (fade <= 0f)
+			{
+				continue;
+			}
 			float w = s > 0f ? 4.5f : 8f;
 			float shape = Mathf.Exp(-(s / w) * (s / w)) - 0.28f * Mathf.Exp(-((s - 8f) / 5f) * ((s - 8f) / 5f));
 			h += r.Height * fade * shape;
@@ -132,14 +152,15 @@ internal sealed partial class SurfGame
 		m_foamGo!.SetActive(true);
 		m_seaClock += dt;
 
-		// Rolling waves move on, and go once well past.
+		// Rolling waves move on, and go once well past (or left far behind by a fast ship).
 		Vector2 boat = new Vector2(m_x, m_z);
 		for (int i = m_rollers.Count - 1; i >= 0; i--)
 		{
 			Roller r = m_rollers[i];
 			r.Age += dt;
 			r.Crest += r.Speed * dt;
-			if (r.Crest - Vector2.Dot(boat, r.Dir) > 70f)
+			float ahead = r.Crest - Vector2.Dot(boat, r.Dir);
+			if (ahead > 70f || ahead < -90f || r.Age > 40f)
 			{
 				m_rollers.RemoveAt(i);
 			}
@@ -424,12 +445,21 @@ internal sealed partial class SurfGame
 		});
 	}
 
-	// The wind shows on the water as long faint streaks drifting with it.
+	// The wind shows on the water as long faint streaks drifting with it. The reefs either side
+	// of the channel show as lines of breaking surf.
 	private void UpdateWindStreaks(float dt)
 	{
 		if (!m_atSea)
 		{
 			return;
+		}
+		m_reefTimer -= dt;
+		while (m_reefTimer <= 0f)
+		{
+			m_reefTimer += 0.07f;
+			float side = Random.value < 0.5f ? -1f : 1f;
+			Vector2 reef = new Vector2(side * (SeaHalfWidth + 2.5f + Random.Range(0f, 3.5f)), m_z + Random.Range(-20f, 55f));
+			AddFoam(reef, Random.Range(1.2f, 2.4f), Random.Range(1.2f, 2f), 0.45f + 0.2f * m_storm, 1.4f, new Vector2(0f, 0f), new Vector2(0f, 1f), Random.Range(2f, 4f));
 		}
 		m_streakTimer -= dt;
 		float rate = 0.05f + 0.12f * (1f - m_windStrength) - 0.03f * m_storm;
@@ -471,11 +501,12 @@ internal sealed partial class SurfGame
 		{
 			float fade = Mathf.Clamp01(r.Age / 1.5f) * Mathf.Clamp01(r.Height / 2f);
 			Vector2 side = new Vector2(r.Dir.y, -r.Dir.x);
-			Vector2 boat = new Vector2(m_x, m_z);
-			// The point of the crest line nearest the boat, then out to both sides.
-			Vector2 mid = boat + r.Dir * (r.Crest + 1.2f - Vector2.Dot(boat, r.Dir));
-			float span = r.Small ? 26f : 110f;
-			const int segments = 40;
+			// The point of the crest line nearest the boat (a slam's: on its own line), then out
+			// to both sides.
+			Vector2 from = r.Small ? r.Origin : new Vector2(m_x, m_z);
+			Vector2 mid = from + r.Dir * (r.Crest + 1.2f - Vector2.Dot(from, r.Dir));
+			float span = r.Small ? (7f + 0.55f * Mathf.Max(0f, r.Crest - r.StartCrest)) * 1.4f : 110f;
+			int segments = r.Small ? 16 : 40;
 			for (int j = 0; j < segments; j++)
 			{
 				float a = -span + 2f * span * j / segments;
@@ -527,13 +558,14 @@ internal sealed partial class SurfGame
 	{
 		dir.Normalize();
 		Vector2 boat = new Vector2(m_x, m_z);
-		float speed = small ? 9f : 7.5f + 2.5f * m_storm;
-		// Measured against the boat's own speed along the wave's way.
+		// Measured against the boat's own speed along the wave's way: a following sea always
+		// overtakes the ship, as real ones do.
 		Vector2 boatVel = HeadingVector() * m_boatSpeed;
-		float closing = speed - Vector2.Dot(boatVel, dir);
-		closing = Mathf.Max(3f, closing);
+		float along = Vector2.Dot(boatVel, dir);
+		float speed = Mathf.Max(small ? 9f : 7.5f + 2.5f * m_storm, along + 4f);
+		float closing = Mathf.Max(3f, speed - along);
 		float crest = from.HasValue ? Vector2.Dot(from.Value, dir) : Vector2.Dot(boat, dir) - closing * eta;
-		Roller r = new Roller { Dir = dir, Crest = crest, Speed = speed, Height = height, Small = small };
+		Roller r = new Roller { Dir = dir, Crest = crest, StartCrest = crest, Speed = speed, Height = height, Small = small, Origin = from ?? boat };
 		m_rollers.Add(r);
 		return r;
 	}

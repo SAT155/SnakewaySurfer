@@ -274,10 +274,8 @@ internal sealed partial class SurfGame
 		}
 		Transform? helm = ship != null && ship.m_shipControlls != null ? Find(ship.m_shipControlls.m_attachPoint) : null;
 		m_helmLocal = helm != null ? go.transform.InverseTransformPoint(helm.position) : new Vector3(0f, m_keelLocalY + 1.6f, m_centerLocalZ - m_shipLength * 0.36f);
-		if (Plugin.DebugLog.Value)
-		{
-			Plugin.Log.LogInfo($"Ship: {prefab?.name} length {m_shipLength:0.0}, beam {m_shipBeam:0.0}, keel {m_keelLocalY:0.0}, helm {m_helmLocal}, mast {m_mast != null}, sail {m_sailBottom != null}, attach '{m_attachAnim}'.");
-		}
+		// Once a crossing, for tuning from Sam's logs.
+		Plugin.Log.LogInfo($"Ship: {prefab?.name} length {m_shipLength:0.0}, beam {m_shipBeam:0.0}, keel {m_keelLocalY:0.0}, helm {m_helmLocal}, mast {m_mast != null}, sail {m_sailBottom != null}, rudder {m_rudderObj != null}, attach '{m_attachAnim}'.");
 		m_ship = go;
 		m_shipSeg = sea;
 		// It waits where the beach has gone deep enough to float it.
@@ -465,7 +463,8 @@ internal sealed partial class SurfGame
 		m_slide = 0f;
 		m_y = 0f;
 		m_vy = 0f;
-		m_windAngle = m_windTarget = Random.Range(-140f, 140f);
+		// A fair wind to start with, from astern or abeam.
+		m_windAngle = m_windTarget = (Random.value < 0.5f ? -1f : 1f) * Random.Range(20f, 100f);
 		m_windStrength = m_windStrengthTarget = Random.Range(0.6f, 0.85f);
 		m_windTimer = Random.Range(14f, 20f);
 		SetTrigger("jump");
@@ -894,7 +893,7 @@ internal sealed partial class SurfGame
 		foreach (Roller r in m_rollers)
 		{
 			float gap = Vector2.Dot(boat, r.Dir) - r.Crest;
-			if (!r.Passed && gap > 0f && gap < 36f && gap < best)
+			if (!r.Passed && gap > 0f && gap < 36f && gap < best && RollerReach(r, boat.x, boat.y) > 0.35f)
 			{
 				best = gap;
 				next = r;
@@ -954,6 +953,11 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			r.Passed = true;
+			if (RollerReach(r, boat.x, boat.y) < 0.35f)
+			{
+				// A serpent's slam that went wide.
+				continue;
+			}
 			if (SideOn(r.Dir) && r.Height > 1.2f)
 			{
 				m_lurchV += 140f * (Vector2.Dot(new Vector2(HeadingVector().y, -HeadingVector().x), r.Dir) > 0f ? -1f : 1f);

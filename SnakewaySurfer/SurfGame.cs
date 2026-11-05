@@ -831,7 +831,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		string style = Plugin.TrackStyle.Value.Trim().ToLowerInvariant();
 		if (style != "stone")
 		{
-			Color path = style == "paved" ? new Color(0f, 0f, 1f, 1f) : new Color(1f, 0f, 0f, 1f);
+			// 1.16 (Sam: the dirt path looked very dark): the dirt worn in at 70%, so a little of
+			// the biome's own ground shows through, as on a trodden path.
+			Color path = style == "paved" ? new Color(0f, 0f, 1f, 1f) : new Color(0.7f, 0f, 0f, 1f);
 			m_trackMask = MaskTexture(new Color(0f, 0f, 0f, 1f), path);
 			m_terrainTrack = new Material(source) { name = "SurfTerrainPath" };
 			PrepareTerrain(m_terrainTrack, source);
@@ -1862,6 +1864,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 		MeshRenderer tr = track.AddComponent<MeshRenderer>();
 		tr.sharedMaterial = m_terrainTrack ?? m_trackMaterial ?? b.Ground;
 		tr.receiveShadows = true;
+		if (m_terrainTrack != null && m_terrainTrack.HasProperty("_WaterLevel")
+			&& Mathf.Max(ShoreWeight(centerZ - GroundTile * 0.5f), ShoreWeight(centerZ + GroundTile * 0.5f)) > 0f)
+		{
+			// The path down a crossing's beach is wet where the sea reaches it.
+			MaterialPropertyBlock wet = new MaterialPropertyBlock();
+			tr.GetPropertyBlock(wet);
+			wet.SetFloat("_WaterLevel", m_stage.position.y + SeaY);
+			tr.SetPropertyBlock(wet);
+		}
 		if (b.Water && m_waterMaterial != null)
 		{
 			GameObject water = new GameObject("Water");

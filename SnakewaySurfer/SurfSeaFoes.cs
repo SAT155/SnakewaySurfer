@@ -134,7 +134,7 @@ internal sealed partial class SurfGame
 			m_strikeTimer -= dt;
 			if (m_strikeTimer <= 0f)
 			{
-				m_strikeTimer = Random.Range(2.4f, 4.2f) / (1f + 0.1f * SeaStars);
+				m_strikeTimer = Random.Range(3.4f, 5.8f) / (1f + 0.1f * SeaStars);
 				StartSeaStrike();
 			}
 		}
@@ -1266,8 +1266,8 @@ internal sealed partial class SurfGame
 	private void StartSeaStrike()
 	{
 		// Where the ship will be, give or take.
-		Vector2 at = ShipCenter() + HeadingVector() * (m_boatSpeed * 1.3f) + Random.insideUnitCircle * 5f;
-		SeaStrike s = new SeaStrike { At = at, Warn = Mathf.Max(1f, 1.4f - 0.1f * SeaStars), Marker = WaterMarker(true) };
+		Vector2 at = ShipCenter() + HeadingVector() * (m_boatSpeed * 1.3f) + Random.insideUnitCircle * 6f;
+		SeaStrike s = new SeaStrike { At = at, Warn = Mathf.Max(1.15f, 1.5f - 0.1f * SeaStars), Marker = WaterMarker(true) };
 		PlaceWaterMarker(s.Marker, at, 7f, 7f, 0f);
 		m_seaStrikes.Add(s);
 		m_audio.Play("sfx_thunder|sfx_distant thunder", 0.25f, 1.4f);
