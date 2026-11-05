@@ -39,6 +39,18 @@ internal sealed class BossDef
 	public string Location = "";
 	public float Walls = 4f;
 	public string Torch = "piece_groundtorch_wood";
+	// Its weather (SurfFx.cs): the environment of its location's EnvZone, else this one;
+	// thunder and lightning flashes; extra effects and sounds where its strikes land
+	// ("|" separates them).
+	public string Env = "";
+	public bool Storm;
+	public string StormSound = "";
+	public string StrikeFx = "";
+	public string StrikeSfx = "";
+	// What its roots or vines look like (the Elder's): a creature or prefab name.
+	public string Vines = "";
+	// How far behind you it chases (0 = from its size).
+	public float Chase;
 }
 
 internal static class Progress
@@ -50,6 +62,7 @@ internal static class Progress
 			Biome = 0, Name = "Eikthyr", Prefab = "Eikthyr", Key = "defeated_eikthyr", Item = "TrophyDeer", Amount = 2,
 			HitItem = "Thunderstone|Flint", HitVerb = "The thunder stone shocks", Mode = "run", Distance = 24f, MaxHeight = 4f,
 			Location = "Eikthyrnir", Walls = 4f, Torch = "piece_groundtorch_blue", Tint = new Color(0.4f, 0.7f, 1f),
+			Env = "Eikthyr|ThunderStorm", Storm = true, StormSound = "sfx_thunder", StrikeFx = "fx_Lightning|lightningAOE", StrikeSfx = "sfx_thunder|sfx_eikthyr_attack",
 			Moves = new[]
 			{
 				new[] { "shot", "shot", "strike1" },
@@ -63,6 +76,7 @@ internal static class Progress
 			Biome = 1, Name = "The Elder", Prefab = "gd_king", Key = "defeated_gdking", Item = "AncientSeed", Amount = 3,
 			HitItem = "SurtlingCore|Resin", HitVerb = "The surtling core bursts on", Mode = "stand", Distance = 46f, MaxHeight = 9f,
 			Location = "GDKing", Walls = 7f, Torch = "piece_groundtorch_green", Tint = new Color(0.45f, 0.75f, 0.2f),
+			Env = "GDKing|DeepForest Mist", StrikeFx = "fx_gdking_rootspawn|vfx_gdking_stomp", StrikeSfx = "sfx_tentaroot_attack|sfx_gdking_stomp", Vines = "TentaRoot",
 			Moves = new[]
 			{
 				new[] { "strike1", "strike2", "wall" },
@@ -76,6 +90,7 @@ internal static class Progress
 			Biome = 2, Name = "Bonemass", Prefab = "Bonemass", Key = "defeated_bonemass", Item = "WitheredBone", Amount = 10,
 			HitItem = "MaceIron|MaceBronze|Club", HitVerb = "The mace smashes", Mode = "side", Distance = 14f, MaxHeight = 7f,
 			Minion = "skeleton", Location = "Bonemass", Walls = 2.5f, Torch = "piece_groundtorch_green", Tint = new Color(0.45f, 0.75f, 0.2f),
+			Env = "Bonemass|SwampRain", StrikeFx = "fx_Bonemass_aoe_start", StrikeSfx = "sfx_Bonemass_throw_trigger|sfx_Bonemass_punch_start",
 			Moves = new[]
 			{
 				new[] { "blobs" },
@@ -89,6 +104,7 @@ internal static class Progress
 			Biome = 3, Name = "Moder", Prefab = "Dragon", Key = "defeated_dragon", Item = "DragonEgg", Amount = 3,
 			HitItem = "BoltIron|BoltBone|ArrowIron", HitVerb = "The ballista bolt strikes", Mode = "fly", Distance = 30f, Fly = 7f, MaxHeight = 6f, Aim = true,
 			Location = "Dragonqueen", Walls = 9f, Torch = "piece_groundtorch_blue", Tint = new Color(0.6f, 0.85f, 1f),
+			Env = "Moder|SnowStorm",
 			Moves = new[]
 			{
 				new[] { "sweep" },
@@ -102,6 +118,7 @@ internal static class Progress
 			Biome = 4, Name = "Yagluth", Prefab = "GoblinKing", Key = "defeated_goblinking", Item = "GoblinTotem", Amount = 5,
 			HitItem = "ArrowFrost|StaffIceShards|FreezeGland", HitVerb = "The frost bites", Mode = "stand", Distance = 50f, MaxHeight = 9f,
 			Location = "GoblinKing", Walls = 3f, Torch = "piece_groundtorch_wood", Tint = new Color(1f, 0.35f, 0.05f),
+			Env = "GoblinKing|Heath clear",
 			Moves = new[]
 			{
 				new[] { "meteors" },
@@ -115,6 +132,7 @@ internal static class Progress
 			Biome = 5, Name = "The Queen", Prefab = "SeekerQueen", Key = "defeated_queen", Item = "DvergrKeyFragment", Amount = 3,
 			HitItem = "BombLava|BombBile|StaffLightning", HitVerb = "The blast rocks", Mode = "side", Distance = 16f, MaxHeight = 8f,
 			Minion = "seeker", Location = "Mistlands_DvergrBossEntrance1", Walls = 6f, Torch = "piece_groundtorch_mist", Tint = new Color(0.7f, 0.5f, 1f),
+			Env = "Queen|Mistlands_thunder",
 			Moves = new[]
 			{
 				new[] { "grab" },

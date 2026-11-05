@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
@@ -90,7 +91,7 @@ internal sealed partial class SurfGame
 			m_torchCount++;
 			foreach (int side in new[] { -1, 1 })
 			{
-				float x = side * (TrackHalf + 1.2f);
+				float x = side * (TrackHalf + 1.2f + ExtraFlat(z));
 				GameObject go = Instantiate(Picture(prefab), m_stage, false);
 				go.transform.localPosition = new Vector3(x, HillHeight(x, z), z);
 				go.transform.localRotation = Quaternion.identity;
@@ -257,6 +258,45 @@ internal sealed partial class SurfGame
 		GameObject? picture = null;
 		try
 		{
+			GameObject? prefab = LocationAsset(name);
+			if (prefab != null)
+			{
+				picture = Pictures.MakePicture(prefab, m_templates, m_layer);
+			}
+		}
+		catch (Exception e)
+		{
+			Plugin.Log.LogWarning($"Couldn't picture the {name} location: {e.Message}");
+			picture = null;
+		}
+		if (picture == null)
+		{
+			Plugin.Log.LogInfo($"No {name} location to show (using the boss's shadow instead).");
+		}
+		m_locationPictures[name] = picture;
+		return picture;
+	}
+
+	private readonly Dictionary<string, GameObject?> m_locationAssets = new();
+	// The altar's summoning effects in a boss location (OfferingBowl): the sparkles as the
+	// items are given, and the boss forming, after its delay.
+	private readonly Dictionary<string, (EffectList? start, EffectList? done, float delay)> m_summonFx = new();
+
+	// A boss location's own prefab (loaded on demand; released when the minigame closes), and
+	// what we read from it before it's pictured: its weather zone and its altar's effects.
+	private GameObject? LocationAsset(string name)
+	{
+		if (name.Length == 0)
+		{
+			return null;
+		}
+		if (m_locationAssets.TryGetValue(name, out GameObject? cached))
+		{
+			return cached;
+		}
+		GameObject? prefab = null;
+		try
+		{
 			if (ZoneSystem.instance != null)
 			{
 				foreach (ZoneSystem.ZoneLocation loc in ZoneSystem.instance.m_locations)
@@ -267,26 +307,34 @@ internal sealed partial class SurfGame
 					}
 					loc.m_prefab.Load();
 					m_heldLocations.Add(loc);
-					GameObject prefab = loc.m_prefab.Asset;
-					if (prefab != null)
-					{
-						picture = Pictures.MakePicture(prefab, m_templates, m_layer);
-					}
+					prefab = loc.m_prefab.Asset;
 					break;
+				}
+			}
+			if (prefab != null)
+			{
+				EnvZone zone = prefab.GetComponentInChildren<EnvZone>(true);
+				if (zone != null && !string.IsNullOrEmpty(zone.m_environment))
+				{
+					m_locationEnv[name] = zone.m_environment;
+				}
+				OfferingBowl bowl = prefab.GetComponentInChildren<OfferingBowl>(true);
+				if (bowl != null)
+				{
+					m_summonFx[name] = (
+						AccessTools.Field(typeof(OfferingBowl), "m_spawnBossStartEffects")?.GetValue(bowl) as EffectList,
+						AccessTools.Field(typeof(OfferingBowl), "m_spawnBossDoneffects")?.GetValue(bowl) as EffectList,
+						AccessTools.Field(typeof(OfferingBowl), "m_spawnBossDelay")?.GetValue(bowl) is float d ? d : 3f);
 				}
 			}
 		}
 		catch (Exception e)
 		{
 			Plugin.Log.LogWarning($"Couldn't load the {name} location: {e.Message}");
-			picture = null;
+			prefab = null;
 		}
-		if (picture == null)
-		{
-			Plugin.Log.LogInfo($"No {name} location to show (using the boss's shadow instead).");
-		}
-		m_locationPictures[name] = picture;
-		return picture;
+		m_locationAssets[name] = prefab;
+		return prefab;
 	}
 
 	private void ReleaseLocations()
@@ -314,5 +362,6 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_heldLocations.Clear();
+		m_locationAssets.Clear();
 	}
 }

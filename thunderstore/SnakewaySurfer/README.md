@@ -26,6 +26,19 @@ the run stops and you aim the ballista yourself). Three hits
 wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
 `surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
 
+Bosses **chase** you: the camera swings round to look back at the boss running after you, and
+its attacks come up the lanes from behind or land where you are. A red band rides along in the
+lanes it's aiming at (at least a second's warning), then the blow lands with the boss's own
+effects and sounds: Eikthyr's lightning, the Elder's roots bursting from the road, Bonemass's
+poison, Moder's breath, Yagluth's fire and meteors. Waves and bars race up behind you with a
+**JUMP!** or **SLIDE!** call as they reach you, its creatures run past in two lanes, and Eikthyr
+lowers his antlers and charges right up your lane. Left and right follow the screen while it
+faces back. The Elder's roots even split the path into five lanes for a moment: find one
+without red before they burst up. Each fight starts like at the altar: the summoning items rise
+and circle, the altar's sparkles play, and the boss forms out of them. The arena takes on the
+weather of the boss's own place, from Eikthyr's thunderstorm (with lightning and thunder) to
+Moder's snowstorm.
+
 Each arena has its boss's own place from the game looming on the horizon (Eikthyr's altar, the
 Elder's stones, Bonemass's sunken tomb, Moder's peak, Yagluth's ruins, the Queen's gate), rising
 out of the ground as you arrive. The path flattens, the land rises into walls on both sides,
@@ -51,6 +64,7 @@ Friends without the mod see that too.
 | A / D or ← / → | Change lane |
 | W, ↑ or Space | Jump |
 | S, ↓, Ctrl or C | Slide (in the air: drop fast) |
+| P | Pause and carry on |
 | Space (after a crash) | Run again |
 | Esc | Stop and go back to the world |
 
@@ -64,8 +78,8 @@ crashes), borrowed from the game and heard only by you.
 
 At the end of each run:
 
-- **Run XP**: by default a quarter of a Run level's worth for each biome's length of track you ran
-  (fractions count). It's measured at your current Run level, so it slows down as your skill
+- **Run XP**: by default 0.08 of a Run level for each biome's length of track you ran
+  (fractions count), at most 0.75 levels a run. It's measured at your current Run level, so it slows down as your skill
   gets high, the same way vanilla does.
 - **One random food from the furthest biome you reached**, if the run lasted at least 30 seconds
   and you haven't had food from the minigame in the last 30 minutes (real time, saved on your
@@ -88,6 +102,15 @@ and for players without the mod.
 
 ## Changes
 
+- **1.12**: bosses chase you from behind, with the camera facing back (see above); their real
+  effects, sounds and weather; the summoning sequence; the Elder's extra lanes. Attacks are timed
+  from the creatures' own animations (the moment the blow lands in the game), so deer, trolls and
+  the rest hit when they look like they do; brutes play their attacks. Clearer red warnings on
+  troll, golem and other multi-lane attacks, later lox herds, a young troll for the log swing, and
+  abominations at their real size on the ground. The ground textures are back in every biome.
+  Pause works (P), summoning items start turning up later, the speed starts
+  slow again on each star lap, and Run XP is lower (0.08 levels per biome, at most 0.75 a run).
+  New settings: Boss Chase, Boss Summoning, Boss Weather, Max Run Levels Per Run.
 - **1.11**: the land beside the track is your world's real ground. Each biome borrows a ring of
   terrain from a spot in your world where that biome is, using the game's own height formulas:
   Meadows hills, Black Forest slopes, Swamp islands at the water line, mountain slopes, Plains

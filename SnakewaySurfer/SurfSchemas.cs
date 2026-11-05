@@ -213,7 +213,7 @@ internal sealed partial class SurfGame
 		// Lanes about to be hit are marked well before the blow.
 		if (t.Move.Length > 0 && !t.Attacked && t.HitLanes.Length == 0 && t.Attack != null)
 		{
-			float windup = Mathf.Clamp(0.2f + 0.12f * t.Height, 0.3f, 0.8f);
+			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, Mathf.Clamp(0.2f + 0.12f * t.Height, 0.3f, 0.8f));
 			float mark = t.Smashes > 0 ? (m_speed + t.Speed) * (windup + 2.0f) + 6f : (m_speed + t.Speed) * (windup + 1.0f) + 4f;
 			if (distance < mark && distance > 0f)
 			{
@@ -549,13 +549,24 @@ internal sealed partial class SurfGame
 
 	private void UpdateCrosser(Thing t, float dt, float distance)
 	{
+		if (distance < -2f && t.Markers.Count > 0)
+		{
+			ClearMarkers(t);
+		}
 		if (t.Phase == 0)
 		{
-			if (distance < m_speed * 1.25f + 6f)
+			// Timed so the herd is on the track as you get there: the first one just past the
+			// middle, so the lane on the side they came from clears and the others don't.
+			float speed = (2f * TrackHalf + 11f) / 1.6f;
+			float toMiddle = (Mathf.Abs(t.X) + LaneWidth * 0.5f) / speed;
+			if (distance < m_speed * toMiddle + 1f)
 			{
 				t.Phase = 1;
 				t.TargetX = -t.Side * (TrackHalf + 7f);
-				t.XSpeed = (2f * TrackHalf + 11f) / 1.3f;
+				t.XSpeed = speed;
+				// Where it will be as you pass: the middle lane and the far one.
+				t.Markers.Add(MakeMarker(1, t.Z, 2.4f, m_markerMaterial));
+				t.Markers.Add(MakeMarker(t.Side > 0 ? 0 : 2, t.Z, 2.4f, m_markerMaterial));
 				if (t.Anim != null)
 				{
 					SetParam(t.Anim, "forward_speed", t.Info!.RunSpeed);

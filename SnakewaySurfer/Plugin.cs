@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.11.0";
+	public const string PluginVersion = "1.12.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -36,6 +36,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> SoundVolume = null!;
 
 	internal static ConfigEntry<float> RunLevelsPerBiome = null!;
+	internal static ConfigEntry<float> MaxRunLevels = null!;
 	internal static ConfigEntry<float> FoodCooldownMinutes = null!;
 	internal static ConfigEntry<float> MinRunSecondsForFood = null!;
 
@@ -82,6 +83,9 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<int> Lives = null!;
 	internal static ConfigEntry<bool> IgnoreBossGate = null!;
 	internal static ConfigEntry<bool> BossLandmarks = null!;
+	internal static ConfigEntry<bool> BossChase = null!;
+	internal static ConfigEntry<bool> BossWeather = null!;
+	internal static ConfigEntry<bool> BossSummon = null!;
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
@@ -131,8 +135,11 @@ public class Plugin : BaseUnityPlugin
 		SoundVolume = Config.Bind("3 - Look", "Sound Volume", 0.8f,
 			new ConfigDescription("Volume of the minigame sounds.", new AcceptableValueRange<float>(0f, 1f)));
 
-		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 0.25f,
+		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 0.08f,
 			new ConfigDescription("Run skill levels earned for each biome's length of track (fractions count, so half a biome gives half). It's levels at your current Run skill, so it slows down as your skill gets high, like vanilla. 0 turns XP off.",
+				new AcceptableValueRange<float>(0f, 10f)));
+		MaxRunLevels = Config.Bind("2 - Rewards", "Max Run Levels Per Run", 0.75f,
+			new ConfigDescription("The most Run skill levels one run can give, however far you get (boss bonus distance included). 0 = no limit.",
 				new AcceptableValueRange<float>(0f, 10f)));
 		FoodCooldownMinutes = Config.Bind("2 - Rewards", "Food Cooldown Minutes", 30f,
 			new ConfigDescription("Real-time minutes after a food reward before the next run can give food again (saved on your character, so relogging doesn't reset it). XP has no cooldown.",
@@ -249,6 +256,15 @@ public class Plugin : BaseUnityPlugin
 			}
 			balance.Value = 3;
 		}
+		if (balance.Value < 4)
+		{
+			// 1.12: Sam found Run XP still too high at 0.25 levels per biome.
+			if (Mathf.Approximately(RunLevelsPerBiome.Value, 0.25f))
+			{
+				RunLevelsPerBiome.Value = 0.08f;
+			}
+			balance.Value = 4;
+		}
 
 		DebugLog = Config.Bind("9 - Debug", "Log Details", false,
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
@@ -268,10 +284,10 @@ public class Plugin : BaseUnityPlugin
 			"Light and fog each biome the way the game's own daytime weather for that biome does (fog density and colour, ambient light, sun). Off: the minigame's own simpler values (Fog Strength, Ambient Light and Light Intensity).");
 		GameLightScale = Config.Bind("3 - Look", "Game Light Scale", 0.8f,
 			new ConfigDescription("With Game Lighting: scales the sun and ambient light (the game's shaders and post effects differ from the minigame's).", new AcceptableValueRange<float>(0.1f, 3f)));
-		AllowPause = Config.Bind("9 - Debug", "Allow Pause", false,
-			"Testing: the Pause Key freezes the minigame (to look at things).");
-		PauseKey = Config.Bind("9 - Debug", "Pause Key", KeyCode.P,
-			"Testing: pauses and resumes the minigame when Allow Pause is on.");
+		AllowPause = Config.Bind("2 - Keys", "Allow Pause", true,
+			"The Pause Key freezes the minigame: the run, creatures, effects and sounds. It also pauses by itself while the game's menu (Esc) is open.");
+		PauseKey = Config.Bind("2 - Keys", "Pause Key", KeyCode.P,
+			"Pauses and resumes the minigame.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",
 			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
 		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",
@@ -288,6 +304,12 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Hits you can take before the run is over (three strikes and you're out). 1: the first hit ends it.", new AcceptableValueRange<int>(1, 9)));
 		BossLandmarks = Config.Bind("1 - Run", "Boss Landmarks", true,
 			"Boss arenas show the boss's own place from the game (Eikthyr's altar, the Elder's stones, Moder's peak...) looming far ahead, with the land rising beside a flatter path and torches lining it. Off: arenas only take on the boss's colour.");
+		BossChase = Config.Bind("1 - Run", "Boss Chase", true,
+			"Bosses chase you from behind: the camera swings round to face them, and their attacks come up the lanes behind you (red lanes mark where they'll land). Left and right follow the screen while it faces back. Off: the boss stays ahead of you, as before 1.12.");
+		BossWeather = Config.Bind("3 - Look", "Boss Weather", true,
+			"A boss arena takes on the weather of the boss's own place in the game: Eikthyr's thunderstorm with lightning and thunder, the Elder's forest mist, Bonemass's rain, Moder's snowstorm...");
+		BossSummon = Config.Bind("1 - Run", "Boss Summoning", true,
+			"A boss is summoned as in the game: its summoning items float up, the altar's sparkles and sounds play, and then the boss forms. Off: it just turns up.");
 		IgnoreBossGate = Config.Bind("9 - Debug", "Ignore Boss Gate", false,
 			"Testing: the run normally only reaches as far as the furthest boss beaten in this world (the Meadows only, until Eikthyr is dead). On: every biome and boss is open, and surfsup can start anywhere.");
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,

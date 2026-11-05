@@ -19,6 +19,12 @@ internal sealed class CreatureAttack
 	public string Sound = "";
 	// Visual effects the attack spawns (a blob's gas cloud, a slam's dust), pictured when it fires.
 	public readonly List<GameObject> Effects = new();
+	// Where it lands: the attack's hit effects, what it spawns (a stomp's lightning, the
+	// Elder's roots, meteors) and its projectile's impact, pictured when a strike hits.
+	public readonly List<GameObject> Impact = new();
+	// Sounds as it starts (wind-up) and as it lands.
+	public readonly List<string> StartSounds = new();
+	public readonly List<string> ImpactSounds = new();
 	public bool Area => Type == Attack.AttackType.Area;
 
 	public bool Ranged => Projectile != null;
@@ -171,6 +177,19 @@ internal sealed class CreatureInfo
 				};
 				AddVisuals(attack.m_triggerEffect, a.Effects);
 				AddVisuals(attack.m_startEffect, a.Effects);
+				AddVisuals(shared.m_triggerEffect, a.Effects);
+				AddVisuals(shared.m_startEffect, a.Effects);
+				AddSounds(attack.m_startEffect, a.StartSounds);
+				AddSounds(shared.m_startEffect, a.StartSounds);
+				AddSounds(attack.m_triggerEffect, a.ImpactSounds);
+				AddSounds(shared.m_triggerEffect, a.ImpactSounds);
+				foreach (EffectList? fx in new[] { attack.m_hitEffect, attack.m_hitTerrainEffect, attack.m_burstEffect, shared.m_hitEffect, shared.m_hitTerrainEffect })
+				{
+					AddVisuals(fx, a.Impact);
+					AddSounds(fx, a.ImpactSounds);
+				}
+				AddSpawned(attack.m_spawnOnTrigger, a, 0);
+				AddSpawned(attack.m_attackProjectile, a, 0);
 				(a.Ranged ? info.Ranged : info.Melee).Add(a);
 			}
 			foreach (GameObject item in humanoid.m_defaultItems ?? new GameObject[0])
@@ -205,10 +224,73 @@ internal sealed class CreatureInfo
 		}
 		foreach (EffectList.EffectData e in effects.m_effectPrefabs)
 		{
+			// Visual effects (a sound prefab with particles too keeps its look; the copy is silent,
+			// its sound is played separately).
 			if (e != null && e.m_enabled && e.m_prefab != null && e.m_prefab.GetComponentInChildren<ParticleSystem>(true) != null
-				&& e.m_prefab.GetComponentInChildren<ZSFX>(true) == null && !into.Contains(e.m_prefab))
+				&& !into.Contains(e.m_prefab))
 			{
 				into.Add(e.m_prefab);
+			}
+		}
+	}
+
+	private static void AddSounds(EffectList? effects, List<string> into)
+	{
+		if (effects?.m_effectPrefabs == null)
+		{
+			return;
+		}
+		foreach (EffectList.EffectData e in effects.m_effectPrefabs)
+		{
+			if (e != null && e.m_enabled && e.m_prefab != null && e.m_prefab.GetComponentInChildren<ZSFX>(true) != null && !into.Contains(e.m_prefab.name))
+			{
+				into.Add(e.m_prefab.name);
+			}
+		}
+	}
+
+	// Something an attack spawns (an area, roots, a meteor shower) or fires: its own look if it
+	// has one, and the effects and sounds of its hits and of what it spawns in turn.
+	private static void AddSpawned(GameObject? go, CreatureAttack a, int depth)
+	{
+		if (go == null || depth > 2)
+		{
+			return;
+		}
+		bool projectile = go.GetComponent<Projectile>() != null;
+		if (!projectile && !a.Impact.Contains(go) && (go.GetComponentInChildren<ParticleSystem>(true) != null || go.GetComponentInChildren<Renderer>(true) != null))
+		{
+			a.Impact.Add(go);
+		}
+		foreach (MonoBehaviour mb in go.GetComponentsInChildren<MonoBehaviour>(true))
+		{
+			if (mb == null)
+			{
+				continue;
+			}
+			foreach (System.Reflection.FieldInfo f in mb.GetType().GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public))
+			{
+				object? v = f.GetValue(mb);
+				string n = f.Name.ToLowerInvariant();
+				if (v is EffectList list && (n.Contains("hit") || n.Contains("spawn") || n.Contains("start") || n.Contains("explo")))
+				{
+					AddVisuals(list, a.Impact);
+					AddSounds(list, a.ImpactSounds);
+				}
+				else if (v is GameObject child && child != go && (n.Contains("spawn") || n.Contains("onhit")) && child.GetComponent<Character>() == null)
+				{
+					AddSpawned(child, a, depth + 1);
+				}
+				else if (v is GameObject[] children && (n.Contains("spawn") || n.Contains("onhit")))
+				{
+					foreach (GameObject c in children)
+					{
+						if (c != null && c != go && c.GetComponent<Character>() == null)
+						{
+							AddSpawned(c, a, depth + 1);
+						}
+					}
+				}
 			}
 		}
 	}

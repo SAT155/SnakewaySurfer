@@ -18,6 +18,10 @@ internal static class Rewards
 		List<string> lines = new();
 
 		float levels = distance / Plugin.BiomeLength.Value * Plugin.RunLevelsPerBiome.Value;
+		if (Plugin.MaxRunLevels.Value > 0f)
+		{
+			levels = Mathf.Min(levels, Plugin.MaxRunLevels.Value);
+		}
 		if (levels > 0.001f)
 		{
 			float gained = AddRunLevels(player, levels);

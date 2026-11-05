@@ -215,6 +215,15 @@ internal sealed partial class SurfGame
 		return ordinal + frac;
 	}
 
+	// What the run speed follows: each lap starts slow again (a star adds about one biome's
+	// worth), so a star lap isn't a sprint from its first metre.
+	private float SpeedProgressAt(float z)
+	{
+		Segment s = SegAt(z);
+		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / Plugin.BiomeLength.Value);
+		return s.Rush ? Mathf.Max(1, m_lapBiomes) + 3f : s.Biome + frac + s.Stars;
+	}
+
 	// Ends an open stretch at the first ground tile edge past minZ and clears what was already
 	// laid out beyond it, so the next stretch is built fresh.
 	private void CloseSegment(Segment s, float minZ)
@@ -265,7 +274,8 @@ internal sealed partial class SurfGame
 			{
 				m_itemSeg = here;
 				m_items = 0;
-				m_nextItemZ = Mathf.Max(m_nextItemZ, m_z + 30f);
+				// A good stretch of the biome first, then the items start turning up.
+				m_nextItemZ = Mathf.Max(m_nextItemZ, Mathf.Max(m_z + 30f, here.Start + Plugin.BiomeLength.Value * 0.45f));
 			}
 			if (m_items >= boss.Amount)
 			{
@@ -356,7 +366,7 @@ internal sealed partial class SurfGame
 		return names.Split('|')[0];
 	}
 
-	private void SpawnPickup(GameObject template, int lane, float z, Kind kind)
+	private Thing SpawnPickup(GameObject template, int lane, float z, Kind kind)
 	{
 		GameObject go = Fitted(template, Quaternion.Euler(0f, 0f, 0f), new Vector3(0.9f, 0.9f, 0.9f), true, 3f);
 		const float y = 1.0f;
@@ -369,7 +379,9 @@ internal sealed partial class SurfGame
 		glow.intensity = 1.6f;
 		glow.color = kind == Kind.BossHit ? new Color(0.5f, 0.8f, 1f) : new Color(1f, 0.85f, 0.4f);
 		glow.cullingMask = 1 << m_layer;
-		m_things.Add(new Thing { Go = go, Kind = kind, Lane = lane, Z = z, Y = y, HalfLength = 0.45f });
+		Thing t = new Thing { Go = go, Kind = kind, Lane = lane, Z = z, Y = y, HalfLength = 0.45f };
+		m_things.Add(t);
+		return t;
 	}
 
 	private void PickedUpItem()
@@ -410,6 +422,8 @@ internal sealed partial class SurfGame
 		m_bossSeg = seg;
 		m_bossInfo = CreatureInfo.Of(prefab);
 		float scale = m_bossInfo.Height > 0.3f ? Mathf.Min(1f, def.MaxHeight / m_bossInfo.Height) : 1f;
+		m_chase = Plugin.BossChase.Value;
+		m_bossScale = scale;
 		m_bossGo = Creature(prefab, Quaternion.identity, scale);
 		m_bossAnim = m_bossGo.GetComponentInChildren<Animator>();
 		if (m_bossAnim != null)
@@ -427,7 +441,8 @@ internal sealed partial class SurfGame
 		m_bossHitTimer = 3.5f;
 		m_bossMove = 0;
 		m_bossSide = -1;
-		m_bossZ = m_z + def.Distance + 40f;
+		m_bossZ = m_chase ? m_z - ChaseDistance(def) - 20f : m_z + def.Distance + 40f;
+		m_bossOff = m_bossZ - m_z;
 		m_bossThing = new Thing
 		{
 			Go = m_bossGo,
@@ -442,9 +457,23 @@ internal sealed partial class SurfGame
 			Level = seg.Stars + 1,
 		};
 		ApplyStars(m_bossThing, seg.Stars);
-		m_banner = seg.Rush && seg.RushIndex == 0 ? $"BOSS RUSH!\nEvery boss in a row, starting with {def.Name}!" : $"{def.Name}!";
-		m_bannerTime = 2.5f;
-		if (m_bossInfo.AlertSound.Length > 0)
+		// Its weather and altar effects come from its location.
+		LocationAsset(def.Location);
+		if (Plugin.BossSummon.Value)
+		{
+			StartSummon(def);
+		}
+		if (seg.Rush && seg.RushIndex == 0)
+		{
+			m_banner = $"BOSS RUSH!\nEvery boss in a row, starting with {def.Name}!";
+			m_bannerTime = 2.5f;
+		}
+		else if (!Plugin.BossSummon.Value)
+		{
+			m_banner = $"{def.Name}!";
+			m_bannerTime = 2.5f;
+		}
+		if (!Plugin.BossSummon.Value && m_bossInfo.AlertSound.Length > 0)
 		{
 			m_audio.Play(m_bossInfo.AlertSound, 1f);
 		}
@@ -466,6 +495,9 @@ internal sealed partial class SurfGame
 		m_bossSeg = null;
 		m_bossSink = -1f;
 		m_bossHidden = 0f;
+		ClearChase();
+		ClearSummon();
+		m_chase = false;
 	}
 
 	private void UpdateBoss(float dt)
@@ -475,12 +507,16 @@ internal sealed partial class SurfGame
 			return;
 		}
 		UpdateBossHidden(dt);
+		UpdateVines(dt);
 		BossDef def = m_boss;
 		if (m_bossSink >= 0f)
 		{
 			// Beaten: it sinks away while you run on.
 			m_bossSink += dt;
-			m_bossZ += m_speed * dt;
+			if (!m_chase)
+			{
+				m_bossZ += m_speed * dt;
+			}
 			Vector3 p = m_bossGo.transform.localPosition;
 			m_bossGo.transform.localPosition = new Vector3(p.x, RoadY(m_bossZ) + def.Fly - m_bossSink * 2.5f, m_bossZ);
 			if (m_bossSink > 3f)
@@ -490,6 +526,16 @@ internal sealed partial class SurfGame
 			return;
 		}
 
+		if (m_summon >= 0f)
+		{
+			UpdateSummon(dt, def);
+			return;
+		}
+		if (m_chase)
+		{
+			UpdateChaseBoss(dt, def);
+			return;
+		}
 		m_bossIntro = Mathf.Min(1f, m_bossIntro + dt * 0.6f);
 		float want = m_z + def.Distance;
 		switch (def.Mode)
@@ -541,15 +587,7 @@ internal sealed partial class SurfGame
 		m_bossAttackTimer -= dt;
 		if (m_bossAttackTimer <= 0f)
 		{
-			// Each star lap adds one more trick to every phase.
-			List<string> moves = new(def.Moves[phase]);
-			int stars = m_bossSeg?.Stars ?? 0;
-			for (int i = 0; i < Mathf.Min(stars, def.StarMoves.Length); i++)
-			{
-				moves.Add(def.StarMoves[i]);
-			}
-			string move = moves[m_bossMove++ % moves.Count];
-			BossMove(def, move);
+			BossMove(def, NextMove(def, phase));
 			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.12f * (m_bossSeg?.Stars ?? 0));
 			// Some moves (branches, the dash) hold the next one back themselves.
 			m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, interval);
@@ -564,6 +602,18 @@ internal sealed partial class SurfGame
 				SpawnPickup(template, Random.Range(0, 3), m_z + m_speed * 3f + 6f, Kind.BossHit);
 			}
 		}
+	}
+
+	// The next of its moves in this phase (each star lap adds one more trick to every phase).
+	private string NextMove(BossDef def, int phase)
+	{
+		List<string> moves = new(def.Moves[phase]);
+		int stars = m_bossSeg?.Stars ?? 0;
+		for (int i = 0; i < Mathf.Min(stars, def.StarMoves.Length); i++)
+		{
+			moves.Add(def.StarMoves[i]);
+		}
+		return moves[m_bossMove++ % moves.Count];
 	}
 
 	private void BossAnimate()
@@ -871,13 +921,68 @@ internal sealed partial class SurfGame
 			{
 				t.Moving.gameObject.SetActive(true);
 				m_shake = Mathf.Max(m_shake, 0.15f);
+				StrikeEffects(t);
 			}
 		}
 	}
 
-	private void BossLow(BiomeRuntime b, int lane, float z, BossDef def)
+	// The boss's own effects and sound where a strike lands (Eikthyr's lightning, the Elder's
+	// roots, Yagluth's fire); the tinted pillar only shows when it has none.
+	private void StrikeEffects(Thing t)
+	{
+		if (m_boss == null || t.Go == null)
+		{
+			return;
+		}
+		BossDef def = m_boss;
+		Vector3 at = t.Go.transform.localPosition;
+		if (t.HalfLength > 1.3f)
+		{
+			at.z = t.Z - t.HalfLength + 1f;
+		}
+		bool shown = false;
+		if (def.StrikeFx.Length > 0 && FindFx(def.StrikeFx) is GameObject fx)
+		{
+			PlayFx(fx, at, Quaternion.identity, 3f);
+			shown = true;
+		}
+		CreatureAttack? attack = m_bossThing?.Attack;
+		if (attack != null)
+		{
+			foreach (GameObject impact in attack.Impact)
+			{
+				PlayFx(impact, at, Quaternion.identity, 3f);
+				shown = true;
+				break;
+			}
+		}
+		if (def.Vines.Length > 0)
+		{
+			shown |= SpawnVine(def, at.x, at.z, 1.2f);
+		}
+		if (def.StrikeSfx.Length > 0)
+		{
+			m_audio.Play(def.StrikeSfx, 1f);
+		}
+		else
+		{
+			AttackSound(attack, true, 1f);
+		}
+		if (shown && t.HalfLength <= 1.3f && t.Moving != null)
+		{
+			foreach (Renderer r in t.Moving.GetComponents<Renderer>())
+			{
+				r.enabled = false;
+			}
+		}
+	}
+
+	// Something low across a lane to jump: one of the biome's logs, else a bar in the boss's
+	// colour, over a red band.
+	private Thing BossLow(BiomeRuntime b, int lane, float z, BossDef def)
 	{
 		GameObject go;
+		float baseY = 0f;
 		if (b.Logs.Count > 0)
 		{
 			go = Fitted(Picture(b.Logs[Random.Range(0, b.Logs.Count)]), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
@@ -890,25 +995,122 @@ internal sealed partial class SurfGame
 			go.transform.SetParent(m_stage, false);
 			go.transform.localScale = new Vector3(LaneWidth * 0.9f, 0.6f, 0.6f);
 			go.GetComponent<Renderer>().sharedMaterial = TintMaterial(def.Tint);
+			baseY = 0.3f;
 		}
-		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + (b.Logs.Count > 0 ? 0f : 0.3f), z);
+		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + baseY, z);
 		GameObject marker = MakeMarker(lane, z, 1.6f, m_markerMaterial);
 		marker.transform.SetParent(go.transform, true);
-		m_things.Add(new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, HalfLength = 0.35f, Label = def.Name, CrashText = $"{def.Name} tripped you up! (Jump the low ones.)" });
+		Thing t = new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, BaseY = baseY, HalfLength = 0.35f, Label = def.Name, Hint = "JUMP!", CrashText = $"{def.Name} tripped you up! (Jump the low ones.)" };
+		m_things.Add(t);
+		return t;
 	}
 
-	private void BossHigh(BiomeRuntime b, int lane, float z, BossDef def)
+	// A bar at head height across a lane to slide under: a glowing beam in the boss's colour on
+	// two posts (a gate you can see the gap under), with a red band below.
+	private Thing BossHigh(BiomeRuntime b, int lane, float z, BossDef def)
 	{
-		GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-		Destroy(go.GetComponent<Collider>());
-		go.layer = m_layer;
-		go.transform.SetParent(m_stage, false);
-		go.transform.localScale = new Vector3(LaneWidth * 0.95f, 0.5f, 0.5f);
-		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 1.35f, z);
-		Renderer r = go.GetComponent<Renderer>();
-		r.sharedMaterial = TintMaterial(def.Tint);
+		const float barY = 1.35f;
+		GameObject root = new GameObject("BossBar");
+		root.layer = m_layer;
+		root.transform.SetParent(m_stage, false);
+		root.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
+		GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+		Destroy(bar.GetComponent<Collider>());
+		bar.layer = m_layer;
+		bar.transform.SetParent(root.transform, false);
+		bar.transform.localScale = new Vector3(LaneWidth * 0.95f, 0.55f, 0.55f);
+		bar.transform.localPosition = new Vector3(0f, barY + 0.25f, 0f);
+		Renderer r = bar.GetComponent<Renderer>();
+		r.sharedMaterial = SolidTint(def.Tint);
 		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-		m_things.Add(new Thing { Go = go, Kind = Kind.High, Lane = lane, Z = z, HalfLength = 0.35f, Label = def.Name, CrashText = $"{def.Name} caught you standing! (Slide under the high ones.)" });
+		foreach (float side in new[] { -1f, 1f })
+		{
+			GameObject post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			Destroy(post.GetComponent<Collider>());
+			post.layer = m_layer;
+			post.transform.SetParent(root.transform, false);
+			post.transform.localScale = new Vector3(0.14f, barY + 0.5f, 0.14f);
+			post.transform.localPosition = new Vector3(side * LaneWidth * 0.46f, (barY + 0.5f) * 0.5f, 0f);
+			post.GetComponent<Renderer>().sharedMaterial = SolidTint(def.Tint * 0.6f);
+		}
+		Light glow = new GameObject("Glow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(root.transform, false);
+		glow.transform.localPosition = new Vector3(0f, barY, 0f);
+		glow.type = LightType.Point;
+		glow.range = 4f;
+		glow.intensity = 1.4f;
+		glow.color = def.Tint;
+		glow.cullingMask = 1 << m_layer;
+		GameObject marker = MakeMarker(lane, z, 1.6f, m_markerMaterial);
+		marker.transform.SetParent(root.transform, true);
+		Thing t = new Thing { Go = root, Kind = Kind.High, Lane = lane, Z = z, HalfLength = 0.35f, Label = def.Name, Hint = "SLIDE!", CrashText = $"{def.Name} caught you standing! (Slide under the high ones.)" };
+		m_things.Add(t);
+		return t;
+	}
+
+	private readonly Dictionary<Color, Material> m_solidTints = new();
+
+	// An opaque, slightly glowing material in a colour (easy to read against any ground).
+	private Material SolidTint(Color c)
+	{
+		if (!m_solidTints.TryGetValue(c, out Material mat) || mat == null)
+		{
+			Shader shader = FindPlainShader() ?? Shader.Find("Sprites/Default");
+			mat = new Material(shader) { color = new Color(c.r, c.g, c.b, 1f) };
+			if (mat.HasProperty("_EmissionColor"))
+			{
+				mat.EnableKeyword("_EMISSION");
+				mat.SetColor("_EmissionColor", c * 0.6f);
+			}
+			m_solidTints[c] = mat;
+		}
+		return mat;
+	}
+
+	// A shockwave across a lane (a stomp), with the attack's dust: jump it.
+	private Thing BossWave(int lane, float z, BossDef def, CreatureAttack? attack)
+	{
+		BiomeRuntime b = m_biomes[BiomeAt(z)];
+		GameObject wave = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+		Destroy(wave.GetComponent<Collider>());
+		wave.name = "Shockwave";
+		wave.layer = m_layer;
+		wave.transform.SetParent(m_stage, false);
+		wave.transform.localScale = new Vector3(LaneWidth * 0.95f, 0.2f, 0.7f);
+		wave.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.15f, z);
+		Renderer r = wave.GetComponent<Renderer>();
+		r.sharedMaterial = m_terrainTrack ?? b.Ground;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		GameObject band = MakeMarker(lane, z, 1.6f, m_markerMaterial);
+		band.transform.SetParent(wave.transform, true);
+		GameObject? fx = def.StrikeFx.Length > 0 ? FindFx(def.StrikeFx) : null;
+		if (fx == null && attack != null)
+		{
+			foreach (GameObject e in attack.Effects)
+			{
+				fx = e;
+				break;
+			}
+		}
+		if (fx != null)
+		{
+			PlayFx(fx, Vector3.zero, Quaternion.identity, 6f, wave.transform);
+		}
+		Thing t = new Thing
+		{
+			Go = wave,
+			Kind = Kind.Low,
+			Lane = lane,
+			Z = z,
+			BaseY = 0.15f,
+			HalfLength = 0.4f,
+			Label = def.Name,
+			Hint = "JUMP!",
+			CrashText = $"{def.Name}'s stomp knocked you flat! (Jump the waves.)",
+		};
+		m_things.Add(t);
+		return t;
 	}
 
 	private void BossHit()
@@ -970,13 +1172,14 @@ internal sealed partial class SurfGame
 		for (int i = m_things.Count - 1; i >= 0; i--)
 		{
 			Thing t = m_things[i];
-			if (t.Kind != Kind.Ground && t.Kind != Kind.Scenery && t.Kind != Kind.Coin && t.Z > m_z + 2f)
+			if (t.Kind != Kind.Ground && t.Kind != Kind.Scenery && t.Kind != Kind.Coin && (t.Z > m_z + 2f || t.Speed < 0f))
 			{
 				DestroyThing(t);
 				m_things.RemoveAt(i);
 			}
 		}
 		DestroySchemaLobs();
+		ClearChase();
 		CloseSegment(seg, m_z + 45f);
 		m_bossSink = 0f;
 		m_bossHidden = 0f;
@@ -1072,14 +1275,14 @@ internal sealed partial class SurfGame
 	private void PlaceBeside(GameObject prefab, float z, int side, float near, float far, float scale)
 	{
 		GameObject go = Instantiate(Picture(prefab), m_stage, false);
-		float x = side * (TrackHalf + Random.Range(near, far));
+		float x = side * (TrackHalf + ExtraFlat(z) + Random.Range(near, far));
 		go.transform.localPosition = new Vector3(x, HillHeight(x, z) - 0.05f, z);
 		go.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 		go.transform.localScale = Vector3.one * scale;
 		if (Pictures.MeshBounds(go, out Bounds bounds))
 		{
 			float inner = (side < 0 ? bounds.max.x : bounds.min.x) - m_stage.position.x;
-			float limit = side * (TrackHalf + 0.6f);
+			float limit = side * (TrackHalf + 0.6f + ExtraFlat(z));
 			float push = side < 0 ? Mathf.Min(0f, limit - inner) : Mathf.Max(0f, limit - inner);
 			if (push != 0f)
 			{
@@ -1119,9 +1322,10 @@ internal sealed partial class SurfGame
 			// She weaves about over the track while you aim.
 			float x = Mathf.Sin(m_aimClock * 1.7f) * 7f;
 			float y = m_boss.Fly + 1.5f + Mathf.Sin(m_aimClock * 2.6f) * 2.2f;
-			m_bossZ = m_z + m_boss.Distance;
+			m_bossZ = m_chase ? m_z - ChaseDistance(m_boss) - 6f : m_z + m_boss.Distance;
+			m_bossOff = m_bossZ - m_z;
 			m_bossGo.transform.localPosition = Vector3.Lerp(m_bossGo.transform.localPosition, new Vector3(x, RoadY(m_bossZ) + y, m_bossZ), dt * 4f);
-			m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.Euler(0f, 180f, 0f), 360f * dt);
+			m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.Euler(0f, m_chase ? 0f : 180f, 0f), 360f * dt);
 		}
 		if (canInput)
 		{

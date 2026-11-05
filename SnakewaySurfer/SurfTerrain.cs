@@ -165,7 +165,9 @@ internal sealed partial class SurfGame
 	{
 		float road = RoadY(z);
 		float water = WaterWeight(z);
-		float out_ = Mathf.Abs(x) - TrackHalf;
+		// Where bosses split the path into extra lanes (the Elder's roots), the ground beside
+		// the track is flat for them, and the land starts past them.
+		float out_ = Mathf.Abs(x) - TrackHalf - ExtraFlat(z);
 		realH = SeaLevel + 2f;
 		veg = 1f;
 		float edge = road - 0.05f - 0.6f * water;
@@ -292,6 +294,7 @@ internal sealed partial class SurfGame
 		MaterialPropertyBlock block = new MaterialPropertyBlock();
 		r.GetPropertyBlock(block);
 		block.SetTexture("_ClearedMaskTex", tex);
+		block.SetFloat(LodHide, 0f);
 		// The shader shades by height above the sea (shores, wet ground): put this tile's sea
 		// where the real sea level falls on it.
 		if (m_terrainLand.HasProperty("_WaterLevel") && SeaLocalY(g.CenterZ) is float sea)
