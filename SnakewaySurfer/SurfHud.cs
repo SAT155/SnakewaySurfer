@@ -320,6 +320,17 @@ internal sealed partial class SurfGame
 			Shadowed(new Rect(w * 0.5f + 200f * k, h - 44f * k, 300f * k, 40f * k), KeyName(Plugin.ThrowKey.Value), m_small!);
 		}
 
+		// Armed for a duel: the weapon, with a pip for each swing left to parry.
+		if (Dueling && m_boss != null && ItemIcon(m_boss.HitItem) is Sprite weapon)
+		{
+			float s = 56f * k * (1f + 0.3f * m_iconPulse);
+			DrawSprite(new Rect(w * 0.5f + 200f * k, h - 100f * k, s, s), weapon, Color.white);
+			for (int i = 0; i < m_duelTries; i++)
+			{
+				Star(new Vector2(w * 0.5f + 270f * k + i * 22f * k, h - 72f * k), 16f * k, new Color(1f, 0.82f, 0.2f));
+			}
+		}
+
 		// Stamina, as in the game: a yellow bar, shown while it isn't full.
 		if (m_stamina < MaxStamina - 0.01f || m_sprinting || m_blocking)
 		{

@@ -21,6 +21,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		Countdown,
 		Running,
 		Crashed,
+		// Choosing where to start (SurfMenu.cs).
+		Menu,
 	}
 
 	private enum Kind
@@ -421,6 +423,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		PlayerHooks.RefreshHelmet(player);
 		ResetRun();
+		if (!m_explicitStart && MenuWorthIt())
+		{
+			EnterMenu();
+		}
 		Plugin.Log.LogInfo($"Surf's up: stage at {origin}, layer {m_layer}.");
 	}
 
@@ -1337,6 +1343,18 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					ResetRun();
 				}
+				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.R))
+				{
+					(int b, int s) = CrashPlace();
+					StartFrom(b, s);
+				}
+				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.M))
+				{
+					EnterMenu();
+				}
+				break;
+			case State.Menu:
+				UpdateMenu(canInput);
 				break;
 		}
 
@@ -1573,6 +1591,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 						else if (hit && m_boss != null && m_boss.Throw)
 						{
 							PickUpSpear();
+						}
+						else if (hit && m_boss != null && m_bossSink < 0f && Plugin.ParryDuel.Value)
+						{
+							ArmDuel();
 						}
 						else if (hit)
 						{
@@ -3356,7 +3378,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		float w = Screen.width;
 		float h = Screen.height;
-		if (m_state != State.Crashed && Event.current.type == EventType.Repaint)
+		if (m_state != State.Crashed && m_state != State.Menu && Event.current.type == EventType.Repaint)
 		{
 			HudGui(k, w, h);
 		}
@@ -3388,7 +3410,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 				Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
 				Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
 					$"{m_z:0} m, {m_coins} coins, reached {m_biomes[m_highestBiome].Def.Name}\n\n{m_rewardText}", m_mid);
-				Shadowed(new Rect(w * 0.1f, h * 0.7f, w * 0.8f, 100 * k), $"Space: run again     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				(int cb, int cs) = CrashPlace();
+				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
+					$"Space: run again     R: retry {Progress.Describe(cb, cs)}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				break;
+			case State.Menu:
+				MenuGui(k, w, h);
 				break;
 		}
 	}

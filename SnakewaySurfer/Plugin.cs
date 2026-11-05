@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.14.1";
+	public const string PluginVersion = "1.15.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -100,6 +100,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> StaminaRegen = null!;
 	internal static ConfigEntry<float> ParryWindow = null!;
 	internal static ConfigEntry<bool> PopupText = null!;
+	internal static ConfigEntry<bool> StartMenu = null!;
+	internal static ConfigEntry<bool> ParryDuel = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
 	internal static ConfigEntry<float> HillHeight = null!;
 	internal static ConfigEntry<float> TrackBrightness = null!;
@@ -333,6 +335,10 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Stamina recovered each second once you stop sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
 		ParryWindow = Config.Bind("1 - Run", "Parry Window", 0.3f,
 			new ConfigDescription("Seconds before a hit in which pressing block parries it.", new AcceptableValueRange<float>(0.05f, 1f)));
+		ParryDuel = Config.Bind("1 - Run", "Parry Duel", true,
+			"Bosses (not Eikthyr or Moder) are hurt by parrying: grab the weapon on the track and the boss closes in and swings at your lane up to three times; parry a swing and your blow lands. Off: grabbing the weapon hurts the boss straight away.");
+		StartMenu = Config.Bind("2 - Keys", "Start Menu", true,
+			"surfsup (with nothing after it) opens a grid of the biomes and star laps you've reached, to pick where to start. Off: it starts at your latest checkpoint.");
 		PopupText = Config.Bind("3 - Look", "Popup Text", false,
 			"Show text pop-ups during the run (\"Entering ...\", boss messages, JUMP!/SLIDE!). Off: the run speaks through sounds, flashes and the HUD instead.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",

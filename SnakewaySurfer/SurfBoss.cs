@@ -504,6 +504,7 @@ internal sealed partial class SurfGame
 		m_bossSeg = null;
 		m_bossSink = -1f;
 		m_bossHidden = 0f;
+		EndDuel(false);
 		ClearChase();
 		ClearSummon();
 		m_chase = false;
@@ -553,6 +554,11 @@ internal sealed partial class SurfGame
 		if (m_summon >= 0f)
 		{
 			UpdateSummon(dt, def);
+			return;
+		}
+		if (Dueling)
+		{
+			UpdateDuel(dt, def);
 			return;
 		}
 		if (m_chase)

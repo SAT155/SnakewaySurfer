@@ -20,8 +20,9 @@ world's run stays in the Meadows (looping with stars), and each boss you kill in
 opens the next biome. Some coins become the boss's summoning item, in the game's own amounts
 (2 deer trophies, 3 ancient seeds, 10 withered bones, 3 dragon eggs, 5 fuling totems, 3
 sealbreaker fragments). You stay in the biome until you hold them all, then the boss fights
-you: every attack marks the lanes it will hit first, and you hurt it by grabbing what it fears
-(spears, surtling cores, maces, bolts, frost arrows, bombs) from the track. Eikthyr's spears
+you: every attack marks the lanes it will hit first. To hurt it, grab its weapon from the track
+(surtling cores, maces, frost arrows, bombs): the boss closes in and swings at your lane up to
+three times, and parrying a swing (block just before it lands) staggers it and lands your blow. Eikthyr's spears
 you throw yourself (left mouse): the spear flies down your lane and he weaves between the lanes
 behind you, so throw when he's lined up. For Moder the run stops and you aim the ballista; the
 bolt takes a moment to fly, so lead her. Three hits
@@ -116,6 +117,15 @@ game's normal syncing, so they work on a vanilla dedicated server, with or witho
 and for players without the mod.
 
 ## Changes
+
+- **1.15**: `surfsup` opens a grid of the biomes and star laps you've reached; after a crash,
+  R retries the biome you fell in and M goes back to the grid. Bosses other than Eikthyr and
+  Moder are fought by parrying: grab the weapon, the boss closes in and swings at your lane
+  (three tries); parry a swing and your blow lands. Heavy blows (trolls, smashes, shockwaves)
+  can't be blocked, only parried. Grown trolls' logs can sweep two lanes. Gas is a drifting
+  cloud, thrown early so it hangs in the lane. The Elder's split paths are divided by strips of
+  ground overgrown with its vines, you duck under vines, and the torches burn. Beaten bosses
+  stagger, topple over with their own death effects, then sink away.
 
 - **1.14**: no more pop-up text during a run: the summoning item's icon and count and the boss's
   health bar sit at the top, lane marks are coloured (red: leave the lane, amber: jump, blue:
