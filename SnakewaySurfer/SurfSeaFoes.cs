@@ -710,6 +710,9 @@ internal sealed partial class SurfGame
 			return 2;
 		}
 		bool unharmed = m_lives == lives && m_state == State.Running && Mathf.Approximately(m_hurtTime, hurt) && !Plugin.Invincible.Value;
+		// The blow (or the guard taking it) rocks the ship.
+		m_lurchV += (Random.value < 0.5f ? -1f : 1f) * (unharmed ? 35f : 80f);
+		m_shake = Mathf.Max(m_shake, unharmed ? 0.2f : 0.4f);
 		return unharmed ? 1 : 0;
 	}
 
@@ -1022,12 +1025,13 @@ internal sealed partial class SurfGame
 				break;
 			case 5:
 			{
-				// Under the keel: a red ring follows the ship, stops, and it bursts up there.
+				// Under the keel: a red ring follows the ship, stops, and it bursts up there. Keep
+				// moving (or turn) and the ship is clear of it in time.
 				f.Y = Mathf.MoveTowards(f.Y, -4f, dt * 3f);
 				float follow = 2.2f;
 				if (f.T < follow)
 				{
-					f.Aim = ship + shipVel * 0.3f;
+					f.Aim = ship;
 				}
 				f.P = Vector2.MoveTowards(f.P, f.Aim, (m_boatSpeed + 14f) * dt);
 				GameObject ring = f.Markers.Count > 1 && f.Markers[1] != null ? f.Markers[1] : WaterMarker(true);
@@ -1042,7 +1046,7 @@ internal sealed partial class SurfGame
 				}
 				PlaceWaterMarker(ring, f.Aim, 9f, 9f, 0f);
 				ring.SetActive(f.T < follow || Mathf.FloorToInt(f.T * 12f) % 2 == 0);
-				if (f.T >= follow + 0.7f)
+				if (f.T >= follow + 1.5f)
 				{
 					ring.SetActive(false);
 					f.P = f.Aim;
@@ -1051,7 +1055,7 @@ internal sealed partial class SurfGame
 					SpawnSplash(f.Aim, 3f);
 					m_audio.Play("sfx_serpent_attack_hit|sfx_ship_impact", 1f, 0.7f);
 					m_shake = Mathf.Max(m_shake, 0.5f);
-					if (ShipDistance(f.Aim) < 3.5f)
+					if (ShipDistance(f.Aim) < 2.3f)
 					{
 						int result = SeaHit(f, true, $"The {f.Label} of the deep burst up under the ship!");
 						m_lurchV += 160f * (Random.value < 0.5f ? -1f : 1f);
@@ -1265,8 +1269,10 @@ internal sealed partial class SurfGame
 
 	private void StartSeaStrike()
 	{
-		// Where the ship will be, give or take.
-		Vector2 at = ShipCenter() + HeadingVector() * (m_boatSpeed * 1.3f) + Random.insideUnitCircle * 6f;
+		// Beside where the ship will be: off to one side, so turning away from the ring clears it.
+		Vector2 f = HeadingVector();
+		Vector2 side = new Vector2(f.y, -f.x) * ((Random.value < 0.5f ? -1f : 1f) * Random.Range(1.5f, 7f));
+		Vector2 at = ShipCenter() + f * (m_boatSpeed * 1.3f + Random.Range(-4f, 4f)) + side;
 		SeaStrike s = new SeaStrike { At = at, Warn = Mathf.Max(1.15f, 1.5f - 0.1f * SeaStars), Marker = WaterMarker(true) };
 		PlaceWaterMarker(s.Marker, at, 7f, 7f, 0f);
 		m_seaStrikes.Add(s);

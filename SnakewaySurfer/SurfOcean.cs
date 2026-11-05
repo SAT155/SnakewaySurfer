@@ -462,7 +462,8 @@ internal sealed partial class SurfGame
 			AddFoam(reef, Random.Range(1.2f, 2.4f), Random.Range(1.2f, 2f), 0.45f + 0.2f * m_storm, 1.4f, new Vector2(0f, 0f), new Vector2(0f, 1f), Random.Range(2f, 4f));
 		}
 		m_streakTimer -= dt;
-		float rate = 0.05f + 0.12f * (1f - m_windStrength) - 0.03f * m_storm;
+		// More streaks the harder it blows, and a rush of them while the wind turns.
+		float rate = (0.05f + 0.12f * (1f - m_windStrength) - 0.03f * m_storm) * (1f - 0.6f * m_windShift);
 		while (m_streakTimer <= 0f)
 		{
 			m_streakTimer += Mathf.Max(0.02f, rate);
