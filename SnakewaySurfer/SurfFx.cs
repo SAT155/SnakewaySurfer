@@ -143,6 +143,14 @@ internal sealed partial class SurfGame
 			if (go != null && go.activeSelf != on)
 			{
 				go.SetActive(on);
+				if (on)
+				{
+					// Systems that don't play on waking up wouldn't start by themselves.
+					foreach (ParticleSystem p in go.GetComponentsInChildren<ParticleSystem>(true))
+					{
+						p.Play(true);
+					}
+				}
 			}
 		}
 		m_flash = Mathf.MoveTowards(m_flash, 0f, dt * 5f);
@@ -176,8 +184,23 @@ internal sealed partial class SurfGame
 			Plugin.Log.LogInfo($"No weather found for {def.Name}'s arena (tried '{(m_locationEnv.TryGetValue(def.Location, out string z) ? z : "")}', '{def.Env}').");
 			return;
 		}
-		// Its rain, snow or ash, following our camera.
-		foreach (GameObject ps in m_bossEnv.m_psystems ?? new GameObject[0])
+		// Its rain, snow or ash, following our camera. 1.14 (Sam saw no rain at Eikthyr): when
+		// its own place's weather has none, the first of its fallback weathers that has some.
+		GameObject[] systems = m_bossEnv.m_psystems ?? new GameObject[0];
+		if (systems.Length == 0 && EnvMan.instance != null)
+		{
+			foreach (string option in def.Env.Split('|'))
+			{
+				EnvSetup other = option.Length > 0 ? EnvMan.instance.GetEnv(option) : null!;
+				if (other?.m_psystems != null && other.m_psystems.Length > 0)
+				{
+					systems = other.m_psystems;
+					Plugin.Log.LogInfo($"{def.Name}'s weather '{m_bossEnv.m_name}' has no rain or snow; using '{other.m_name}''s.");
+					break;
+				}
+			}
+		}
+		foreach (GameObject ps in systems)
 		{
 			if (ps == null || m_camera == null)
 			{
@@ -254,6 +277,15 @@ internal sealed partial class SurfGame
 			sunColor = Color.Lerp(sunColor, env.m_sunColorDay, w);
 			sunIntensity = Mathf.Lerp(sunIntensity, env.m_lightIntensityDay * scale, w);
 			sky = Color.Lerp(sky, env.m_fogColorDay, w * 0.8f);
+			if (m_bossEnvDef != null && m_bossEnvDef.Storm)
+			{
+				// A storm closes in: thick fog and a dark sky whatever the zone's daytime says.
+				fog = Mathf.Lerp(fog, Mathf.Max(fog, 0.03f * Plugin.FogStrength.Value), w);
+				Color storm = new Color(0.32f, 0.35f, 0.4f);
+				fogColor = Color.Lerp(fogColor, storm, w * 0.6f);
+				sky = Color.Lerp(sky, storm, w * 0.7f);
+				sunIntensity *= 1f - 0.45f * w;
+			}
 		}
 	}
 }

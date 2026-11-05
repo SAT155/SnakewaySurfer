@@ -28,6 +28,8 @@ internal sealed class BossDef
 	public string Minion = "";
 	// Hits are aimed: grabbing the weapon stops the run and you aim it at the boss.
 	public bool Aim;
+	// Hits are thrown: the item is a spear you carry and throw down your lane (SurfThrow.cs).
+	public bool Throw;
 	// Its moves in each of the three phases (one more phase per hit taken).
 	public string[][] Moves = new string[0][];
 	// A new trick for each star lap, added to every phase (index 0 = 1 star). "move:creature"
@@ -60,7 +62,7 @@ internal static class Progress
 		new BossDef
 		{
 			Biome = 0, Name = "Eikthyr", Prefab = "Eikthyr", Key = "defeated_eikthyr", Item = "TrophyDeer", Amount = 2,
-			HitItem = "Thunderstone|Flint", HitVerb = "The thunder stone shocks", Mode = "run", Distance = 24f, MaxHeight = 4f,
+			HitItem = "SpearFlint|SpearBronze|Thunderstone", HitVerb = "The spear strikes", Throw = true, Mode = "run", Distance = 24f, MaxHeight = 4f,
 			Location = "Eikthyrnir", Walls = 4f, Torch = "piece_groundtorch_blue", Tint = new Color(0.4f, 0.7f, 1f),
 			Env = "Eikthyr|ThunderStorm", Storm = true, StormSound = "sfx_thunder", StrikeFx = "fx_Lightning|lightningAOE", StrikeSfx = "sfx_thunder|sfx_eikthyr_attack",
 			Moves = new[]

@@ -36,7 +36,7 @@ internal static class Biomes
 		new BiomeDef
 		{
 			Name = "Meadows",
-			Landmarks = "Greyling: Spawner_GreydwarfNest",
+			Landmarks = "Neck: Pickable_Flint; Boar: Pickable_Mushroom",
 			Pickables = "Pickable_Dandelion, Pickable_Mushroom, Pickable_Flint, Pickable_Stone, Pickable_Branch, RaspberryBush",
 			Ground = new Color(0.36f, 0.52f, 0.22f),
 			Monsters = "auto",

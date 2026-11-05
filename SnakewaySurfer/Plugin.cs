@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.13.0";
+	public const string PluginVersion = "1.14.0";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -37,6 +37,8 @@ public class Plugin : BaseUnityPlugin
 
 	internal static ConfigEntry<float> RunLevelsPerBiome = null!;
 	internal static ConfigEntry<float> MaxRunLevels = null!;
+	internal static ConfigEntry<float> RunXpPerSecond = null!;
+	internal static ConfigEntry<float> MaxRunXpSeconds = null!;
 	internal static ConfigEntry<float> FoodCooldownMinutes = null!;
 	internal static ConfigEntry<float> MinRunSecondsForFood = null!;
 
@@ -88,6 +90,16 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> BossSummon = null!;
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
+	internal static ConfigEntry<KeyCode> SprintKey = null!;
+	internal static ConfigEntry<KeyCode> BlockKey = null!;
+	internal static ConfigEntry<KeyCode> ThrowKey = null!;
+	internal static ConfigEntry<float> SprintSpeed = null!;
+	internal static ConfigEntry<float> MaxStamina = null!;
+	internal static ConfigEntry<float> SprintStamina = null!;
+	internal static ConfigEntry<float> BlockStamina = null!;
+	internal static ConfigEntry<float> StaminaRegen = null!;
+	internal static ConfigEntry<float> ParryWindow = null!;
+	internal static ConfigEntry<bool> PopupText = null!;
 	internal static ConfigEntry<float> AmbientLight = null!;
 	internal static ConfigEntry<float> HillHeight = null!;
 	internal static ConfigEntry<float> TrackBrightness = null!;
@@ -135,12 +147,18 @@ public class Plugin : BaseUnityPlugin
 		SoundVolume = Config.Bind("3 - Look", "Sound Volume", 0.8f,
 			new ConfigDescription("Volume of the minigame sounds.", new AcceptableValueRange<float>(0f, 1f)));
 
+		// Before 1.14 XP was given in levels, which is a lot of XP at a high skill (Sam). These two
+		// stay only so old config files load; they do nothing now.
 		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 0.08f,
-			new ConfigDescription("Run skill levels earned for each biome's length of track (fractions count, so half a biome gives half). It's levels at your current Run skill, so it slows down as your skill gets high, like vanilla. 0 turns XP off.",
-				new AcceptableValueRange<float>(0f, 10f)));
+			new ConfigDescription("Not used since 1.14 (see Run XP Per Second).", new AcceptableValueRange<float>(0f, 10f)));
 		MaxRunLevels = Config.Bind("2 - Rewards", "Max Run Levels Per Run", 0.75f,
-			new ConfigDescription("The most Run skill levels one run can give, however far you get (boss bonus distance included). 0 = no limit.",
-				new AcceptableValueRange<float>(0f, 10f)));
+			new ConfigDescription("Not used since 1.14 (see Max Run XP Seconds).", new AcceptableValueRange<float>(0f, 10f)));
+		RunXpPerSecond = Config.Bind("2 - Rewards", "Run XP Per Second", 0.5f,
+			new ConfigDescription("Run skill XP for each second of the run, as real XP (the game's own skill gain, so it takes longer to level as your skill gets high). 1 = the same as running in the world for that long. 0 turns XP off.",
+				new AcceptableValueRange<float>(0f, 5f)));
+		MaxRunXpSeconds = Config.Bind("2 - Rewards", "Max Run XP Seconds", 300f,
+			new ConfigDescription("Seconds of a run that count for XP at most (longer runs give no more). 0 = no limit.",
+				new AcceptableValueRange<float>(0f, 3600f)));
 		FoodCooldownMinutes = Config.Bind("2 - Rewards", "Food Cooldown Minutes", 30f,
 			new ConfigDescription("Real-time minutes after a food reward before the next run can give food again (saved on your character, so relogging doesn't reset it). XP has no cooldown.",
 				new AcceptableValueRange<float>(0f, 1440f)));
@@ -265,6 +283,15 @@ public class Plugin : BaseUnityPlugin
 			}
 			balance.Value = 4;
 		}
+		if (balance.Value < 5)
+		{
+			// 1.14 (Sam): greydwarf nests are Black Forest things, not Meadows ones.
+			if (s_landmarks[0].Value == "Greyling: Spawner_GreydwarfNest")
+			{
+				s_landmarks[0].Value = Biomes.Defaults[0].Landmarks;
+			}
+			balance.Value = 5;
+		}
 
 		DebugLog = Config.Bind("9 - Debug", "Log Details", false,
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
@@ -288,6 +315,26 @@ public class Plugin : BaseUnityPlugin
 			"The Pause Key freezes the minigame: the run, creatures, effects and sounds. It also pauses by itself while the game's menu (Esc) is open.");
 		PauseKey = Config.Bind("2 - Keys", "Pause Key", KeyCode.P,
 			"Pauses and resumes the minigame.");
+		SprintKey = Config.Bind("2 - Keys", "Sprint Key", KeyCode.LeftShift,
+			"Hold to sprint: faster, so you can get past an attack before it lands. Uses stamina.");
+		BlockKey = Config.Bind("2 - Keys", "Block Key", KeyCode.Mouse1,
+			"Hold to block a creature's attack with your shield (costs stamina per blocked hit, and you run a little slower). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas and tar can't be blocked.");
+		ThrowKey = Config.Bind("2 - Keys", "Throw Key", KeyCode.Mouse0,
+			"Throws a spear you picked up at the boss (Eikthyr): it flies down your lane, so throw when he's lined up with you.");
+		SprintSpeed = Config.Bind("1 - Run", "Sprint Speed", 1.35f,
+			new ConfigDescription("How much faster you run while sprinting.", new AcceptableValueRange<float>(1f, 2f)));
+		MaxStamina = Config.Bind("1 - Run", "Stamina", 100f,
+			new ConfigDescription("Stamina for sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+		SprintStamina = Config.Bind("1 - Run", "Sprint Stamina Per Second", 18f,
+			new ConfigDescription("Stamina used each second of sprinting.", new AcceptableValueRange<float>(0f, 100f)));
+		BlockStamina = Config.Bind("1 - Run", "Block Stamina", 30f,
+			new ConfigDescription("Stamina used by each blocked hit (a parry is free). Without enough, the guard breaks and the hit gets through.", new AcceptableValueRange<float>(0f, 200f)));
+		StaminaRegen = Config.Bind("1 - Run", "Stamina Regen Per Second", 22f,
+			new ConfigDescription("Stamina recovered each second once you stop sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
+		ParryWindow = Config.Bind("1 - Run", "Parry Window", 0.3f,
+			new ConfigDescription("Seconds before a hit in which pressing block parries it.", new AcceptableValueRange<float>(0.05f, 1f)));
+		PopupText = Config.Bind("3 - Look", "Popup Text", false,
+			"Show text pop-ups during the run (\"Entering ...\", boss messages, JUMP!/SLIDE!). Off: the run speaks through sounds, flashes and the HUD instead.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",
 			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
 		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",

@@ -293,6 +293,8 @@ internal sealed partial class SurfGame
 					int left = boss.Amount - m_items;
 					m_banner = $"Find {left} more {ItemName(boss.Item)} to face {boss.Name}!";
 					m_bannerTime = 2.5f;
+					// A nudge at the item's icon instead of words.
+					m_iconPulse = 1f;
 				}
 			}
 		}
@@ -399,7 +401,12 @@ internal sealed partial class SurfGame
 			m_items = 0;
 		}
 		m_items++;
+		m_iconPulse = 1f;
 		m_audio.Play(Sfx.Coin, 1f, 0.8f);
+		if (m_items >= boss.Amount)
+		{
+			m_audio.Play(Sfx.Biome, 0.8f, 0.85f);
+		}
 		if (m_items < boss.Amount)
 		{
 			m_banner = $"{ItemName(boss.Item)} {m_items}/{boss.Amount}";
@@ -412,6 +419,7 @@ internal sealed partial class SurfGame
 	private void StartBoss(Segment seg)
 	{
 		EndBoss();
+		ResetSpears();
 		BossDef? def = Progress.BossOf(seg.Biome);
 		GameObject? prefab = def != null ? Pictures.Prefab(def.Prefab) : null;
 		if (def == null || prefab == null)
@@ -992,7 +1000,7 @@ internal sealed partial class SurfGame
 			baseY = 0.3f;
 		}
 		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + baseY, z);
-		GameObject marker = MakeMarker(lane, z, 1.6f, m_markerMaterial);
+		GameObject marker = MakeMarker(lane, z, 1.6f, JumpMaterial);
 		marker.transform.SetParent(go.transform, true);
 		Thing t = new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, BaseY = baseY, HalfLength = 0.35f, Label = def.Name, Hint = "JUMP!", CrashText = $"{def.Name} tripped you up! (Jump the low ones.)" };
 		m_things.Add(t);
@@ -1036,7 +1044,7 @@ internal sealed partial class SurfGame
 		glow.intensity = 1.4f;
 		glow.color = def.Tint;
 		glow.cullingMask = 1 << m_layer;
-		GameObject marker = MakeMarker(lane, z, 1.6f, m_markerMaterial);
+		GameObject marker = MakeMarker(lane, z, 1.6f, SlideMaterial);
 		marker.transform.SetParent(root.transform, true);
 		Thing t = new Thing { Go = root, Kind = Kind.High, Lane = lane, Z = z, HalfLength = 0.35f, Label = def.Name, Hint = "SLIDE!", CrashText = $"{def.Name} caught you standing! (Slide under the high ones.)" };
 		m_things.Add(t);
@@ -1076,7 +1084,7 @@ internal sealed partial class SurfGame
 		Renderer r = wave.GetComponent<Renderer>();
 		r.sharedMaterial = m_terrainTrack ?? b.Ground;
 		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-		GameObject band = MakeMarker(lane, z, 1.6f, m_markerMaterial);
+		GameObject band = MakeMarker(lane, z, 1.6f, JumpMaterial);
 		band.transform.SetParent(wave.transform, true);
 		GameObject? fx = def.StrikeFx.Length > 0 ? FindFx(def.StrikeFx) : null;
 		if (fx == null && attack != null)
@@ -1130,6 +1138,7 @@ internal sealed partial class SurfGame
 			int left = BossHitsNeeded - m_bossHits;
 			m_banner = $"{def.HitVerb} {def.Name}! {left} more";
 			m_bannerTime = 1.8f;
+			m_iconPulse = 1f;
 			return;
 		}
 
@@ -1149,6 +1158,8 @@ internal sealed partial class SurfGame
 			{
 				m_bonusDistance += Plugin.BiomeLength.Value * 2f;
 				m_banner = "Boss rush complete!" + (FullRush() ? "\n" + SurferShoes.Give(m_player) : "\n(Beat all six in a row for the golden shoes.)");
+				// A reward worth words.
+				m_bannerKeep = true;
 			}
 		}
 		else
@@ -1216,13 +1227,8 @@ internal sealed partial class SurfGame
 		if (m_boss != null && m_bossSink < 0f)
 		{
 			string rush = m_bossSeg != null && m_bossSeg.Rush ? $"Boss rush {m_bossSeg.RushIndex + 1}/{RushBosses().Count}: " : "";
-			return $"   ·   {rush}{m_boss.Name}: {m_bossHits}/{BossHitsNeeded} hits";
-		}
-		Segment here = SegAt(m_z);
-		BossDef? boss = BossFor(here);
-		if (boss != null && here.End == float.MaxValue)
-		{
-			return $"   ·   {ItemName(boss.Item)} {Mathf.Min(m_items, boss.Amount)}/{boss.Amount}";
+			// The boss's health and the item count are on the HUD (SurfHud.cs).
+			return rush.Length > 0 ? "   ·   " + rush.TrimEnd(' ', ':') : "";
 		}
 		return "";
 	}
@@ -1321,6 +1327,10 @@ internal sealed partial class SurfGame
 			m_bossGo.transform.localPosition = Vector3.Lerp(m_bossGo.transform.localPosition, new Vector3(x, RoadY(m_bossZ) + y, m_bossZ), dt * 4f);
 			m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.Euler(0f, m_chase ? 0f : 180f, 0f), 360f * dt);
 		}
+		if (UpdateBolt(dt))
+		{
+			return;
+		}
 		if (canInput)
 		{
 			float sx = (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
@@ -1339,22 +1349,77 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// The bolt in flight (1.14, Sam: it needs travel time): it flies to where you aimed, and
+	// hits if she's there when it arrives, so you lead her as she weaves.
+	private GameObject? m_bolt;
+	private Vector3 m_boltFrom;
+	private Vector3 m_boltTo;
+	private float m_boltTime;
+	private float m_boltDuration;
+	private const float BoltSpeed = 45f;
+
 	private void FireBallista()
 	{
-		m_aimTime = 0f;
 		m_audio.Play(Sfx.ClubSwing, 1f, 0.8f);
-		if (m_bossGo == null || m_camera == null)
+		m_audio.Play("sfx_reload_start|sfx_arrow_hit", 0.7f, 1.2f);
+		if (m_bossGo == null || m_camera == null || m_bolt != null)
 		{
+			m_aimTime = 0f;
 			return;
 		}
-		// Hit if the crosshair is on her body (screen-space distance to her centre, scaled by
-		// how big she looks).
-		Vector3 centre = m_bossGo.transform.position + Vector3.up * (m_boss != null ? m_boss.MaxHeight * 0.4f : 2f);
-		Vector3 sp = m_camera.WorldToScreenPoint(centre);
-		Vector3 top = m_camera.WorldToScreenPoint(centre + m_camera.transform.up * (m_boss != null ? m_boss.MaxHeight * 0.5f : 2f));
-		float radius = Mathf.Max(Screen.height * 0.05f, Vector2.Distance(sp, top));
-		Vector2 aim = new Vector2(m_aim.x * Screen.width, m_aim.y * Screen.height);
-		if (sp.z > 0f && Vector2.Distance(aim, sp) <= radius)
+		// Along the crosshair's ray, as far off as she is.
+		Vector3 centre = BossCentre();
+		Ray ray = m_camera.ScreenPointToRay(new Vector3(m_aim.x * Screen.width, m_aim.y * Screen.height, 0f));
+		float depth = Vector3.Distance(m_camera.transform.position, centre);
+		m_boltFrom = m_avatar != null ? m_avatar.transform.position + m_stage.up * 1.6f : ray.origin;
+		m_boltTo = ray.origin + ray.direction * depth;
+		m_boltDuration = Mathf.Max(0.25f, Vector3.Distance(m_boltFrom, m_boltTo) / BoltSpeed);
+		m_boltTime = 0f;
+		GameObject? prefab = null;
+		foreach (string name in (m_boss?.HitItem ?? "").Split('|'))
+		{
+			prefab = Pictures.Item(name.Trim());
+			if (prefab != null)
+			{
+				break;
+			}
+		}
+		GameObject bolt = prefab != null ? Fitted(Picture(prefab), Quaternion.identity, new Vector3(1.6f, 1.6f, 1.6f), true, 3f) : GameObject.CreatePrimitive(PrimitiveType.Sphere);
+		Collider c = bolt.GetComponent<Collider>();
+		if (c != null)
+		{
+			Destroy(c);
+		}
+		bolt.transform.SetParent(m_stage, true);
+		Pictures.SetLayer(bolt, m_layer);
+		bolt.transform.position = m_boltFrom;
+		bolt.transform.rotation = Quaternion.LookRotation(m_boltTo - m_boltFrom, m_stage.up);
+		m_bolt = bolt;
+		// Keep the aim going (the run stays stopped) until it lands.
+		m_aimTime = 999f;
+	}
+
+	private Vector3 BossCentre() => m_bossGo!.transform.position + m_stage.up * (m_boss != null ? m_boss.MaxHeight * 0.4f : 2f);
+
+	// True while a bolt is flying (UpdateAim does nothing else then).
+	private bool UpdateBolt(float dt)
+	{
+		if (m_bolt == null)
+		{
+			return false;
+		}
+		m_boltTime += dt;
+		float p = Mathf.Clamp01(m_boltTime / m_boltDuration);
+		m_bolt.transform.position = Vector3.Lerp(m_boltFrom, m_boltTo, p);
+		if (p < 1f)
+		{
+			return true;
+		}
+		Destroy(m_bolt);
+		m_bolt = null;
+		m_aimTime = 0f;
+		float radius = Mathf.Max(2.2f, (m_boss != null ? m_boss.MaxHeight : 4f) * 0.55f);
+		if (m_bossGo != null && Vector3.Distance(BossCentre(), m_boltTo) <= radius)
 		{
 			BossHit();
 		}
@@ -1362,16 +1427,27 @@ internal sealed partial class SurfGame
 		{
 			m_banner = "Missed! Grab another bolt.";
 			m_bannerTime = 1.8f;
+			m_audio.Play(Sfx.Miss, 1f, 0.8f);
 		}
+		return true;
 	}
 
 	private void AimGui(float k, float w, float h)
 	{
 		float x = m_aim.x * w;
 		float y = (1f - m_aim.y) * h;
+		if (m_bolt != null)
+		{
+			return;
+		}
 		Shadowed(new Rect(x - 60 * k, y - 60 * k, 120 * k, 120 * k), "+", m_big!);
-		Shadowed(new Rect(w * 0.1f, h * 0.12f, w * 0.8f, 100 * k),
-			$"Aim the ballista!  A/D/W/S to aim, Space to fire  ({Mathf.Max(0f, m_aimTime):0.0} s)", m_mid!);
+		// The time left to aim, as a shrinking bar under the crosshair.
+		Bar(new Rect(x - 50 * k, y + 50 * k, 100 * k, 8 * k), m_aimTime / AimSeconds, new Color(1f, 0.85f, 0.3f));
+		if (Plugin.PopupText.Value)
+		{
+			Shadowed(new Rect(w * 0.1f, h * 0.12f, w * 0.8f, 100 * k),
+				$"Aim the ballista!  A/D/W/S to aim, Space to fire  ({Mathf.Max(0f, m_aimTime):0.0} s)", m_mid!);
+		}
 	}
 
 	// ---------------------------------------------------------------- the dash (star trick)

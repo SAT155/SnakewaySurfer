@@ -590,7 +590,10 @@ internal sealed partial class SurfGame
 		m_bossZ = m_z + m_bossOff;
 		boss.Z = m_bossZ;
 		// It follows you across the lanes a little; the side bosses keep to their side.
-		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 2.5f) : m_x * 0.5f;
+		// One you throw spears at weaves between the lanes instead (time your throw).
+		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 2.5f)
+			: def.Throw ? Mathf.Sin(m_runTime * 0.9f) * LaneWidth * 1.05f
+			: m_x * 0.5f;
 		Vector3 p = m_bossGo!.transform.localPosition;
 		m_bossGo.transform.localPosition = new Vector3(Mathf.MoveTowards(p.x, x, dt * 5f), RoadY(m_bossZ) + def.Fly, m_bossZ);
 		m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.identity, 360f * dt);

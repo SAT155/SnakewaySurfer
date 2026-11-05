@@ -114,7 +114,8 @@ internal static class SpawnTables
 				// How many of it are around: mostly its cap (spawners refill up to it), a little
 				// more or less by how often it tries and how likely each try is.
 				float rate = Mathf.Max(0.01f, d.m_spawnChance / 100f) * 600f / Mathf.Max(1f, d.m_spawnInterval);
-				float weight = Mathf.Max(1, d.m_maxSpawned) * Mathf.Clamp(Mathf.Sqrt(rate), 0.25f, 1.5f);
+				// Capped at 6 so one creature with a big cap (swamp leeches: 10) doesn't crowd out the rest.
+				float weight = Mathf.Clamp(d.m_maxSpawned, 1, 6) * Mathf.Clamp(Mathf.Sqrt(rate), 0.25f, 1.5f);
 				if (log)
 				{
 					string flags = (d.m_spawnAtDay ? "" : " night") + (d.m_spawnAtNight ? "" : " day")

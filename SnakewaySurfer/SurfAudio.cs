@@ -74,32 +74,64 @@ internal sealed class SurfAudio
 		{
 			return cached;
 		}
-		Sound? sound = null;
-		ZSFX? sfx = FindSfx(name);
-		if (sfx != null)
-		{
-			AudioSource src = sfx.GetComponent<AudioSource>();
-			AudioClip[] clips = sfx.m_audioClips != null && sfx.m_audioClips.Length > 0
-				? sfx.m_audioClips
-				: src != null && src.clip != null ? new[] { src.clip } : new AudioClip[0];
-			if (clips.Length > 0)
-			{
-				sound = new Sound
-				{
-					Clips = clips,
-					Volume = Mathf.Clamp01((sfx.m_minVol + sfx.m_maxVol) * 0.5f) * (src != null ? src.volume : 1f),
-					MinPitch = sfx.m_minPitch,
-					MaxPitch = sfx.m_maxPitch,
-					Mixer = src != null ? src.outputAudioMixerGroup : null,
-				};
-			}
-		}
+		Sound? sound = FromSfx(FindSfx(name));
 		if (sound == null)
 		{
 			Plugin.Log.LogWarning($"Sound {name} not found; it stays silent.");
 		}
 		m_sounds[name] = sound;
 		return sound;
+	}
+
+	private static Sound? FromSfx(ZSFX? sfx)
+	{
+		if (sfx == null)
+		{
+			return null;
+		}
+		AudioSource src = sfx.GetComponent<AudioSource>();
+		AudioClip[] clips = sfx.m_audioClips != null && sfx.m_audioClips.Length > 0
+			? sfx.m_audioClips
+			: src != null && src.clip != null ? new[] { src.clip } : new AudioClip[0];
+		if (clips.Length == 0)
+		{
+			return null;
+		}
+		return new Sound
+		{
+			Clips = clips,
+			Volume = Mathf.Clamp01((sfx.m_minVol + sfx.m_maxVol) * 0.5f) * (src != null ? src.volume : 1f),
+			MinPitch = sfx.m_minPitch,
+			MaxPitch = sfx.m_maxPitch,
+			Mixer = src != null ? src.outputAudioMixerGroup : null,
+		};
+	}
+
+	// The sounds of one of the game's effect lists (a hit, a block, ...), as 2D sounds.
+	public void PlayEffects(EffectList? effects, float volume = 1f, float pitch = 1f)
+	{
+		if (effects?.m_effectPrefabs == null)
+		{
+			return;
+		}
+		foreach (EffectList.EffectData e in effects.m_effectPrefabs)
+		{
+			if (e == null || e.m_prefab == null || !e.m_enabled)
+			{
+				continue;
+			}
+			ZSFX sfx = e.m_prefab.GetComponentInChildren<ZSFX>(true);
+			if (sfx == null)
+			{
+				continue;
+			}
+			string key = "prefab:" + e.m_prefab.name;
+			if (!m_sounds.ContainsKey(key))
+			{
+				m_sounds[key] = FromSfx(sfx);
+			}
+			PlaySound(m_sounds[key], volume, pitch, false);
+		}
 	}
 
 	// Footsteps get their own source so they never cut off other sounds.
@@ -119,7 +151,12 @@ internal sealed class SurfAudio
 				break;
 			}
 		}
-		if (sound == null)
+		PlaySound(sound, volume, pitch, step);
+	}
+
+	private void PlaySound(Sound? sound, float volume, float pitch, bool step)
+	{
+		if (sound == null || !Plugin.Sounds.Value)
 		{
 			return;
 		}

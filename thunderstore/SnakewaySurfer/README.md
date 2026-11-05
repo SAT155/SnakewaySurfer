@@ -21,8 +21,10 @@ opens the next biome. Some coins become the boss's summoning item, in the game's
 (2 deer trophies, 3 ancient seeds, 10 withered bones, 3 dragon eggs, 5 fuling totems, 3
 sealbreaker fragments). You stay in the biome until you hold them all, then the boss fights
 you: every attack marks the lanes it will hit first, and you hurt it by grabbing what it fears
-(thunder stones, surtling cores, maces, bolts, frost arrows, bombs) from the track (for Moder
-the run stops and you aim the ballista yourself). Three hits
+(spears, surtling cores, maces, bolts, frost arrows, bombs) from the track. Eikthyr's spears
+you throw yourself (left mouse): the spear flies down your lane and he weaves between the lanes
+behind you, so throw when he's lined up. For Moder the run stops and you aim the ballista; the
+bolt takes a moment to fly, so lead her. Three hits
 wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
 `surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
 
@@ -30,8 +32,7 @@ wins and saves a checkpoint for the next biome. `surfsup` starts at your latest 
 its attacks come up the lanes from behind or land where you are. A red band rides along in the
 lanes it's aiming at (at least a second's warning), then the blow lands with the boss's own
 effects and sounds: Eikthyr's lightning, the Elder's roots bursting from the road, Bonemass's
-poison, Moder's breath, Yagluth's fire and meteors. Waves and bars race up behind you with a
-**JUMP!** or **SLIDE!** call as they reach you, its creatures run past in two lanes, and Eikthyr
+poison, Moder's breath, Yagluth's fire and meteors. Waves and bars race up behind you, its creatures run past in two lanes, and Eikthyr
 lowers his antlers and charges right up your lane. Left and right follow the screen while it
 faces back. The Elder's roots even split the path into five lanes for a moment: find one
 without red before they burst up. Each fight starts like at the altar: the summoning items rise
@@ -64,9 +65,24 @@ Friends without the mod see that too.
 | A / D or ← / → | Change lane |
 | W, ↑ or Space | Jump |
 | S, ↓, Ctrl or C | Slide (in the air: drop fast) |
+| Shift (hold) | Sprint: faster, uses stamina, to get past an attack before it lands |
+| Right mouse (hold) | Block a creature's attack (stamina per blow; you run a little slower) |
+| Right mouse just before a hit | Parry: free, and the attacker staggers |
+| Left mouse | Throw a spear you picked up (Eikthyr) |
 | P | Pause and carry on |
 | Space (after a crash) | Run again |
 | Esc | Stop and go back to the world |
+
+Stamina (the yellow bar at the bottom, shown when it isn't full) recharges after a second of
+not sprinting or blocking. Without enough for a blow, the guard breaks and the hit gets through.
+Logs, gas and tar can't be blocked.
+
+The marks on the lanes tell you what to do without any text: **red**, get out of that lane;
+**amber**, jump it; **blue**, slide under it. The summoning item shows as its icon with a count
+at the top, and in a fight the boss's health bar takes its place. Getting hurt flashes the
+screen red with your character's own hurt sound, blocks and parries ring with your shield's
+sounds, and bats in the Swamp come in swarms that slow you and take some stamina but no life.
+(Popup Text in the config brings back the old messages.)
 
 Your character can't move or use hotkeys while you play. If something hurts you in the real
 world, the game stops straight away (health lost because food is wearing off doesn't count).
@@ -78,9 +94,8 @@ crashes), borrowed from the game and heard only by you.
 
 At the end of each run:
 
-- **Run XP**: by default 0.08 of a Run level for each biome's length of track you ran
-  (fractions count), at most 0.75 levels a run. It's measured at your current Run level, so it slows down as your skill
-  gets high, the same way vanilla does.
+- **Run XP**: real Run XP, half of what running in the world for the same time gives (Run
+  XP Per Second 0.5; at most 300 seconds count). Higher levels need more XP, as in vanilla.
 - **One random food from the furthest biome you reached**, if the run lasted at least 30 seconds
   and you haven't had food from the minigame in the last 30 minutes (real time, saved on your
   character). With full bags, it drops at your feet.
@@ -101,6 +116,19 @@ game's normal syncing, so they work on a vanilla dedicated server, with or witho
 and for players without the mod.
 
 ## Changes
+
+- **1.14**: no more pop-up text during a run: the summoning item's icon and count and the boss's
+  health bar sit at the top, lane marks are coloured (red: leave the lane, amber: jump, blue:
+  slide), and hits flash red with your character's hurt sound. Sprint (Shift), block (right
+  mouse, stamina) and parry (block just before the hit, free). Eikthyr is hurt by spears you
+  throw, timed as he weaves; Moder's ballista bolt flies. Run XP is real XP (half of running in
+  the world) instead of a share of a level, which was a lot at high skill. Fairer timing: troll
+  logs land just before you, the troll's leap and its red lanes come later, big creatures and
+  shamans strike in time, fenrings wait and then leap further. Deer startle and light up their
+  lanes before crossing, packs spread out instead of a conga line, the Swamp has far fewer
+  abominations (and leeches), bats come in swarms, the Meadows lose the Black Forest's greydwarf
+  nests, and your steps splash and ripple in the Swamp's water. Eikthyr's storm has thick fog
+  and its rain.
 
 - **1.13**: the ground textures are really back: the game's terrain shader doesn't draw on the
   minigame's stage, so the land and the dirt path now use the game's own ground textures on a

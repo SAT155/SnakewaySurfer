@@ -17,14 +17,12 @@ internal static class Rewards
 	{
 		List<string> lines = new();
 
-		float levels = distance / Plugin.BiomeLength.Value * Plugin.RunLevelsPerBiome.Value;
-		if (Plugin.MaxRunLevels.Value > 0f)
+		// Real XP (1.14, Sam): what running in the world gives for the same time, scaled.
+		float xpSeconds = Plugin.MaxRunXpSeconds.Value > 0f ? Mathf.Min(seconds, Plugin.MaxRunXpSeconds.Value) : seconds;
+		float raise = xpSeconds * Plugin.RunXpPerSecond.Value;
+		if (raise > 0.001f)
 		{
-			levels = Mathf.Min(levels, Plugin.MaxRunLevels.Value);
-		}
-		if (levels > 0.001f)
-		{
-			float gained = AddRunLevels(player, levels);
+			float gained = AddRunXp(player, raise);
 			if (gained > 0.001f)
 			{
 				lines.Add($"Run skill +{gained:0.00} levels");
@@ -73,11 +71,11 @@ internal static class Rewards
 		return left.TotalMinutes > Plugin.FoodCooldownMinutes.Value ? TimeSpan.Zero : left;
 	}
 
-	// Adds a number of levels' worth of Run XP (fractions carry), using the game's own skill
-	// raise so level-up messages and effects play. Skills.RaiseSkill adds
-	// m_increseStep * factor * Game.m_skillGainRate and levels up at most once per call, resetting
-	// the accumulator, so it is fed one level at a time.
-	private static float AddRunLevels(Player player, float levels)
+	// Adds Run XP as the game does while you run in the world: it raises the Run skill by
+	// factor 1 for each second of running (Player.Update), so `raise` is in seconds of running.
+	// Skills.RaiseSkill levels up at most once per call and resets the accumulator, so it is fed
+	// in steps that stop at each level. Returns the levels gained (fractions included).
+	private static float AddRunXp(Player player, float raise)
 	{
 		Skills skills = player.m_skills;
 		if (skills == null)
@@ -91,7 +89,7 @@ internal static class Rewards
 			return 0f;
 		}
 		float before = skill.m_level + skill.m_accumulator / Mathf.Max(0.0001f, skill.GetNextLevelRequirement());
-		float remaining = levels;
+		float remaining = raise;
 		for (int guard = 0; remaining > 0.0001f && skill.m_level < 100f && guard < 200; guard++)
 		{
 			float req = skill.GetNextLevelRequirement();
@@ -99,16 +97,15 @@ internal static class Rewards
 			{
 				break;
 			}
-			float left = Mathf.Max(0f, req - skill.m_accumulator);
-			float want = remaining * req;
-			if (want >= left)
+			float toLevel = Mathf.Max(0f, req - skill.m_accumulator) / stepRate;
+			if (remaining >= toLevel)
 			{
-				skills.RaiseSkill(Skills.SkillType.Run, (left + 0.0001f) / stepRate);
-				remaining -= left / req;
+				skills.RaiseSkill(Skills.SkillType.Run, toLevel + 0.0001f);
+				remaining -= toLevel;
 			}
 			else
 			{
-				skills.RaiseSkill(Skills.SkillType.Run, want / stepRate);
+				skills.RaiseSkill(Skills.SkillType.Run, remaining);
 				remaining = 0f;
 			}
 		}

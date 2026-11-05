@@ -25,6 +25,34 @@ internal sealed partial class SurfGame
 
 	private readonly List<Lob> m_lobs = new();
 	private Material? m_markerMaterial;
+	// 1.14: the marks speak instead of text. Red: get out of this lane. Amber: jump it.
+	// Blue: slide under it.
+	private Material? m_jumpMaterial;
+	private Material? m_slideMaterial;
+
+	private Material? JumpMaterial
+	{
+		get
+		{
+			if (m_markerMaterial == null)
+			{
+				MakeMarkerMaterials();
+			}
+			return m_jumpMaterial;
+		}
+	}
+
+	private Material? SlideMaterial
+	{
+		get
+		{
+			if (m_markerMaterial == null)
+			{
+				MakeMarkerMaterials();
+			}
+			return m_slideMaterial;
+		}
+	}
 	private Material? m_gasMaterial;
 	private Material? m_tarMaterial;
 	private float m_slowTime;
@@ -76,7 +104,7 @@ internal sealed partial class SurfGame
 				c.Side = side;
 				c.FreeX = true;
 				c.X = side * (TrackHalf + 4f + k * 0.7f);
-				c.Go.transform.localPosition = new Vector3(c.X, RoadY(c.Z), c.Z);
+				c.Go.transform.localPosition = new Vector3(c.X, CrosserY(c.X, c.Z), c.Z);
 				// The picture faces -z; turn it to face across the track.
 				c.Go.transform.localRotation = Quaternion.Euler(0f, side > 0 ? 90f : -90f, 0f);
 			}
@@ -180,6 +208,11 @@ internal sealed partial class SurfGame
 			return false;
 		}
 		float distance = t.Z - m_z;
+		if (t.Nuisance)
+		{
+			UpdateBat(t, dt);
+			return true;
+		}
 		if (t.Chaser)
 		{
 			UpdateChaser(t, dt);
@@ -557,23 +590,30 @@ internal sealed partial class SurfGame
 		{
 			// Timed so the herd is on the track as you get there: the first one just past the
 			// middle, so the lane on the side they came from clears and the others don't.
-			float speed = (2f * TrackHalf + 11f) / 1.6f;
+			// 1.14 (Sam: deer appeared out of nowhere, sideswiping at the perfect moment): they
+			// cross slower, and first they startle (a sound, and the lanes they'll cross light
+			// up) about a second and a half before they bolt.
+			float speed = (2f * TrackHalf + 11f) / 2.3f;
 			float toMiddle = (Mathf.Abs(t.X) + LaneWidth * 0.5f) / speed;
-			if (distance < m_speed * toMiddle + 1f)
+			float bolt = m_speed * toMiddle + 1f;
+			if (t.Markers.Count == 0 && distance < bolt + m_speed * 1.5f + 3f)
+			{
+				// Where it will be as you pass: the middle lane and the far one.
+				t.Markers.Add(MakeMarker(1, t.Z, 2.4f, m_markerMaterial));
+				t.Markers.Add(MakeMarker(t.Side > 0 ? 0 : 2, t.Z, 2.4f, m_markerMaterial));
+				if (t.Info!.AlertSound.Length > 0)
+				{
+					m_audio.Play(t.Info.AlertSound, Mathf.Clamp01(1.1f - distance / 50f));
+				}
+			}
+			if (distance < bolt)
 			{
 				t.Phase = 1;
 				t.TargetX = -t.Side * (TrackHalf + 7f);
 				t.XSpeed = speed;
-				// Where it will be as you pass: the middle lane and the far one.
-				t.Markers.Add(MakeMarker(1, t.Z, 2.4f, m_markerMaterial));
-				t.Markers.Add(MakeMarker(t.Side > 0 ? 0 : 2, t.Z, 2.4f, m_markerMaterial));
 				if (t.Anim != null)
 				{
 					SetParam(t.Anim, "forward_speed", t.Info!.RunSpeed);
-				}
-				if (t.Info!.AlertSound.Length > 0)
-				{
-					m_audio.Play(t.Info.AlertSound, Mathf.Clamp01(1.1f - distance / 50f));
 				}
 			}
 		}
@@ -586,20 +626,25 @@ internal sealed partial class SurfGame
 				t.Life = 0.5f;
 			}
 		}
-		t.Go.transform.localPosition = new Vector3(t.X, RoadY(t.Z) + t.BaseY, t.Z);
+		t.Go.transform.localPosition = new Vector3(t.X, CrosserY(t.X, t.Z) + t.BaseY, t.Z);
 	}
+
+	// Off the track it stands on the land beside it, not buried in a bank (1.14: deer came
+	// out of nowhere).
+	private float CrosserY(float x, float z) => Mathf.Abs(x) > TrackHalf + 0.5f ? Mathf.Max(RoadY(z), HillHeight(x, z)) : RoadY(z);
 
 	private bool UpdateLeaper(Thing t, float dt, float distance)
 	{
 		if (t.Phase == 0)
 		{
-			if (distance < m_speed * 1.8f + 10f && distance > 4f)
+			// 1.14 (Sam): it waits longer, then leaps further than you'd expect (up to 14 m).
+			if (distance < m_speed * 1.35f + 8f && distance > 4f)
 			{
 				t.Phase = 1;
 				t.PhaseTime = 0f;
 				t.FromX = t.X;
 				t.FromZ = t.Z;
-				t.ToZ = Mathf.Max(m_z + m_speed * 0.9f + 4f, t.Z - 7f);
+				t.ToZ = Mathf.Max(m_z + m_speed * 0.8f + 2.5f, t.Z - 14f);
 				t.Lane = m_lane;
 				t.TargetX = LaneX(m_lane);
 				t.Collidable = false;
@@ -768,6 +813,8 @@ internal sealed partial class SurfGame
 			return;
 		}
 		m_markerMaterial = new Material(shader) { name = "SurfMarker", color = new Color(1f, 0.25f, 0.05f, 0.6f), renderQueue = 3100 };
+		m_jumpMaterial = new Material(shader) { name = "SurfJump", color = new Color(1f, 0.78f, 0.05f, 0.65f), renderQueue = 3100 };
+		m_slideMaterial = new Material(shader) { name = "SurfSlide", color = new Color(0.2f, 0.6f, 1f, 0.6f), renderQueue = 3100 };
 		m_gasMaterial = new Material(shader) { name = "SurfGas", color = new Color(0.45f, 0.75f, 0.2f, 0.4f), renderQueue = 3100 };
 		m_tarMaterial = new Material(shader) { name = "SurfTar", color = new Color(0.05f, 0.04f, 0.03f, 0.85f), renderQueue = 3100 };
 	}
