@@ -14,7 +14,7 @@ namespace SnakewaySurfer;
 internal sealed partial class SurfGame
 {
 	private const float BallistaReload = 0.5f;
-	private const float BoltSpeed = 62f;
+	private const float SeaBoltSpeed = 62f;
 
 	private sealed class SeaFoe
 	{
@@ -1364,7 +1364,7 @@ internal sealed partial class SurfGame
 		return wrapper;
 	}
 
-	private void FireBallista()
+	private void FireSeaBallista()
 	{
 		m_reload = BallistaReload;
 		Vector2 f = HeadingVector();
@@ -1373,7 +1373,7 @@ internal sealed partial class SurfGame
 		float y = m_boatY + 1.6f;
 		go.transform.localPosition = new Vector3(bow.x, y, bow.y);
 		go.transform.localRotation = Quaternion.LookRotation(new Vector3(f.x, 0f, f.y));
-		m_ballistaBolts.Add(new BallistaBolt { Go = go, P = bow, V = f * (BoltSpeed + m_boatSpeed), Y = y, Life = 1.1f });
+		m_ballistaBolts.Add(new BallistaBolt { Go = go, P = bow, V = f * (SeaBoltSpeed + m_boatSpeed), Y = y, Life = 1.1f });
 		GameObject? fx = FindFx("fx_turret_fire");
 		if (fx != null)
 		{

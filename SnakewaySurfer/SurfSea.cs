@@ -549,7 +549,7 @@ internal sealed partial class SurfGame
 			}
 			if (Input.GetKey(Plugin.ThrowKey.Value) && m_reload <= 0f)
 			{
-				FireBallista();
+				FireSeaBallista();
 			}
 		}
 
