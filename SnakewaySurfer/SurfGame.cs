@@ -1645,6 +1645,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// A crash, unless the Invincible test setting is on: then the thing is just passed through.
 	private void Hit(Thing t, string why)
 	{
+		// Blocks and parries work in Invincible mode too, so they can be practised.
+		if (m_hurtTime <= 0f && TryBlock(t))
+		{
+			return;
+		}
 		if (Plugin.Invincible.Value)
 		{
 			t.Collidable = false;
@@ -1654,10 +1659,6 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		if (m_hurtTime > 0f)
-		{
-			return;
-		}
-		if (TryBlock(t))
 		{
 			return;
 		}
