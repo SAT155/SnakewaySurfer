@@ -46,15 +46,29 @@ internal sealed partial class SurfGame
 	}
 
 	// A silent copy of an effect prefab, played once at a local spot on the stage.
-	private GameObject PlayFx(GameObject prefab, Vector3 local, Quaternion rotation, float life = 4f, Transform? parent = null)
+	private GameObject PlayFx(GameObject prefab, Vector3 local, Quaternion rotation, float life = 4f, Transform? parent = null, float scale = 1f)
 	{
 		GameObject go = Instantiate(Picture(prefab), parent != null ? parent : m_stage, false);
 		go.SetActive(true);
 		go.transform.localPosition = local;
 		go.transform.localRotation = rotation;
+		if (scale != 1f)
+		{
+			go.transform.localScale *= scale;
+		}
 		foreach (ParticleSystem ps in go.GetComponentsInChildren<ParticleSystem>(true))
 		{
+			if (scale != 1f)
+			{
+				// Particles only grow with the copy when they take its whole scale.
+				ParticleSystem.MainModule main = ps.main;
+				main.scalingMode = ParticleSystemScalingMode.Hierarchy;
+			}
 			ps.Play(true);
+		}
+		foreach (Light l in go.GetComponentsInChildren<Light>(true))
+		{
+			l.range *= scale;
 		}
 		foreach (Light l in go.GetComponentsInChildren<Light>(true))
 		{
@@ -269,7 +283,10 @@ internal sealed partial class SurfGame
 		float side = Random.value < 0.5f ? -1f : 1f;
 		float z = m_z + ChaseSign * Random.Range(25f, 70f);
 		float x = side * Random.Range(TrackHalf + 10f, TrackHalf + 40f);
-		PlayFx(bolt, new Vector3(x, LandAt(x, z, out _, out _), z), Quaternion.identity, 3f);
+		Vector3 ground = new Vector3(x, LandAt(x, z, out _, out _), z);
+		PlayFx(bolt, ground, Quaternion.identity, 3f);
+		// 1.15.2: a visible streak from the clouds, not just the flash.
+		LightningBolt(ground + new Vector3(Random.Range(-10f, 10f), 70f, 0f), ground, 0.9f, 0.4f, 0f, m_bossEnvDef?.Tint ?? new Color(0.6f, 0.8f, 1f));
 	}
 
 	private void ClearWeather()
@@ -285,6 +302,7 @@ internal sealed partial class SurfGame
 		m_bossEnv = null;
 		m_bossEnvDef = null;
 		m_flash = 0f;
+		ClearBolts();
 	}
 
 	// Blends the lighting toward the boss's weather (daytime values, like the biomes). The

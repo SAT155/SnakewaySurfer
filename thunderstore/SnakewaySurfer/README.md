@@ -118,6 +118,9 @@ and for players without the mod.
 
 ## Changes
 
+- **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
+  whole track; his antlers glow and spark while a blow winds up, and his shots carry their own
+  light. 1.15.1: the summoning sounds are quieter.
 - **1.15**: `surfsup` opens a grid of the biomes and star laps you've reached; after a crash,
   R retries the biome you fell in and M goes back to the grid. Bosses other than Eikthyr and
   Moder are fought by parrying: grab the weapon, the boss closes in and swings at your lane

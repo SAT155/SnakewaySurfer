@@ -964,7 +964,12 @@ internal sealed partial class SurfGame
 			at.z = t.Z - t.HalfLength + 1f;
 		}
 		bool shown = false;
-		if (def.StrikeFx.Length > 0 && FindFx(def.StrikeFx) is GameObject fx)
+		if (def.Storm)
+		{
+			StormStrike(def, at);
+			shown = true;
+		}
+		else if (def.StrikeFx.Length > 0 && FindFx(def.StrikeFx) is GameObject fx)
 		{
 			PlayFx(fx, at, Quaternion.identity, 3f);
 			shown = true;

@@ -341,7 +341,13 @@ internal sealed partial class SurfGame
 		{
 			Vector3 at = new Vector3(LaneX(lane), RoadY(m_z), m_z);
 			bool shown = false;
-			if (strikeFx != null)
+			if (def.Storm)
+			{
+				// 1.15.2: Eikthyr's blows come down as real bolts.
+				StormStrike(def, at);
+				shown = true;
+			}
+			else if (strikeFx != null)
 			{
 				PlayFx(strikeFx, at, Quaternion.identity, 3f);
 				shown = true;
@@ -767,6 +773,10 @@ internal sealed partial class SurfGame
 			float targetX = LaneX(lane);
 			wrapper.transform.localPosition = new Vector3(startX, RoadY(startZ) + y, startZ);
 			wrapper.transform.localRotation = Quaternion.LookRotation(new Vector3((targetX - startX) / time, 0f, m_speed + relative));
+			if (def.Storm)
+			{
+				ChargeShot(def, wrapper);
+			}
 			m_things.Add(new Thing
 			{
 				Go = wrapper,
@@ -800,6 +810,11 @@ internal sealed partial class SurfGame
 		if (type == "wave")
 		{
 			m_shake = Mathf.Max(m_shake, 0.3f);
+			if (def.Storm && m_bossGo != null)
+			{
+				// 1.15.2: his stomp calls a bolt down at his hooves.
+				StormStrike(def, new Vector3(m_bossGo.transform.localPosition.x, RoadY(z), z), false);
+			}
 		}
 		for (int lane = 0; lane < 3; lane++)
 		{

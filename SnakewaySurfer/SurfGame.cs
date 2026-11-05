@@ -1364,6 +1364,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			UpdateThings(dt);
 		}
 		UpdateRipples(dt);
+		UpdateBolts(dt);
 		PlaceAvatar(dt);
 		PlaceCamera(dt);
 	}
