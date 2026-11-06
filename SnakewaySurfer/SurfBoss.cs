@@ -95,6 +95,7 @@ internal sealed partial class SurfGame
 		m_itemSeg = null;
 		m_items = 0;
 		m_nextItemZ = 0f;
+		m_itemStartSeg = null;
 		m_bonusDistance = 0f;
 		EndBoss();
 	}
@@ -326,13 +327,23 @@ internal sealed partial class SurfGame
 		UpdateBoss(dt);
 	}
 
+	// 1.16.1 (Sam): where the first summoning item of a stretch may come up: 30 to 50 seconds
+	// into it, never right as the biome begins.
+	private Segment? m_itemStartSeg;
+	private float m_itemStartZ;
+
 	// Summoning items come up in place of some coins while you still need them.
 	private bool MaybeSpawnItem(int lane, float z)
 	{
 		Segment s = SegAt(z);
 		BossDef? boss = BossFor(s);
+		if (boss != null && m_itemStartSeg != s)
+		{
+			m_itemStartSeg = s;
+			m_itemStartZ = s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
+		}
 		// A good stretch of the biome first (also before the stretch's own bookkeeping starts).
-		if (boss == null || s.End != float.MaxValue || z < m_nextItemZ || z < s.Start + Plugin.BiomeLength.Value * 0.45f || (s == m_itemSeg && m_items >= boss.Amount))
+		if (boss == null || s.End != float.MaxValue || z < m_nextItemZ || z < m_itemStartZ || (s == m_itemSeg && m_items >= boss.Amount))
 		{
 			return false;
 		}
@@ -341,7 +352,9 @@ internal sealed partial class SurfGame
 		{
 			return false;
 		}
-		float spacing = Mathf.Max(16f, Plugin.BiomeLength.Value / (boss.Amount * 1.7f));
+		// 1.16.1 (Sam): the fewer a boss needs, the rarer each one is (two deer trophies are far
+		// apart; ten withered bones come as before).
+		float spacing = Mathf.Max(16f, Plugin.BiomeLength.Value / (boss.Amount * 1.7f)) * Mathf.Clamp(6f / Mathf.Max(1, boss.Amount), 1f, 3f);
 		if (z > s.Start + Plugin.BiomeLength.Value)
 		{
 			spacing *= 0.5f;
@@ -855,7 +868,8 @@ internal sealed partial class SurfGame
 				break;
 			}
 			case "branches":
-				SpawnBranches(def, b, m_bossHits >= 2 ? 3 : 2);
+				// 1.16.1 (Sam): the Elder's maze of six paths, longer as the fight goes on.
+				SpawnMaze(def, b, m_bossHits >= 2 ? 8 : 6);
 				break;
 			case "grab":
 			{

@@ -81,10 +81,33 @@ internal sealed partial class SurfGame
 			h.Go.transform.localRotation = Quaternion.Euler(0f, side > 0 ? 60f : -60f, 0f);
 			return true;
 		}
-		if (s.Has("chaser"))
+		if (s.Has("chaser") || (s.Has("behind") && Random.value < 0.35f))
 		{
+			// (1.16.1, Sam: leeches also swim up from behind.)
 			Thing c = SpawnCreature(e, lane, z, Kind.Block, 0f, biomeIndex, "still");
 			MakeChaser(c, false);
+			return true;
+		}
+		if (s.Has("sideline") && Random.value < 0.45f && CreatureInfo.Of(e.Prefab).Ranged.Count > 0 && Plugin.RangedAttacks.Value)
+		{
+			// 1.16.1 (Sam): draugr shoot arrows from the swamp's sidelines: one or two on a bank
+			// beside the track, loosing at your lane as you come (roll under, or change lanes).
+			int bank = Random.value < 0.5f ? -1 : 1;
+			int count = Random.value < 0.4f ? 2 : 1;
+			for (int k = 0; k < count; k++)
+			{
+				Thing a = SpawnCreature(e, lane, z + k * 9f, Kind.Block, 0f, biomeIndex, "sideline");
+				a.X = bank * (TrackHalf + 2.2f + Random.Range(0f, 1.6f));
+				a.TargetX = a.X;
+				a.FreeX = true;
+				a.Collidable = false;
+				a.Sideline = true;
+				a.Attacked = true;
+				a.Side = bank;
+				a.Cooldown = Random.Range(0f, 0.6f);
+				a.Go.transform.localPosition = new Vector3(a.X, HillHeight(a.X, a.Z), a.Z);
+				a.Go.transform.localRotation = Quaternion.Euler(0f, bank > 0 ? 60f : -60f, 0f);
+			}
 			return true;
 		}
 		if (slot > 0)
@@ -189,6 +212,24 @@ internal sealed partial class SurfGame
 			MakeChaser(t, true);
 			return;
 		}
+		if (s.Has("chaser") && Random.value < 0.5f)
+		{
+			// 1.16.1 (Sam): a wraith drifts up behind you, low, and swipes your lane (step aside
+			// or jump); its marked lane shows where.
+			MakeChaser(t, false);
+			t.BaseY = 0.4f;
+			return;
+		}
+		if (s.Has("chaser"))
+		{
+			// The others come at you down the track and drift across the lanes after you,
+			// settling a moment before they reach you (roll under, or dodge aside late).
+			t.Tracker = true;
+			t.FreeX = true;
+			t.X = LaneX(t.Lane);
+			t.TargetX = t.X;
+			return;
+		}
 		if (s.Has("flyshooter") || s.Has("bomb") || s.Has("tickdrop"))
 		{
 			t.Collidable = false;
@@ -217,6 +258,22 @@ internal sealed partial class SurfGame
 		{
 			UpdateChaser(t, dt);
 			return true;
+		}
+		if (t.Sideline)
+		{
+			UpdateSideline(t, dt, distance);
+			return true;
+		}
+		if (t.Tracker && t.Go != null)
+		{
+			if (distance > m_speed * 0.45f + 3f && distance < 60f)
+			{
+				t.X = Mathf.MoveTowards(t.X, m_x, 3.4f * dt);
+			}
+			t.TargetX = t.X;
+			t.Lane = Mathf.Clamp(Mathf.RoundToInt(t.X / LaneWidth) + 1, 0, 2);
+			Vector3 at = t.Go.transform.localPosition;
+			t.Go.transform.localPosition = new Vector3(t.X, at.y, at.z);
 		}
 		if (t.Helper)
 		{
@@ -554,6 +611,58 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// An archer beside the track: turns to follow you and looses a shot or two at your lane.
+	private void UpdateSideline(Thing t, float dt, float distance)
+	{
+		if (t.Go == null || distance < -4f)
+		{
+			return;
+		}
+		if (t.BaseY > 0f)
+		{
+			// Hovering, bobbing a little (surtlings over their fire).
+			float bob = Mathf.Sin(Time.time * 2.2f + t.Seed) * 0.3f;
+			t.Go.transform.localPosition = new Vector3(t.X + Mathf.Sin(Time.time * 1.3f + t.Seed) * 0.4f, HillHeight(t.X, t.Z) + t.BaseY + bob, t.Z);
+		}
+		Vector2 to = new Vector2(m_x - t.X, m_z - t.Z);
+		if (to.sqrMagnitude > 0.01f)
+		{
+			float yaw = Mathf.Atan2(to.x, to.y) * Mathf.Rad2Deg - 180f;
+			t.Go.transform.localRotation = Quaternion.Slerp(t.Go.transform.localRotation, Quaternion.Euler(0f, yaw, 0f), 1f - Mathf.Exp(-6f * dt));
+		}
+		if (t.Attack == null || !t.Attack.Ranged)
+		{
+			return;
+		}
+		if (t.FireIn >= 0f)
+		{
+			t.FireIn -= dt;
+			if (t.FireIn < 0f)
+			{
+				FireShot(t);
+			}
+			return;
+		}
+		t.Cooldown -= dt;
+		float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, 0.8f);
+		float lead = m_speed * windup;
+		if (t.Cooldown <= 0f && t.Phase < 2 && distance < lead + 42f && distance > lead + m_speed * 0.9f + 6f)
+		{
+			if (!t.Alerted)
+			{
+				t.Alerted = true;
+				if (t.Info != null && t.Info.AlertSound.Length > 0)
+				{
+					m_audio.Play(t.Info.AlertSound, 0.7f);
+				}
+			}
+			TriggerAttack(t);
+			t.FireIn = windup;
+			t.Cooldown = Random.Range(1.8f, 2.6f);
+			t.Phase++;
+		}
+	}
+
 	private void UpdateSwitcher(Thing t, float dt, float distance)
 	{
 		int nearest = Mathf.Clamp(Mathf.RoundToInt(t.X / LaneWidth) + 1, 0, 2);
@@ -569,8 +678,10 @@ internal sealed partial class SurfGame
 					to = nearest == 0 ? 1 : 1;
 				}
 				t.TargetX = LaneX(to);
-				t.XSpeed = 4.5f;
-				t.SwitchTimer = Random.Range(0.8f, 1.4f);
+				// 1.16.1 (Sam): slow swimmers (leeches) weave more slowly than wolves.
+				float pace = Mathf.Clamp((t.Info?.RunSpeed ?? 6f) / 6f, 0.45f, 1f);
+				t.XSpeed = 4.5f * pace;
+				t.SwitchTimer = Random.Range(0.8f, 1.4f) / pace;
 			}
 		}
 		else
@@ -856,7 +967,9 @@ internal sealed partial class SurfGame
 			return;
 		}
 		float slope = Mathf.Atan2(RoadY(z + 1f) - RoadY(z - 1f), 2f) * Mathf.Rad2Deg;
-		marker.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.08f, z);
+		// 1.16.2 (Sam: abominations showed no lane markers): in the Swamp the water lies above the
+		// road, so markers there sit on its surface instead of under it.
+		marker.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.08f + WaterWeight(z) * WaterDepth, z);
 		marker.transform.localRotation = Quaternion.Euler(90f - slope, 0f, 0f);
 	}
 

@@ -21,8 +21,9 @@ namespace SnakewaySurfer;
 // leaper (leaps into your lane, landing spot marked), headleap (some leap at head height: slide).
 // Others: hurdle (short enough to jump), stomper (heavy, shakes the camera), ambush (hidden until
 // close), chaser (comes from behind and swipes your lane), behind (some dive in from behind with a
-// buzz: slide), helper (friendly, beside the track, sometimes clears a threat ahead), talk (shouts
-// its lines as you pass).
+// buzz: slide; ground creatures swim or creep up), helper (friendly, beside the track, sometimes
+// clears a threat ahead), talk (shouts its lines as you pass), sideline (1.16.1: stands beside the
+// track and shoots at your lane as you come).
 internal sealed class Schema
 {
 	public readonly HashSet<string> Tags = new(StringComparer.OrdinalIgnoreCase);
@@ -51,14 +52,41 @@ internal static class Schemas
 		"Greydwarf: swarm charger; Greydwarf_Elite: sweep stomper waiter; Greydwarf_Shaman: gas2 waiter; " +
 		"Troll: lob smash stomper charger; Skeleton: shooter waiter; Skeleton_NoArcher: waiter; Skeleton_Poison: waiter; " +
 		"Bjorn: charger sweep; " +
-		"Draugr: shooter waiter charger; Draugr_Elite: waiter charger; Draugr_Ranged: shooter waiter; " +
-		"Blob: hurdle gas3 waiter; BlobElite: hurdle gas3 waiter; Leech: hurdle swarm waiter; " +
+		"Draugr: shooter waiter charger sideline; Draugr_Elite: waiter charger; Draugr_Ranged: shooter waiter sideline; " +
+		"Blob: hurdle gas3 waiter; BlobElite: hurdle gas3 waiter; Leech: hurdle swarm switcher behind; " +
 		"Abomination: ambush smash sweep; Wraith: chaser; " +
-		"Wolf: switcher swarm charger; Fenring: leaper; Ulv: leaper; StoneGolem: ambush smash; Hatchling: flyshooter; " +
+		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; StoneGolem: ambush smash; Hatchling: flyshooter; " +
 		"Goblin: swarm shooter charger line; GoblinArcher: shooter waiter; GoblinBrute: slams stomper waiter; GoblinShaman: fire waiter; " +
 		"Lox: herd stomper charger; Deathsquito: behind; BlobTar: shooter tar hurdle waiter; Unbjorn: charger sweep gas2; " +
 		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; " +
 		"Dverger*: helper talk";
+
+	// 1.16.1 (Sam's test): entries changed since earlier releases, swapped in where a settings
+	// file still has the old one (an entry someone changed themselves is left alone).
+	private static readonly (string old, string now)[] s_changed =
+	{
+		("Draugr: shooter waiter charger", "Draugr: shooter waiter charger sideline"),
+		("Draugr_Ranged: shooter waiter", "Draugr_Ranged: shooter waiter sideline"),
+		("Leech: hurdle swarm waiter", "Leech: hurdle swarm switcher behind"),
+		("Wolf: switcher swarm charger", "Wolf: hurdle switcher swarm charger"),
+	};
+
+	public static string Upgrade(string value)
+	{
+		List<string> parts = new(value.Split(';'));
+		for (int i = 0; i < parts.Count; i++)
+		{
+			string entry = parts[i].Trim();
+			foreach ((string old, string now) in s_changed)
+			{
+				if (string.Equals(entry, old, StringComparison.OrdinalIgnoreCase))
+				{
+					parts[i] = parts[i].Replace(entry, now);
+				}
+			}
+		}
+		return string.Join(";", parts);
+	}
 
 	private static string s_parsedFrom = "\u0001";
 	private static readonly List<(string key, bool prefix, Schema schema)> s_rules = new();

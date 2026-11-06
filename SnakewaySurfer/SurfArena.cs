@@ -185,7 +185,7 @@ internal sealed partial class SurfGame
 		GameObject go = Instantiate(template, wrapper.transform, false);
 		go.transform.localPosition = Vector3.zero;
 		// Face the runner (the track runs along +z).
-		go.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+		go.transform.localRotation = Quaternion.Euler(0f, 180f + def.BackdropTurn, 0f);
 		go.transform.localScale = Vector3.one;
 		go.SetActive(true);
 		foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
@@ -219,12 +219,14 @@ internal sealed partial class SurfGame
 		if (Pictures.MeshBounds(go, out Bounds bounds) && bounds.size.y > 0.1f)
 		{
 			float wide = Mathf.Max(bounds.size.x, bounds.size.z, 0.1f);
-			scale = Mathf.Clamp(Mathf.Min(dist * (location ? 0.34f : 0.4f) / bounds.size.y, dist * 1.3f / wide), 0.3f, location ? 8f : 12f);
+			scale = Mathf.Clamp(Mathf.Min(dist * (location ? 0.34f : 0.4f) / bounds.size.y, dist * 1.3f / wide), 0.3f, location ? 8f : 12f) * def.BackdropSize;
 			bottom = bounds.min.y - m_stage.position.y;
 			height = bounds.size.y * scale;
 		}
 		wrapper.transform.localScale = Vector3.one * scale;
-		m_backdropLift = -bottom * scale - Mathf.Min(1.5f, height * 0.06f);
+		// Sunk well into the ground (1.16.1): with its foot out of sight it reads as something on
+		// the skyline, not a thing sliding along the path ahead.
+		m_backdropLift = -bottom * scale - Mathf.Max(1.5f, height * 0.14f);
 		m_backdropHeight = height;
 		m_backdrop = wrapper;
 		m_backdrop.SetActive(false);

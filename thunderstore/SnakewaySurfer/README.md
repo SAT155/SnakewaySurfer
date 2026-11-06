@@ -98,9 +98,9 @@ Friends without the mod see that too.
 | --- | --- |
 | A / D or ← / → | Change lane |
 | W, ↑ or Space | Jump |
-| S, ↓, Ctrl or C | Slide (in the air: drop fast) |
+| S, ↓, Ctrl or C | Dodge roll under what's marked blue (in the air: drop fast and roll as you land) |
 | Shift (hold) | Sprint: faster, uses stamina, to get past an attack before it lands |
-| Right mouse (hold) | Block a creature's attack (stamina per blow; you run a little slower) |
+| Right mouse (hold) | Block a creature's attack (stamina per blow and while held; you run a little slower, handy in the Elder's maze) |
 | Right mouse just before a hit | Parry: free, and the attacker staggers |
 | Left mouse | Throw a spear you picked up (Eikthyr); at sea, fire the bow ballista |
 | A / D at sea | Rudder: steer left and right |
@@ -159,6 +159,14 @@ and for players without the mod.
   storm with rolling waves, lightning and the serpent of the deep. The beaches slope into the
   sea with surf washing up the sand and splashes in the shallows. An Ocean start in the menu.
   The dirt path is lighter.
+  From Sam's playtests: holding block drains stamina and slows you, bats knock your guard
+  down, slide is now the game's dodge roll, and good blocks, parries and dodges earn Blocking
+  and Dodge XP at the game's own rates. Attacks land with their animations (troll logs and
+  abomination sweeps cover two lanes), the Elder's fight is a maze of six paths, wraiths stalk
+  you, leeches weave and swim up behind you with ripples, draugr archers shoot from the
+  swamp's banks past sunken crypts and surtling fire vents, Bonemass's landmark faces you,
+  the Mountains are snow, wolves can be jumped, boss summoning items come later in a biome, and
+  lane marks in the Swamp sit on the water where you can see them.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

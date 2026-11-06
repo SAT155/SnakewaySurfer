@@ -361,7 +361,14 @@ public class Plugin : BaseUnityPlugin
 		Smashers = Config.Bind("1 - Run", "Smashers", "greydwarfbrute:1, goblinbrute:3, seekerbrute:1, stonegolem:1",
 			"Brutes that smash the ground: each blow sends a shockwave down all three lanes (jump it). The number is how many blows in a row (the goblin brute's berserk smash hits three times).");
 		CreatureSchemas = Config.Bind("1 - Run", "Creature Schemas", Schemas.Defaults,
-			"What each creature does, as \"Prefab: tags; Prefab: tags\" (a trailing * matches a name start). Tags: charger, waiter, switcher, swarm, herd, line, crosser, shooter, flyshooter, sweep, gas2, gas3, smash, slams, lob, fire, tar, bomb, tickdrop, leaper, headleap, hurdle, stomper, ambush, chaser, behind, helper, talk. Creatures not listed behave as before.");
+			"What each creature does, as \"Prefab: tags; Prefab: tags\" (a trailing * matches a name start). Tags: charger, waiter, switcher, swarm, herd, line, crosser, shooter, flyshooter, sweep, gas2, gas3, smash, slams, lob, fire, tar, bomb, tickdrop, leaper, headleap, hurdle, stomper, ambush, chaser, behind, helper, talk, sideline. Creatures not listed behave as before.");
+		if (balance.Value < 6)
+		{
+			// 1.16.1 (Sam's test): draugr archers on the swamp's sidelines, leeches weaving and
+			// swimming up from behind, wolves low enough to jump.
+			CreatureSchemas.Value = Schemas.Upgrade(CreatureSchemas.Value);
+			balance.Value = 6;
+		}
 		LoopBiomes = Config.Bind("1 - Run", "Loop Biomes", 6,
 			new ConfigDescription("How many biomes one lap of the run has (6 = Meadows to the Mistlands). After the last one the run goes back to the Meadows with 1-star creatures, then 2, then 3. 0: no loop, the run goes through every biome and stays in the last.", new AcceptableValueRange<int>(0, 8)));
 		BossFights = Config.Bind("1 - Run", "Boss Fights", true,

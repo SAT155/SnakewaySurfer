@@ -39,6 +39,10 @@ internal sealed class BossDef
 	// Its arena (SurfArena.cs): the game's own location for it, looming far ahead; how high the
 	// land rises beside the track; and the torches lining the path.
 	public string Location = "";
+	// 1.16.1 (Sam: Bonemass's landmark faced away and didn't read as a giant thing): a turn
+	// for the backdrop beyond facing the runner, and how much bigger than the usual fit.
+	public float BackdropTurn;
+	public float BackdropSize = 1f;
 	public float Walls = 4f;
 	public string Torch = "piece_groundtorch_wood";
 	// Its weather (SurfFx.cs): the environment of its location's EnvZone, else this one;
@@ -91,7 +95,7 @@ internal static class Progress
 		{
 			Biome = 2, Name = "Bonemass", Prefab = "Bonemass", Key = "defeated_bonemass", Item = "WitheredBone", Amount = 10,
 			HitItem = "MaceIron|MaceBronze|Club", HitVerb = "The mace smashes", Mode = "side", Distance = 14f, MaxHeight = 7f,
-			Minion = "skeleton", Location = "Bonemass", Walls = 2.5f, Torch = "piece_groundtorch_green", Tint = new Color(0.45f, 0.75f, 0.2f),
+			Minion = "skeleton", Location = "Bonemass", BackdropTurn = 180f, BackdropSize = 1.9f, Walls = 2.5f, Torch = "piece_groundtorch_green", Tint = new Color(0.45f, 0.75f, 0.2f),
 			Env = "Bonemass|SwampRain", StrikeFx = "fx_Bonemass_aoe_start", StrikeSfx = "sfx_Bonemass_throw_trigger|sfx_Bonemass_punch_start",
 			Moves = new[]
 			{

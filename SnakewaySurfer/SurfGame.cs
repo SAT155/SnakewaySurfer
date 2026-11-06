@@ -134,6 +134,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// the way of, once.
 		public bool Threat;
 		public bool Dodged;
+		public float RippleTimer;
+		// Shoots from beside the track (1.16.1: the swamp's draugr archers, surtlings).
+		public bool Sideline;
+		// > 0: its shots fly this fast (surtlings' slow fireballs).
+		public float ShotSpeed;
+		// Drifts across the lanes after you as it comes (1.16.1: wraiths).
+		public bool Tracker;
 	}
 
 	private enum Special
@@ -667,9 +674,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		// The game's ground textures live in a texture array (_DiffuseArrayTex): the layer whose
 		// colour is closest to the biome's ground.
-		if (BiomeGroundColor(biome) is Color want && TerrainSlice(want) is Texture2D slice)
+		// 1.16.1 (Sam: the Mountains were desert sand): only when one is close. The game's snow
+		// isn't a layer of the array (its shader whitens the ground itself), so snowy biomes
+		// get the minigame's own mottled ground in their snow colour.
+		if (BiomeGroundColor(biome) is Color want && TerrainSlice(want, out float off) is Texture2D slice && off < 0.1f)
 		{
 			return slice;
+		}
+		if (biome == "Mountains" || biome == "Deep North")
+		{
+			return null;
 		}
 		string[] keys = biome switch
 		{
@@ -783,7 +797,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 	}
 
 	// The terrain layer closest in colour to `want` (by hue and brightness), or null.
-	private static Texture2D? TerrainSlice(Color want)
+	private static Texture2D? TerrainSlice(Color want) => TerrainSlice(want, out _);
+
+	// The layer nearest in colour, and how far off it is.
+	private static Texture2D? TerrainSlice(Color want, out float off)
 	{
 		LoadSlices();
 		Texture2D? best = null;
@@ -801,6 +818,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				best = tex;
 			}
 		}
+		off = bestD;
 		return best;
 	}
 
@@ -959,6 +977,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			BiomeDef def = Plugin.BiomeConfig(i);
 			BiomeRuntime rt = new BiomeRuntime { Def = def, Sky = s_sky[Mathf.Min(i, s_sky.Length - 1)], Fog = s_fog[Mathf.Min(i, s_fog.Length - 1)], Ground = MakeGroundMaterial(def.Ground, TerrainTexture(def.Name)) };
+			if ((def.Name == "Mountains" || def.Name == "Deep North") && s_terrainTextures != null
+				&& s_terrainTextures.TryGetValue("_snownormal", out Texture snowNormal) && rt.Ground.HasProperty("_BumpMap"))
+			{
+				// The game's own snow surface on the snowy ground.
+				rt.Ground.SetTexture("_BumpMap", snowNormal);
+				rt.Ground.EnableKeyword("_NORMALMAP");
+			}
 			rt.FogColor = rt.Sky;
 			rt.Ambient = rt.Sky * Plugin.AmbientLight.Value;
 			rt.SunIntensity = Plugin.LightIntensity.Value;
@@ -1192,6 +1217,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_lives = Plugin.Lives.Value;
 		m_dividers.Clear();
 		m_nextTorchZ = 0f;
+		ResetSwampSights();
+		ResetMaze();
 		m_torchCount = 0;
 		DestroyBackdrop();
 		m_backdropShow = 0f;
@@ -1482,6 +1509,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		UpdateSpears(dt, canInput);
 
 		bool grounded = m_y <= 0.001f;
+		UpdateMaze();
 		if (canInput)
 		{
 			// Left and right as seen on the screen (swapped while the camera faces back).
@@ -1495,7 +1523,18 @@ internal sealed partial class SurfGame : MonoBehaviour
 				step = Mirrored ? -1 : 1;
 			}
 			int to = m_lane + step;
-			if (step != 0 && to >= m_minLane && to <= m_maxLane && CanSwitch(m_lane, to))
+			if (step != 0 && InMaze)
+			{
+				// The Elder's maze: one narrow path across at a time, where the vines let you.
+				int path = m_subLane + step;
+				if (path >= 0 && path < MazePaths && CanSwitchPath(m_subLane, path))
+				{
+					m_audio.Play(Sfx.Lane, 0.4f, 1.3f);
+					m_subLane = path;
+					m_lane = Mathf.Clamp(path / 2, 0, 2);
+				}
+			}
+			else if (step != 0 && to >= m_minLane && to <= m_maxLane && CanSwitch(m_lane, to))
 			{
 				m_audio.Play(Sfx.Lane, 0.5f, 1.15f);
 				m_lane = to;
@@ -1560,7 +1599,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_slide = Mathf.Max(0f, m_slide - dt);
 		}
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
-		m_x = Mathf.MoveTowards(m_x, LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
+		m_x = Mathf.MoveTowards(m_x, InMaze ? SubX(m_subLane) : LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
 		m_z += m_speed * dt;
 		// When you were last in each lane, for stepping out of the way of a blow (Dodge XP).
 		for (int l = 0; l < m_laneAt.Length; l++)
@@ -1818,6 +1857,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					UpdateCreature(t, dt);
 				}
+				CreatureRipples(t, dt);
 			}
 			if (m_state == State.Running && t.ChargeIn > 0f)
 			{
@@ -1895,6 +1935,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
 		SpawnArenaTorches(horizon);
+		SpawnSwampSights(horizon);
 		while (m_nextRowZ < horizon)
 		{
 			if (SegAt(m_nextRowZ).Boss)
@@ -2669,7 +2710,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// The attack it does this time, out of its schema's alternatives.
 		string move = schema?.PickOf("sweep", "gas2", "gas3", "smash", "slams", "lob", "fire", "tar", "bomb", "tickdrop", "shooter", "flyshooter") ?? "";
 		int smashes = kind == Kind.Block ? (schema != null ? (move == "smash" ? 1 : move == "slams" ? 3 : 0) : SmashCount(prefab)) : 0;
-		bool wantRanged = schema != null
+		bool wantRanged = role == "sideline" ? info.Ranged.Count > 0 : schema != null
 			? ((move == "shooter" && Random.value < 0.6f) || move == "flyshooter") && Plugin.RangedAttacks.Value
 			: info.Ranged.Count > 0 && Plugin.RangedAttacks.Value && (info.Melee.Count == 0 || Random.value < 0.6f);
 		CreatureAttack? attack = smashes > 0 && info.Melee.Count > 0
@@ -3177,8 +3218,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		float speed = 9f + 0.6f * BiomeAt(shooter.Z);
-		float startX = LaneX(shooter.Lane);
+		float speed = shooter.ShotSpeed > 0f ? shooter.ShotSpeed : 9f + 0.6f * BiomeAt(shooter.Z);
+		// (Archers beside the track shoot from where they stand.)
+		float startX = shooter.FreeX ? shooter.X : LaneX(shooter.Lane);
 		float targetX = LaneX(m_lane);
 		float time = Mathf.Max(0.3f, (startZ - m_z) / (speed + m_speed));
 		float xSpeed = Mathf.Abs(targetX - startX) / time;
