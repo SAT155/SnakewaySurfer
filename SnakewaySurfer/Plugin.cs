@@ -112,6 +112,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> OceanLength = null!;
 	internal static ConfigEntry<float> SailSpeed = null!;
 	internal static ConfigEntry<bool> SeaSerpent = null!;
+	internal static ConfigEntry<bool> BurialChambers = null!;
 
 	private void Awake()
 	{
@@ -397,6 +398,9 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("The longship's speed (m/s) under full sail with the wind from the side; half sail is about 60% of it, the oars a steady 6.", new AcceptableValueRange<float>(6f, 40f)));
 		SeaSerpent = Config.Bind("1 - Run", "Sea Serpent", true,
 			"A sea serpent rises in the storm and must be beaten with the ballista to reach the far shore. Off: the storm just passes.");
+
+		BurialChambers = Config.Bind("1 - Run", "Burial Chambers", true,
+			"Once in each stretch of the Black Forest the track runs into a burial chamber: dark stone halls seen from above, lit by the torch you carry. The halls turn 90 degrees: press A or D toward the opening as you reach a corner (a torch burns on the wall ahead and the camera starts to swing round), or run into the wall. Skeletons crowd the halls, bone piles raise more as you come, ghosts drift in through the walls and old chests are worth ten coins. Off: the forest runs on as before.");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 	}

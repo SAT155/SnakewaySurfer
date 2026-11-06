@@ -13,6 +13,16 @@ shot or change lane). In the Swamp you splash through shallow water.
 In the Black Forest, watch out for trolls: one beside the track swings at its lane just as you run past, and another jumps down straddling the track with
 its feet in both outer lanes, so you have to slide between its legs.
 
+Once in each stretch of the Black Forest the track runs into a **burial chamber**: a stone gate
+with two torches burning outside, then dark stone halls seen from above, lit by the torch in
+your hand and a few sconces on the walls. The halls turn sharp corners: as you reach one, a
+torch burns on the wall ahead and the camera starts to swing round, so press A or D toward the
+opening to take it (you can still make it a moment late; leave it any later and you run into
+the wall, which costs a life). Skeletons crowd the halls, archers among them, bone piles raise
+more out of the floor as you come, ghosts drift in through the walls at head height (slide
+under them), and fallen pillars and stone beams block the lanes. The old chests are worth ten
+coins. Burial Chambers in the config turns them off.
+
 ## Bosses and checkpoints
 
 Each biome ends with its boss, but only bosses you've already beaten in this world: a new
@@ -204,6 +214,9 @@ and for players without the mod.
   swim. The sea camera sits lower so the swell reads, the wind gauge is a ring round the wheel
   with the wind's no-go arc and a tick for the bow, and there's open water either side of the
   beached ship.
+  1.16.4: burial chambers in the Black Forest, the first of the dungeons: dark stone halls
+  seen from above with sharp corners to turn (A / D toward the opening), a torch in your hand,
+  skeletons, bone piles that raise more, ghosts through the walls and old chests.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

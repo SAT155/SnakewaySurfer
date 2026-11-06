@@ -387,7 +387,8 @@ internal sealed partial class SurfGame
 		const float patch = 8f;
 		const float reach = 26f;
 		System.Random rng = new System.Random(unchecked((int)(g.CenterZ * 7.31f) * 31 + g.Side));
-		Matrix4x4 toWorld = m_stage.localToWorldMatrix;
+		// (The frame of a burial chamber's hall, past one: SurfCrypt.cs.)
+		Matrix4x4 toWorld = StageMatrix(g.CenterZ);
 		Dictionary<int, GrassBatch> batches = new();
 		int loose = 0;
 		for (float pz = -GroundTile * 0.5f; pz < GroundTile * 0.5f - 0.01f; pz += patch)

@@ -472,6 +472,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				m_mainCamera.layerCullDistances = m_mainCullDistances;
 				m_mainCamera.backgroundColor = m_mainBackground;
+				if (m_cryptClear)
+				{
+					m_mainCamera.clearFlags = m_mainClear;
+				}
 			}
 		}
 		if (m_mainFog != null)
@@ -1201,6 +1205,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			DestroyThing(t);
 		}
 		m_things.Clear();
+		ClearCrypt();
 		ResetSea();
 		m_state = State.Countdown;
 		m_stateTime = 0f;
@@ -1493,6 +1498,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void LateUpdate()
 	{
+		UpdateCryptFrames();
 		DrawGrass();
 		// The game may switch its HUD back on (Hud.Update); keep it hidden while we're up.
 		if (m_hudRoot != null && m_hudRoot.activeSelf)
@@ -1521,6 +1527,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_speed *= 0.6f;
 		}
 		m_speed *= UpdateMoves(dt, canInput);
+		if (InCrypt(m_z))
+		{
+			// A little slower down the halls, with corners to take.
+			m_speed *= 0.88f;
+		}
 		UpdateSpears(dt, canInput);
 
 		bool grounded = m_y <= 0.001f;
@@ -1537,6 +1548,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				step = Mirrored ? -1 : 1;
 			}
+			// At a crypt's corner the key toward the opening takes the turn (SurfCrypt.cs).
+			step = CryptTurn(step);
 			int to = m_lane + step;
 			if (step != 0 && InMaze)
 			{
@@ -1616,6 +1629,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
 		m_x = Mathf.MoveTowards(m_x, InMaze ? SubX(m_subLane) : LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
 		m_z += m_speed * dt;
+		CryptCorner(dt);
 		// When you were last in each lane, for stepping out of the way of a blow (Dodge XP).
 		for (int l = 0; l < m_laneAt.Length; l++)
 		{
@@ -1650,6 +1664,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		UpdateStretch(dt);
 		SpawnAhead();
+		UpdateCrypt(dt);
 		UpdateHints();
 		UpdateShore(dt);
 	}
@@ -1673,6 +1688,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 				case Kind.Coin:
 					if (m_y < 2.6f)
 					{
+						if (t.Label == "Chest")
+						{
+							// An old chest in a burial chamber (SurfCrypt.cs).
+							m_coins += 9;
+							m_audio.Play("sfx_chest_open|sfx_coins_pile_destroyed", 1f);
+						}
 						m_coins++;
 						m_audio.Play(Sfx.Coin, 1f, 1f + 0.03f * (m_coins % 5));
 						Destroy(t.Go);
@@ -1888,7 +1909,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				UpdateSetPiece(t, dt);
 			}
-			else if (m_state == State.Running && t.Info != null)
+			else if (m_state == State.Running && t.Info != null && !CryptHidden(t))
 			{
 				if (!UpdateSchema(t, dt))
 				{
@@ -1906,7 +1927,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 			}
 			// Positive speed comes toward you; negative (a chasing boss's attacks) catches up from behind.
-			if (m_state == State.Running && t.Speed != 0f)
+			if (m_state == State.Running && t.Speed != 0f && !CryptHidden(t))
 			{
 				t.Z -= t.Speed * dt;
 				Vector3 p = t.Go.transform.localPosition;
@@ -1916,8 +1937,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 					p.x = t.X;
 				}
 				t.Go.transform.localPosition = new Vector3(p.x, RoadY(t.Z) + t.BaseY, t.Z);
+				if (CryptGoneBehind(t))
+				{
+					DestroyThing(t);
+					m_things.RemoveAt(i);
+					continue;
+				}
 			}
-			if (t.Kind == Kind.Coin || t.Kind == Kind.Item || t.Kind == Kind.BossHit)
+			if ((t.Kind == Kind.Coin && t.Label != "Chest") || t.Kind == Kind.Item || t.Kind == Kind.BossHit)
 			{
 				t.Go.transform.Rotate(0f, 180f * dt, 0f, Space.World);
 			}
@@ -1960,6 +1987,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void SpawnAhead()
 	{
 		float horizon = m_z + AheadDistance;
+		PlanCrypt();
 		while (m_nextGroundZ < horizon + GroundTile)
 		{
 			SpawnGround(m_nextGroundZ + GroundTile * 0.5f);
@@ -1967,9 +1995,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		while (m_nextSceneryZ < horizon + 40f)
 		{
-			SpawnScenery(m_nextSceneryZ, -1);
-			SpawnScenery(m_nextSceneryZ + Random.Range(0f, 3f), 1);
-			MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
+			if (!CryptCovers(m_nextSceneryZ))
+			{
+				SpawnScenery(m_nextSceneryZ, -1);
+				SpawnScenery(m_nextSceneryZ + Random.Range(0f, 3f), 1);
+				MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
+			}
 			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
 		SpawnArenaTorches(horizon);
@@ -1989,17 +2020,23 @@ internal sealed partial class SurfGame : MonoBehaviour
 				m_nextRowZ += 10f;
 				continue;
 			}
+			int before = m_things.Count;
 			SpawnRow(m_nextRowZ);
+			if (m_crypt != null)
+			{
+				CryptClearRows(before);
+			}
 			float difficulty = Mathf.Clamp01(ProgressAt(m_nextRowZ) / m_biomes.Count);
-			m_nextRowZ += Mathf.Lerp(30f, 16f, difficulty) + Random.Range(0f, 9f);
+			// Closer together down the crypt's halls (1.16.4, Sam: lots of skeletons).
+			m_nextRowZ += (Mathf.Lerp(30f, 16f, difficulty) + Random.Range(0f, 9f)) * (InCrypt(m_nextRowZ) ? 0.65f : 1f);
 		}
 	}
 
 	private void SpawnGround(float centerZ)
 	{
-		if (SegAt(centerZ).Sea)
+		if (SegAt(centerZ).Sea || CryptCovers(centerZ))
 		{
-			// Open sea (SurfOcean.cs): no land under it.
+			// Open sea (SurfOcean.cs): no land under it. A burial chamber has its own floor.
 			return;
 		}
 		BiomeRuntime b = m_biomes[BiomeAt(centerZ)];
@@ -2085,11 +2122,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// Swamp so the water lies flat-ish).
 	private float RoadY(float z)
 	{
+		// Flat through a burial chamber (SurfCrypt.cs); down a beach into the sea and up the far
+		// one (SurfSea.cs).
+		return ShoreRoad(CryptRoad(RoadRaw(z), z), z);
+	}
+
+	private float RoadRaw(float z)
+	{
 		float biomes = LevelAt(z);
 		float amplitude = (0.4f + 0.55f * biomes) * Mathf.Lerp(1f, 0.35f, WaterWeight(z)) * Plugin.RoadRoll.Value * ArenaFlatten(z);
 		float n = (Mathf.PerlinNoise(z * 0.011f + 3.1f, 7.3f) - 0.5f) * 2f + (Mathf.PerlinNoise(z * 0.037f + 11f, 1.9f) - 0.5f) * 0.5f;
-		// Down a beach into the sea and up the far one (SurfSea.cs).
-		return ShoreRoad(amplitude * n, z);
+		return amplitude * n;
 	}
 
 	// Ground height beside the track (SurfTerrain.cs): this world's real ground for the biome, or
@@ -2330,12 +2373,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void SpawnRow(float z)
 	{
+		bool crypt = InCrypt(z);
+		if (crypt && CryptNoRow(z))
+		{
+			return;
+		}
 		BiomeRuntime giants = m_biomes[BiomeAt(z)];
 		(GameObject prefab, string label) giant = giants.Giants.Count > 0 ? giants.Giants[Random.Range(0, giants.Giants.Count)] : (null!, "");
 		// Ambushers (abominations) burst out of the ground over the track; trolls either swing
 		// beside it or leap onto it. Ambushers are rarer (1.14, Sam: a swamp of abominations).
 		bool rise = giant.prefab != null && SpawnTables.Contains(Plugin.Ambushers.Value, giant.prefab);
-		if (giant.prefab != null && z > 60f && Random.value < Plugin.GiantChance.Value * (rise ? 0.4f : 1f))
+		if (!crypt && giant.prefab != null && z > 60f && Random.value < Plugin.GiantChance.Value * (rise ? 0.4f : 1f))
 		{
 			// 1.16.1 (Sam): an abomination also sweeps two lanes from the side, like a troll's log.
 			if (Random.value < 0.5f && (!rise || CreatureInfo.Of(giant.prefab).Melee.Exists(a => a.Type == Attack.AttackType.Horizontal)))
@@ -2349,7 +2397,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_nextRowZ += 8f;
 			return;
 		}
-		BiomeRuntime b = m_biomes[BiomeAt(z)];
+		BiomeRuntime b = crypt ? CryptBiome() : m_biomes[BiomeAt(z)];
 		int biomeIndex = BiomeAt(z);
 		float difficulty = Mathf.Clamp01(ProgressAt(z) / m_biomes.Count);
 		int blocked = Random.value < 0.3f + 0.4f * difficulty ? 2 : 1;
@@ -2367,6 +2415,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			if (i >= blocked)
 			{
 				if (MaybeSpawnItem(lane, z))
+				{
+					continue;
+				}
+				if (crypt && Random.value < 0.08f && SpawnChest(lane, z))
 				{
 					continue;
 				}
@@ -2395,7 +2447,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				case Kind.Block:
 				{
 					SpawnEntry e = SpawnTables.Pick(b.Monsters)!;
-					MaybeLandmark(e.Prefab, z);
+					if (!crypt)
+					{
+						MaybeLandmark(e.Prefab, z);
+					}
 					// Swarms, herds, lines, crossers, chasers and helpers lay out the whole row.
 					if (SpawnFormation(e, lane, z, biomeIndex, i))
 					{
@@ -2771,7 +2826,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			smashes = 0;
 		}
-		bool swoop = kind == Kind.High && SpawnTables.Contains(Plugin.Swoopers.Value, prefab);
+		// (A crypt's ghosts drift in through the walls the same way.)
+		bool swoop = kind == Kind.High && (SpawnTables.Contains(Plugin.Swoopers.Value, prefab) || (prefab.name == "Ghost" && InCrypt(z)));
 		bool ambush = kind == Kind.Block && SpawnTables.Contains(Plugin.Ambushers.Value, prefab);
 
 		// Real size from the creature's collider; only the very biggest are shrunk.
@@ -3450,7 +3506,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		Vector3 roll = RollAwayOffset(dt);
-		m_avatar.transform.localPosition = new Vector3(m_x, RoadY(m_z + roll.z) + m_y, m_z + roll.z);
+		// (Running on past a missed corner toward its wall, SurfCrypt.cs.)
+		m_avatar.transform.localPosition = new Vector3(m_x, RoadY(m_z + roll.z) + m_y, m_z + roll.z + m_cryptOver);
 		// Blink while recovering from a hit.
 		bool show = m_hurtTime <= 0f || Mathf.FloorToInt(m_hurtTime * 12f) % 2 == 0;
 		foreach (Renderer r in m_avatarRenderers)
@@ -3469,6 +3526,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		float lean = (LaneX(m_lane) - m_x) * -6f;
 		m_avatar.transform.localRotation = Quaternion.Euler(0f, m_avatarYaw, m_state == State.Running ? lean : 0f);
+		CryptAvatar(dt);
 		bool running = m_state == State.Running && m_aimTime <= 0f;
 		AvatarFloat("forward_speed", running ? m_runAnimSpeed : 0f);
 		AvatarFloat("sideway_speed", 0f);
@@ -3496,8 +3554,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		float lookZ = m_z + Mathf.Cos(swing) * 7f;
 		// Follow the rolling road, but never dip into a rise behind you.
 		float road = Mathf.Max(RoadY(m_z), RoadY(camZ) + 0.8f);
-		Vector3 target = m_stage.TransformPoint(new Vector3(camX, road + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_y * 0.4f, camZ));
-		Vector3 look = m_stage.TransformPoint(new Vector3(lookX, RoadY(lookZ) + 1.0f, lookZ));
+		Vector3 target = StagePoint(new Vector3(camX, road + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_y * 0.4f, camZ));
+		Vector3 look = StagePoint(new Vector3(lookX, RoadY(lookZ) + 1.0f, lookZ));
 		if (!m_camPlaced)
 		{
 			m_camPos = target;
@@ -3516,8 +3574,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camera.fieldOfView = Fov;
 		m_camFinal = m_camera.transform.position;
 		m_camFinalRot = m_camera.transform.rotation;
-		// At sea the camera rises high over the ship (SurfSea.cs).
+		// At sea the camera rises high over the ship (SurfSea.cs), and over a burial chamber's
+		// halls (SurfCrypt.cs).
 		PlaceSeaCamera(dt);
+		PlaceCryptCamera(dt);
 
 		if (m_biomes.Count == 0)
 		{
@@ -3561,6 +3621,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		float weather = UpdateBossWeather(dt, weatherDef, weatherWeight);
 		ApplyBossWeather(weather, ref fog, ref fogColor, ref ambient, ref sunColor, ref sunIntensity, ref sky);
 		ApplySeaWeather(ref fog, ref fogColor, ref sky, ref ambient);
+		ApplyCryptWeather(ref fog, ref fogColor, ref ambient, ref sunColor, ref sunIntensity, ref sky);
 		m_skyBase = Color.Lerp(m_skyBase, sky, k);
 		m_fogNow = Mathf.Lerp(m_fogNow, fog, k);
 		m_fogColorNow = Color.Lerp(m_fogColorNow, fogColor, k);

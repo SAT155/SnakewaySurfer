@@ -32,6 +32,8 @@ internal sealed partial class SurfGame
 		public bool Sea;
 		public bool Shore;
 		public bool PrevSea;
+		// 1.16.4: whether this stretch has been given its burial chamber (SurfCrypt.cs).
+		public bool CryptChecked;
 
 		public float Level => Biome + 1.5f * Stars;
 	}
