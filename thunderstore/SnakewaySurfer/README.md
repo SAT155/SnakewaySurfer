@@ -299,6 +299,8 @@ and for players without the mod.
   1.16.13: Fader, the Ashlands' boss (Loop Biomes 7+, once beaten in the world): falling
   rocks, flame walls and lava pools down your lane; three bell fragments to summon him, a blade
   to strike him. The golden shoes still need only the usual six bosses.
+  1.16.14: the places' own creatures turn up even where the biome's spawns don't have them:
+  growths at the Plains' tar pits, draugr at the Mountains' graves.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

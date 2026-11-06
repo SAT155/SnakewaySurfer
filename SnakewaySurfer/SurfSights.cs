@@ -195,7 +195,14 @@ internal sealed partial class SurfGame
 		List<SpawnEntry> found = m_biomes[biomeIndex].Monsters.FindAll(e => e.Prefab != null && e.Prefab.name.StartsWith(who, System.StringComparison.OrdinalIgnoreCase));
 		if (found.Count == 0)
 		{
-			return;
+			// 1.16.14 (gap doc, missing creatures): ones that only live at their places, not in the
+			// biome's spawn tables (growths at the tar pits, draugr at the mountain graves).
+			GameObject? prefab = Pictures.Monster(who);
+			if (prefab == null)
+			{
+				return;
+			}
+			found.Add(new SpawnEntry { Prefab = prefab, Label = SpawnTables.Label(prefab) });
 		}
 		int lane = side < 0 ? 0 : 2;
 		float cz = Mathf.Min(z - Random.Range(3f, 8f), m_nextRowZ - 3f);
