@@ -63,6 +63,14 @@ and a gold mark lead along the lane on their side. Run past them in that lane an
 your lives back to full, or one extra if you already have them all (the lives on the HUD glow
 gold). The lanes around them are kept clear. Traders in the config turns them off.
 
+Each biome's own **places** stand beside the track now and then, the game's own locations as they
+are in the world: abandoned houses, stone circles and ruined towers in the Meadows; tower ruins,
+stone houses and greydwarf camps in the Black Forest; draugr huts and sunken ruins in the Swamp
+(with its crypt entrances and fire spouts); graves, drake nests and towers in the Mountains;
+standing stones, tar pits and fuling camps in the Plains; giant skeletons, dvergr towers and
+swords in stone in the Mistlands; charred ruins and morgen holes in the Ashlands. Some have one
+of their own waiting in the lane by them. Places in the config turns them off.
+
 ## Bosses and checkpoints
 
 Each biome ends with its boss, but only bosses you've already beaten in this world: a new
@@ -273,6 +281,10 @@ and for players without the mod.
   1.16.10: traders by the track, the first of the points of interest: Haldor (Black Forest),
   the Bog Witch (Swamp) and Hildir (Meadows, from the 1-star lap) in front of their camps. Pass
   them in their lane for your lives back, or one extra if you're full.
+  1.16.11: each biome's own places beside the track: houses, ruins, towers, stone circles,
+  draugr huts, graves, drake nests, standing stones, tar pits, fuling camps, giant skeletons,
+  dvergr towers, swords in stone, charred ruins and morgen holes, some with one of their own
+  waiting in the lane.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

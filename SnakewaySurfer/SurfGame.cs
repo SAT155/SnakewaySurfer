@@ -142,6 +142,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public bool WiggleSet;
 		// Shoots from beside the track (1.16.1: the swamp's draugr archers, surtlings).
 		public bool Sideline;
+		// 1.16.11: a tree beside the track (cleared where one of the biome's places stands).
+		public bool Tree;
 		// > 0: its shots fly this fast (surtlings' slow fireballs).
 		public float ShotSpeed;
 		// Drifts across the lanes after you as it comes (1.16.1: wraiths).
@@ -2311,7 +2313,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		GameObject prefab = b.Scenery[Random.Range(0, b.Scenery.Count)];
 		float x = side * (LaneWidth * 1.5f + Random.Range(3f, 26f));
-		if (UnderSea(x, z))
+		if (UnderSea(x, z) || InSight(x, z))
 		{
 			return;
 		}
@@ -2334,7 +2336,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				go.transform.localPosition = p;
 			}
 		}
-		m_things.Add(new Thing { Go = go, Kind = Kind.Scenery, Z = z, HalfLength = 2f });
+		m_things.Add(new Thing { Go = go, Kind = Kind.Scenery, Z = z, HalfLength = 2f, Tree = true });
 	}
 
 	// Puts a picture in a world-aligned wrapper and scales the wrapper to fit `size`

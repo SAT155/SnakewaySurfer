@@ -14,6 +14,8 @@ internal sealed partial class SurfGame
 	{
 		m_nextSightZ = 0f;
 		m_lastSightCrypt = false;
+		m_lastSight.Clear();
+		m_sightAreas.Clear();
 	}
 
 	private void SpawnSwampSights(float horizon)
@@ -27,13 +29,23 @@ internal sealed partial class SurfGame
 			float z = m_nextSightZ;
 			m_nextSightZ += Random.Range(180f, 300f);
 			Segment s = SegAt(z);
-			if (m_biomes.Count == 0 || m_biomes[s.Biome].Def.Name != "Swamp" || s.Boss || s.Sea || ArenaWeight(z, out _) > 0.05f
+			string biome = m_biomes.Count > 0 ? m_biomes[s.Biome].Def.Name : "";
+			if (m_biomes.Count == 0 || (biome != "Swamp" && !HasSights(biome)) || s.Boss || s.Sea || s.Shore || ArenaWeight(z, out _) > 0.05f
 				|| (m_crypt != null && z > m_crypt.Start - 40f && z < m_crypt.End + 40f) || NearTrader(z, 40f)
 				|| z < s.Start + 50f || (s.End != float.MaxValue && z > s.End - 40f))
 			{
 				continue;
 			}
 			int side = Random.value < 0.5f ? -1 : 1;
+			// 1.16.11: the biome's own places (in the Swamp, now and then instead of a crypt
+			// entrance or a fire spout).
+			if (biome != "Swamp" || (HasSights(biome) && Random.value < 0.4f))
+			{
+				if (SpawnSight(z, side, s.Biome) || biome != "Swamp")
+				{
+					continue;
+				}
+			}
 			// Mostly taking turns, so a stretch has a bit of both.
 			bool crypt = Random.value < (m_lastSightCrypt ? 0.3f : 0.7f);
 			bool done = crypt ? SpawnCrypt(z, side) : SpawnFireSpout(z, side, s.Biome);
