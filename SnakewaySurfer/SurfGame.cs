@@ -463,6 +463,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		DestroySchemaObjects();
 		ReleaseLocations();
+		ReleaseRooms();
 		StopSeaLoops();
 		DestroyOcean();
 		if (m_mainCamera != null)
@@ -1527,11 +1528,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_speed *= 0.6f;
 		}
 		m_speed *= UpdateMoves(dt, canInput);
-		if (InCrypt(m_z))
-		{
-			// A little slower down the halls, with corners to take.
-			m_speed *= 0.88f;
-		}
+		// A little slower down a crypt's halls, with corners to take, and slower still wading
+		// through a flooded one (SurfCryptThemes.cs).
+		m_speed *= CryptSpeed();
 		UpdateSpears(dt, canInput);
 
 		bool grounded = m_y <= 0.001f;
@@ -2114,6 +2113,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return 0f;
 		}
+		if (InCrypt(z))
+		{
+			// Dry stone, or a sunken crypt's flooded hall (SurfCryptThemes.cs).
+			return CryptFlooded(z) ? 1f : 0f;
+		}
 		BiomeBlend(z, out int a, out int b, out float blend);
 		return Mathf.Lerp(m_biomes[a].Water ? 1f : 0f, m_biomes[b].Water ? 1f : 0f, blend);
 	}
@@ -2446,7 +2450,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				case Kind.Block:
 				{
-					SpawnEntry e = SpawnTables.Pick(b.Monsters)!;
+					// (Leeches in a sunken crypt's flooded halls.)
+					SpawnEntry e = crypt ? CryptPick(z, b) : SpawnTables.Pick(b.Monsters)!;
 					if (!crypt)
 					{
 						MaybeLandmark(e.Prefab, z);
@@ -2484,7 +2489,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				case Kind.Low:
 				{
 					GameObject log = b.Logs[Random.Range(0, b.Logs.Count)];
-					GameObject go = Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
+					// A sunken crypt's mud piles stand as they are (any way round); logs and pillars lie across.
+					GameObject go = crypt && m_crypt!.Theme.LowUpright
+						? Fitted(Picture(log), Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(LaneWidth * 0.85f, 0.72f, 1.3f), false)
+						: Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
 					go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
 					m_things.Add(new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, HalfLength = 0.35f });
 					if (m_coinTemplate != null && Random.value < 0.35f)
@@ -2512,7 +2520,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 					}
 					else
 					{
-						GameObject log = b.Logs[Random.Range(0, b.Logs.Count)];
+						List<GameObject> highs = crypt ? CryptHighs(b) : b.Logs;
+						GameObject log = highs[Random.Range(0, highs.Count)];
 						GameObject go = Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth, 0.6f, 0.6f), false);
 						go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 1.3f, z);
 						// Two posts so the log doesn't just float.

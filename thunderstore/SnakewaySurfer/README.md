@@ -21,7 +21,14 @@ opening to take it (you can still make it a moment late; leave it any later and 
 the wall, which costs a life). Skeletons crowd the halls, archers among them, bone piles raise
 more out of the floor as you come, ghosts drift in through the walls at head height (slide
 under them), and fallen pillars and stone beams block the lanes. The old chests are worth ten
-coins. Burial Chambers in the config turns them off.
+coins.
+
+Once in each stretch of the Swamp it runs into a **sunken crypt** the same way, built from the
+game's own sunken crypt walls and floors, with green fire burning at its gate. Draugr and blobs
+fill its halls, grave mounds raise draugr as you come, and mud piles lie in the lanes to jump.
+Some of its halls are flooded: slower going, and leeches swim in the water. Iron gates hang
+over some halls and crash down as you come, with blue marks on the floor under them: roll
+under. Dungeons in the config turns both off.
 
 ## Bosses and checkpoints
 
@@ -217,6 +224,10 @@ and for players without the mod.
   1.16.4: burial chambers in the Black Forest, the first of the dungeons: dark stone halls
   seen from above with sharp corners to turn (A / D toward the opening), a torch in your hand,
   skeletons, bone piles that raise more, ghosts through the walls and old chests.
+  1.16.5: sunken crypts in the Swamp, the second dungeon: the game's own sunken crypt walls,
+  draugr and blobs, grave mounds that raise draugr, mud piles to jump, flooded halls with
+  leeches, and iron gates that crash down as you come (roll under). The config switch is now
+  called Dungeons.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

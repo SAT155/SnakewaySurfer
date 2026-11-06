@@ -63,7 +63,8 @@ internal sealed partial class SurfGame
 	private bool SpawnFormation(SpawnEntry e, int lane, float z, int biomeIndex, int slot)
 	{
 		Schema? s = Schemas.For(e.Prefab);
-		if (s == null)
+		// No room in a crypt's halls for packs strung out beside the track or round its corners.
+		if (s == null || InCrypt(z))
 		{
 			return false;
 		}

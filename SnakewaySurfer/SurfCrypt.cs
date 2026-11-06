@@ -24,7 +24,6 @@ internal sealed partial class SurfGame
 {
 	private const float CryptHalf = TrackHalf + 1.2f;
 	private const float CryptWall = 0.6f;
-	private const float CryptWallHeight = 2.4f;
 	// How far before a corner the turn can be pressed, and where you wait if you haven't.
 	private const float TurnWindow = 10f;
 	private const float TurnPoint = 0.25f;
@@ -37,6 +36,9 @@ internal sealed partial class SurfGame
 		public int Index;
 		public GameObject? Root;
 		public bool Built;
+		// 1.16.5: a sunken crypt's halls are half under water.
+		public bool Flooded;
+		public readonly List<Mesh> Meshes = new();
 	}
 
 	private sealed class CryptPile
@@ -48,6 +50,7 @@ internal sealed partial class SurfGame
 
 	private sealed class CryptRun
 	{
+		public CryptTheme Theme = s_burialChamber;
 		public float Start;
 		public float End;
 		public float Floor;
@@ -60,6 +63,7 @@ internal sealed partial class SurfGame
 		public readonly List<CryptLeg> Legs = new();
 		public readonly List<CryptPile> Piles = new();
 		public readonly List<(Light light, float z)> Glows = new();
+		public readonly List<CryptIronGate> Gates = new();
 		public float NextSound = 3f;
 	}
 
@@ -81,7 +85,6 @@ internal sealed partial class SurfGame
 	private float m_cryptBonk = -1f;
 	private Light? m_torchLight;
 	private bool m_torchHeld;
-	private BiomeRuntime? m_cryptBiome;
 	private CameraClearFlags m_mainClear;
 	private bool m_cryptClear;
 	private float m_sconceYaw = float.NaN;
@@ -150,6 +153,14 @@ internal sealed partial class SurfGame
 				return true;
 			}
 		}
+		// The lanes clear by an iron gate.
+		foreach (CryptIronGate g in m_crypt.Gates)
+		{
+			if (Mathf.Abs(z - g.Z) < 7f)
+			{
+				return true;
+			}
+		}
 		return false;
 	}
 
@@ -183,11 +194,11 @@ internal sealed partial class SurfGame
 
 	// ---------------------------------------------------------------- planning
 
-	// Once per stretch of Black Forest (not its boss arena), well into it: start, length and the
-	// corners, before the ground there is laid.
+	// Once per stretch of Black Forest or Swamp (not its boss arena), well into it: start, length
+	// and the corners, before the ground there is laid.
 	private void PlanCrypt()
 	{
-		if (m_crypt != null || !Plugin.BurialChambers.Value || m_biomes.Count < 2)
+		if (m_crypt != null || !Plugin.Dungeons.Value || m_biomes.Count < 2)
 		{
 			return;
 		}
@@ -198,7 +209,8 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			s.CryptChecked = true;
-			if (s.Boss || s.Sea || s.Shore || s.Rush || s.Biome >= m_biomes.Count || m_biomes[s.Biome].Def.Name != "Black Forest")
+			CryptTheme? theme = s.Biome < m_biomes.Count ? ThemeFor(m_biomes[s.Biome].Def.Name) : null;
+			if (s.Boss || s.Sea || s.Shore || s.Rush || theme == null)
 			{
 				continue;
 			}
@@ -217,14 +229,18 @@ internal sealed partial class SurfGame
 					continue;
 				}
 			}
-			MakeCrypt(start, start + length);
+			MakeCrypt(start, start + length, theme);
 			return;
 		}
 	}
 
-	private void MakeCrypt(float start, float end)
+	private void MakeCrypt(float start, float end, CryptTheme theme)
 	{
-		CryptRun c = new CryptRun { Start = start, End = end, Floor = RoadRaw(start) };
+		if (theme.Rooms != 0)
+		{
+			LoadRooms(theme.Rooms);
+		}
+		CryptRun c = new CryptRun { Theme = theme, Start = start, End = end, Floor = RoadRaw(start) };
 		// Out to one side and back, a few times: the way on always ends up heading on down the
 		// track, and the hallways never cross. A long first and last hallway keep the forest
 		// outside well away from the sideways ones.
@@ -278,7 +294,31 @@ internal sealed partial class SurfGame
 			c.Legs.Add(new CryptLeg { A = a, B = b, Index = k });
 		}
 		m_crypt = c;
-		// A bone pile in some of the longer hallways, which raises skeletons as you come.
+		int last = c.Legs.Count - 1;
+		// A sunken crypt's halls between its corners are often flooded (never the way in or out).
+		if (theme.Flooded > 0f && m_waterMaterial != null)
+		{
+			foreach (CryptLeg leg in c.Legs)
+			{
+				leg.Flooded = leg.Index > 0 && leg.Index < last && leg.B - leg.A >= 14f && Random.value < theme.Flooded;
+			}
+		}
+		// Iron gates hang over some of its longer halls, well clear of the corners.
+		if (theme.IronGates)
+		{
+			foreach (CryptLeg leg in c.Legs)
+			{
+				float from = leg.A + (leg.Index == 0 ? 16f : 13f);
+				float to = leg.B - (leg.Index == last ? 16f : 13f);
+				if (to - from < 2f || c.Gates.Count >= 3 || Random.value > 0.45f)
+				{
+					continue;
+				}
+				c.Gates.Add(new CryptIronGate { Z = Random.Range(from, to) });
+			}
+		}
+		// A pile of bones (or a draugr's grave mound) in some of the longer hallways, which raises
+		// the dead as you come.
 		foreach (CryptLeg leg in c.Legs)
 		{
 			if (leg.B - leg.A < 28f || Random.value > 0.65f)
@@ -296,63 +336,105 @@ internal sealed partial class SurfGame
 			}
 		}
 		CryptBiome();
-		Plugin.Log.LogInfo($"Burial chamber from {start:0} to {end:0} m: corners at {string.Join(", ", c.Corners.ConvertAll(x => x.ToString("0")))} ({string.Join("", c.Dirs.ConvertAll(x => x > 0 ? "R" : "L"))}), {c.Piles.Count} bone piles.");
+		int flooded = c.Legs.FindAll(l => l.Flooded).Count;
+		Plugin.Log.LogInfo($"A {theme.Name} from {start:0} to {end:0} m: corners at {string.Join(", ", c.Corners.ConvertAll(x => x.ToString("0")))} ({string.Join("", c.Dirs.ConvertAll(x => x > 0 ? "R" : "L"))}), {c.Piles.Count} piles, {flooded} flooded halls, {c.Gates.Count} iron gates.");
 	}
 
-	// Who's in the crypt: skeletons (archers among them), the rotten ones now and then, and
-	// ghosts. Fallen pillars to jump and beams to slide under.
+	// Who's in the crypt (its theme's dead, a few flyers, swimmers for the flooded halls), what
+	// to jump (fallen pillars, mud piles) and what to slide under (a fallen pillar across).
 	private BiomeRuntime CryptBiome()
 	{
-		if (m_cryptBiome != null)
+		CryptTheme theme = m_crypt != null ? m_crypt.Theme : s_burialChamber;
+		if (m_cryptBiomes.TryGetValue(theme.Name, out BiomeRuntime cached))
 		{
-			return m_cryptBiome;
+			return cached;
 		}
-		BiomeRuntime forest = m_biomes[Mathf.Min(1, m_biomes.Count - 1)];
-		BiomeRuntime rt = new BiomeRuntime { Def = forest.Def, Sky = Color.black, Ground = forest.Ground, Fog = 0.028f, FogColor = Color.black };
+		int home = m_biomes.FindIndex(x => x.Def.Name == theme.Biome);
+		BiomeRuntime outside = m_biomes[home >= 0 ? home : Mathf.Min(1, m_biomes.Count - 1)];
+		BiomeRuntime rt = new BiomeRuntime { Def = outside.Def, Sky = Color.black, Ground = outside.Ground, Fog = 0.028f, FogColor = Color.black };
 		List<string> missing = new();
-		foreach (SpawnEntry e in SpawnTables.Parse("Skeleton:3:3, Skeleton_NoArcher:2:2, Skeleton_Poison:0.6", missing))
+		foreach (SpawnEntry e in SpawnTables.Parse(theme.Monsters, missing))
 		{
 			e.Flying = false;
 			rt.Monsters.Add(e);
 		}
-		foreach (SpawnEntry e in SpawnTables.Parse("Ghost:1", missing))
+		if (theme.Flyers.Length > 0)
 		{
-			e.Flying = true;
-			rt.Flyers.Add(e);
+			foreach (SpawnEntry e in SpawnTables.Parse(theme.Flyers, missing))
+			{
+				e.Flying = true;
+				rt.Flyers.Add(e);
+			}
 		}
 		if (rt.Monsters.Count == 0)
 		{
-			rt.Monsters.AddRange(forest.Monsters);
+			rt.Monsters.AddRange(outside.Monsters);
 		}
-		GameObject? pillar = Pictures.Prefab("stone_pillar");
-		if (pillar != null)
+		List<SpawnEntry> swim = new();
+		if (theme.Swimmers.Length > 0)
 		{
-			rt.Logs.Add(pillar);
+			foreach (SpawnEntry e in SpawnTables.Parse(theme.Swimmers, missing))
+			{
+				e.Flying = false;
+				swim.Add(e);
+			}
 		}
-		else
+		m_cryptSwimmers[theme.Name] = swim;
+		List<SpawnEntry> raised = new();
+		foreach (SpawnEntry e in SpawnTables.Parse(theme.Raised, missing))
 		{
-			rt.Logs.AddRange(forest.Logs);
+			e.Flying = false;
+			raised.Add(e);
 		}
+		m_cryptRaised[theme.Name] = raised.Count > 0 ? raised : rt.Monsters;
+		foreach (string name in theme.Low.Split('|'))
+		{
+			GameObject? low = CryptTemplate(name);
+			if (low != null)
+			{
+				rt.Logs.Add(low);
+				break;
+			}
+		}
+		if (rt.Logs.Count == 0)
+		{
+			rt.Logs.AddRange(outside.Logs);
+		}
+		GameObject? beam = CryptTemplate("stone_pillar");
+		m_cryptHigh[theme.Name] = beam != null ? new List<GameObject> { beam } : rt.Logs;
 		if (missing.Count > 0)
 		{
-			Plugin.Log.LogInfo("Burial chamber: not in this game version: " + string.Join(", ", missing));
+			Plugin.Log.LogInfo($"The {theme.Name}: not in this game version: " + string.Join(", ", missing));
 		}
-		m_cryptBiome = rt;
+		m_cryptBiomes[theme.Name] = rt;
 		return rt;
 	}
 
+	// What to slide under in this crypt (a stone pillar fallen across, held up at its ends).
+	private List<GameObject> CryptHighs(BiomeRuntime b) =>
+		m_crypt != null && m_cryptHigh.TryGetValue(m_crypt.Theme.Name, out List<GameObject> highs) && highs.Count > 0 ? highs : b.Logs;
+
+	private readonly Dictionary<string, List<GameObject>> m_cryptHigh = new();
+
 	// ---------------------------------------------------------------- building the halls
 
-	private GameObject? CryptPiece(Transform root, string names, Quaternion rotation, Vector3 size, Vector3 at, bool uniform = false, float maxScale = float.MaxValue)
+	// The first of `names` there is (a game prefab, or a part of the dungeon's rooms), fitted to
+	// `size`. A wall is first turned so its long side runs along x.
+	private GameObject? CryptPiece(Transform root, string names, Quaternion rotation, Vector3 size, Vector3 at, bool uniform = false, float maxScale = float.MaxValue, bool wall = false)
 	{
 		foreach (string name in names.Split('|'))
 		{
-			GameObject? prefab = Pictures.Prefab(name);
+			GameObject? prefab = CryptTemplate(name);
 			if (prefab == null)
 			{
 				continue;
 			}
-			GameObject go = Fitted(Picture(prefab), rotation, size, uniform, maxScale);
+			GameObject picture = Picture(prefab);
+			if (wall)
+			{
+				rotation *= Quaternion.Euler(0f, LongYaw(picture), 0f);
+			}
+			GameObject go = Fitted(picture, rotation, size, uniform, maxScale);
 			go.transform.SetParent(root, false);
 			go.transform.localPosition = at;
 			return go;
@@ -374,8 +456,8 @@ internal sealed partial class SurfGame
 		{
 			for (int i = 0; i < n; i++)
 			{
-				CryptPiece(root, "stone_wall_4x2|stone_wall_2x1", Quaternion.Euler(0f, 90f, 0f), new Vector3(CryptWall, CryptWallHeight, piece + 0.03f),
-					new Vector3(x, y + r * CryptWallHeight, z0 + piece * (i + 0.5f)));
+				CryptPiece(root, m_crypt!.Theme.Walls, Quaternion.Euler(0f, 90f, 0f), new Vector3(CryptWall, WallH, piece + 0.03f),
+					new Vector3(x, y + r * WallH, z0 + piece * (i + 0.5f)), wall: true);
 			}
 		}
 	}
@@ -394,8 +476,8 @@ internal sealed partial class SurfGame
 		{
 			for (int i = 0; i < n; i++)
 			{
-				CryptPiece(root, "stone_wall_4x2|stone_wall_2x1", Quaternion.identity, new Vector3(piece + 0.03f, CryptWallHeight, CryptWall),
-					new Vector3(x0 + piece * (i + 0.5f), y + lift + r * CryptWallHeight, z));
+				CryptPiece(root, m_crypt!.Theme.Walls, Quaternion.identity, new Vector3(piece + 0.03f, WallH, CryptWall),
+					new Vector3(x0 + piece * (i + 0.5f), y + lift + r * WallH, z), wall: true);
 			}
 		}
 	}
@@ -461,13 +543,6 @@ internal sealed partial class SurfGame
 		m_crypt!.Glows.Add((glow, at.z));
 	}
 
-	private static readonly string[] s_cryptDecor =
-	{
-		"crypt_skeleton_pile01", "crypt_skeleton_pile02", "crypt_skeleton_pile03", "crypt_skeleton_laying",
-		"Pickable_ForestCryptRemains01", "Pickable_ForestCryptRemains02", "Pickable_ForestCryptRemains03", "Pickable_ForestCryptRemains04",
-		"crypt_rock", "skull_pile", "crypt_skeleton_chest",
-	};
-
 	private void BuildLeg(CryptLeg leg)
 	{
 		CryptRun c = m_crypt!;
@@ -489,6 +564,7 @@ internal sealed partial class SurfGame
 		float y = c.Floor;
 		float wallX = CryptHalf + CryptWall * 0.5f;
 
+		CryptTheme theme = c.Theme;
 		// The floor: big flagstones, three across.
 		int along = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 3.7f));
 		float tileZ = (z1 - z0) / along;
@@ -498,7 +574,7 @@ internal sealed partial class SurfGame
 		{
 			for (int j = 0; j < 3; j++)
 			{
-				floored |= CryptPiece(root, "stone_floor_2x2|stone_floor", Quaternion.identity, new Vector3(tileX + 0.03f, 0.25f, tileZ + 0.03f),
+				floored |= CryptPiece(root, theme.Floors, Quaternion.identity, new Vector3(tileX + 0.03f, 0.25f, tileZ + 0.03f),
 					new Vector3(-CryptHalf + tileX * (j + 0.5f), y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
 			}
 		}
@@ -523,7 +599,7 @@ internal sealed partial class SurfGame
 			// Pillars along it, every 8 m.
 			for (float pz = z0 + 4f; pz < b - 2f; pz += 8f)
 			{
-				CryptPiece(root, "stone_pillar", Quaternion.identity, new Vector3(0.75f, CryptWallHeight + 0.35f, 0.75f), new Vector3(side * wallX, y, pz));
+				CryptPiece(root, theme.Pillars, Quaternion.identity, new Vector3(0.75f, WallH + 0.35f, 0.75f), new Vector3(side * wallX, y, pz));
 			}
 		}
 		if (!exit)
@@ -531,13 +607,13 @@ internal sealed partial class SurfGame
 			WallAcross(root, leg.B + CryptHalf + CryptWall * 0.5f, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, y);
 			// A taller pillar on the inside of the corner, and a torch on the wall ahead to say
 			// "turn here".
-			CryptPiece(root, "stone_pillar_high|stone_pillar", Quaternion.identity, new Vector3(0.95f, CryptWallHeight + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
+			CryptPiece(root, "stone_pillar_high|" + theme.Pillars, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
 			Sconce(root, new Vector3(turn * 1.6f, y + 1.7f, leg.B + CryptHalf), 180f, 9f);
 		}
 
-		// Sconces along the walls, every 13 m or so on alternating sides.
+		// Sconces along the walls, every 13 m or so on alternating sides (fewer in a sunken crypt).
 		int sconceSide = Random.value < 0.5f ? -1 : 1;
-		for (float sz = z0 + 6f; sz < (exit ? c.End - 6f : leg.B - CryptHalf - 3f); sz += Random.Range(11f, 15f))
+		for (float sz = z0 + 6f; sz < (exit ? c.End - 6f : leg.B - CryptHalf - 3f); sz += Random.Range(theme.SconceGap - 2f, theme.SconceGap + 2f))
 		{
 			Sconce(root, new Vector3(sconceSide * CryptHalf, y + 1.7f, sz), sconceSide < 0 ? 90f : -90f);
 			sconceSide = -sconceSide;
@@ -552,7 +628,7 @@ internal sealed partial class SurfGame
 				{
 					continue;
 				}
-				string name = s_cryptDecor[Random.Range(0, s_cryptDecor.Length)];
+				string name = theme.Decor[Random.Range(0, theme.Decor.Length)];
 				CryptPiece(root, name, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.1f, 1.2f, 1.6f),
 					new Vector3(side * (CryptHalf - 0.6f), y, dz), true, 1.3f);
 			}
@@ -563,8 +639,21 @@ internal sealed partial class SurfGame
 		{
 			if (pile.Z >= leg.A && pile.Z < leg.B)
 			{
-				CryptPiece(root, "BonePileSpawner|crypt_skeleton_pile01", Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.9f, 1.4f, 1.9f),
+				CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.9f, 1.4f, 1.9f),
 					new Vector3(pile.Side * (CryptHalf - 0.95f), y, pile.Z), true, 2f);
+			}
+		}
+
+		// Water over a flooded hall's floor, and the iron gates hanging over it.
+		if (leg.Flooded)
+		{
+			FloodLeg(leg, root, z0, z1, y);
+		}
+		foreach (CryptIronGate gate in c.Gates)
+		{
+			if (!gate.Built && gate.Z >= leg.A && gate.Z < leg.B)
+			{
+				BuildIronGate(gate, root, y);
 			}
 		}
 
@@ -605,8 +694,8 @@ internal sealed partial class SurfGame
 			float x0 = side < 0 ? -(CryptHalf + 13f) : wallX - CryptWall * 0.5f;
 			float x1 = side < 0 ? -(wallX - CryptWall * 0.5f) : CryptHalf + 13f;
 			WallAcross(root, fz, x0, x1, y, 2);
-			CryptPiece(root, "stone_pillar_high|stone_pillar", Quaternion.identity, new Vector3(1f, CryptWallHeight * 2f + 0.6f, 1f), new Vector3(side * (wallX + 0.2f), y, fz + outward * 0.3f));
-			GameObject? torch = CryptPiece(root, "piece_groundtorch_wood|piece_groundtorch", Quaternion.identity, new Vector3(0.6f, 1.8f, 0.6f),
+			CryptPiece(root, "stone_pillar_high|stone_pillar", Quaternion.identity, new Vector3(1f, WallH * 2f + 0.6f, 1f), new Vector3(side * (wallX + 0.2f), y, fz + outward * 0.3f));
+			GameObject? torch = CryptPiece(root, m_crypt!.Theme.GateTorch, Quaternion.identity, new Vector3(0.6f, 1.8f, 0.6f),
 				new Vector3(side * (CryptHalf - 0.2f), y, z + outward * 1.6f), true, 1.5f);
 			if (torch != null)
 			{
@@ -619,12 +708,12 @@ internal sealed partial class SurfGame
 			glow.type = LightType.Point;
 			glow.range = 9f;
 			glow.intensity = 1.6f;
-			glow.color = new Color(1f, 0.62f, 0.3f);
+			glow.color = m_crypt.Theme.GateLight;
 			glow.shadows = LightShadows.None;
 			glow.cullingMask = 1 << m_layer;
 		}
 		// The beam over the way through.
-		WallAcross(root, fz, -wallX, wallX, y, 1, CryptWallHeight);
+		WallAcross(root, fz, -wallX, wallX, y, 1, WallH);
 	}
 
 	// ---------------------------------------------------------------- each frame
@@ -647,8 +736,10 @@ internal sealed partial class SurfGame
 				m_cryptPinned.Remove(leg.Root.transform);
 				Destroy(leg.Root);
 				leg.Root = null;
+				DestroyLegMeshes(leg);
 			}
 		}
+		UpdateIronGates(dt);
 		for (int i = c.Glows.Count - 1; i >= 0; i--)
 		{
 			(Light light, float z) = c.Glows[i];
@@ -668,7 +759,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			pile.Woken = true;
-			RaiseSkeletons(pile);
+			RaiseDead(pile);
 		}
 		for (int i = m_rising.Count - 1; i >= 0; i--)
 		{
@@ -710,23 +801,39 @@ internal sealed partial class SurfGame
 			m_torchLight.intensity = 1.75f * flicker * Mathf.Clamp01(m_cryptDark * 1.5f + 0.15f);
 		}
 
-		// Bones rattling somewhere down the halls, and now and then a ghost.
+		// Bones rattling somewhere down the halls and now and then a ghost; in a sunken crypt the
+		// draugr muttering, and the blobs.
 		if (m_cryptDark > 0.5f)
 		{
 			c.NextSound -= dt;
 			if (c.NextSound <= 0f)
 			{
 				c.NextSound = Random.Range(3.5f, 8f);
-				string sound = Random.value < 0.2f ? "sfx_ghost_idle|sfx_ghosts_idle" : "sfx_skeleton_idle|sfx_skeleton_basic_verse_idle";
+				string sound = Random.value < 0.22f ? c.Theme.IdleRare : c.Theme.Idle;
 				m_audio.Play(sound, Random.Range(0.18f, 0.35f), Random.Range(0.85f, 1.05f));
 			}
 		}
 	}
 
-	private void RaiseSkeletons(CryptPile pile)
+	private void DestroyLegMeshes(CryptLeg leg)
+	{
+		foreach (Mesh mesh in leg.Meshes)
+		{
+			if (mesh != null)
+			{
+				Destroy(mesh);
+			}
+		}
+		leg.Meshes.Clear();
+	}
+
+	// A bone pile (or a draugr's grave mound) raises its dead out of the floor in front of you.
+	private void RaiseDead(CryptPile pile)
 	{
 		BiomeRuntime b = CryptBiome();
-		if (b.Monsters.Count == 0)
+		CryptTheme theme = m_crypt!.Theme;
+		List<SpawnEntry> raised = m_cryptRaised.TryGetValue(theme.Name, out List<SpawnEntry> r) && r.Count > 0 ? r : b.Monsters;
+		if (raised.Count == 0)
 		{
 			return;
 		}
@@ -737,7 +844,7 @@ internal sealed partial class SurfGame
 		{
 			int lane = lanes[i % 2];
 			float z = pile.Z + (i >= 2 ? 6f : Random.Range(-1f, 1f));
-			SpawnEntry e = SpawnTables.Pick(b.Monsters)!;
+			SpawnEntry e = SpawnTables.Pick(raised)!;
 			Thing t = SpawnCreature(e, lane, z, Kind.Block, 0f, BiomeAt(z), "waiter");
 			t.BaseY = -1.9f;
 			t.Collidable = false;
@@ -745,13 +852,13 @@ internal sealed partial class SurfGame
 			Vector3 p = t.Go.transform.localPosition;
 			t.Go.transform.localPosition = new Vector3(p.x, RoadY(z) + t.BaseY, z);
 			m_rising.Add((t, 0f));
-			GameObject? dust = FindFx("vfx_skeleton_rise|vfx_RockHit|vfx_Place_stone_floor");
+			GameObject? dust = FindFx(theme.RiseFx);
 			if (dust != null)
 			{
 				PlayFx(dust, new Vector3(LaneX(lane), RoadY(z) + 0.1f, z), Quaternion.identity, 3f);
 			}
 		}
-		m_audio.Play("sfx_skeleton_rise|sfx_skeleton_alerted", 0.9f);
+		m_audio.Play(theme.RiseSound, 0.9f);
 		m_shake = Mathf.Max(m_shake, 0.06f);
 	}
 
@@ -882,7 +989,7 @@ internal sealed partial class SurfGame
 			m_audio.Play("sfx_rock_hit|sfx_stone_hit|sfx_hit", 0.8f, 0.8f);
 			m_shake = Mathf.Max(m_shake, 0.3f);
 			m_lane = 1;
-			Hit(new Thing { Label = "", JumpOrSlide = true, Heavy = true }, "You ran into the wall of a burial chamber. (Press toward the opening at a corner.)");
+			Hit(new Thing { Label = "", JumpOrSlide = true, Heavy = true }, $"You ran into the wall of a {m_crypt.Theme.Name}. (Press toward the opening at a corner.)");
 		}
 		if (m_cryptBonk >= 0f)
 		{
@@ -997,9 +1104,10 @@ internal sealed partial class SurfGame
 			return;
 		}
 		sky = Color.Lerp(sky, Color.black, w);
-		fogColor = Color.Lerp(fogColor, new Color(0.01f, 0.01f, 0.012f), w);
+		CryptTheme theme = m_crypt != null ? m_crypt.Theme : s_burialChamber;
+		fogColor = Color.Lerp(fogColor, theme.Fog, w);
 		fog = Mathf.Lerp(fog, 0.028f, w);
-		ambient = Color.Lerp(ambient, new Color(0.1f, 0.1f, 0.12f), w);
+		ambient = Color.Lerp(ambient, theme.Ambient, w);
 		sunColor = Color.Lerp(sunColor, new Color(0.55f, 0.6f, 0.8f), w);
 		sunIntensity = Mathf.Lerp(sunIntensity, 0.06f, w);
 	}
@@ -1050,8 +1158,9 @@ internal sealed partial class SurfGame
 			last.localPosition = Vector3.zero;
 			last.localRotation = Quaternion.identity;
 		}
+		string name = c.Theme.Name;
 		ReleaseCrypt();
-		Plugin.Log.LogInfo($"Out of the burial chamber; stage now at {m_stage.position}.");
+		Plugin.Log.LogInfo($"Out of the {name}; stage now at {m_stage.position}.");
 	}
 
 	// Everything back on the stage itself, and the halls gone.
@@ -1068,6 +1177,7 @@ internal sealed partial class SurfGame
 			{
 				Destroy(leg.Root);
 			}
+			DestroyLegMeshes(leg);
 		}
 		m_cryptMove.Clear();
 		for (int i = 1; i < c.Frames.Count; i++)
@@ -1127,7 +1237,7 @@ internal sealed partial class SurfGame
 	// An old chest in a free lane: ten coins.
 	private bool SpawnChest(int lane, float z)
 	{
-		GameObject? prefab = Pictures.Prefab("TreasureChest_forestcrypt");
+		GameObject? prefab = Pictures.Prefab(m_crypt != null ? m_crypt.Theme.Chest : "TreasureChest_forestcrypt") ?? Pictures.Prefab("TreasureChest_forestcrypt");
 		if (prefab == null)
 		{
 			return false;
