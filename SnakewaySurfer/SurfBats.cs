@@ -4,7 +4,8 @@ namespace SnakewaySurfer;
 
 // Bats (1.14, Sam): always a swarm, and more of a nuisance than a danger. A cloud of them
 // flutters about two lanes at head height; flying into one costs no life, but it slows you,
-// takes some stamina and flaps in your face. Slide under them, or pick the lane they're not in.
+// takes some stamina, flaps in your face and knocks your guard down (1.16.1). Roll under them,
+// or pick the lane they're not in.
 internal sealed partial class SurfGame
 {
 	private static bool IsBat(GameObject prefab) => prefab.name.StartsWith("Bat", System.StringComparison.OrdinalIgnoreCase);
@@ -49,6 +50,15 @@ internal sealed partial class SurfGame
 		m_staminaIdle = 0f;
 		m_shake = Mathf.Max(m_shake, 0.12f);
 		Flash(new Color(0.12f, 0.08f, 0.1f), 0.45f);
+		// 1.16.1 (Sam): flapping in your face, they knock your guard down; it comes back up a
+		// moment after (hold block again).
+		if (m_blocking)
+		{
+			m_audio.Play("sfx_unarmed_blocked|sfx_wood_blocked", 0.7f, 1.2f);
+		}
+		m_guardDown = Mathf.Max(m_guardDown, 1.2f);
+		m_blocking = false;
+		AvatarBool("blocking", false);
 		string sound = t.Info != null && t.Info.AlertSound.Length > 0 ? t.Info.AlertSound : Sfx.HitMonster;
 		m_audio.Play(sound, 0.9f, 1.15f);
 	}

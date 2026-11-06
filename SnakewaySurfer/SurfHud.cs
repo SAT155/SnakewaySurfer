@@ -16,6 +16,14 @@ internal sealed partial class SurfGame
 	private bool m_blocking;
 	private float m_blockPressed = -99f;
 	private float m_sprintLook;
+	// 1.16.1 (Sam): a bat in the face knocks the guard down for this long.
+	private float m_guardDown;
+	// How far the block's slow-down has eased in (0..1).
+	private float m_blockSlow;
+	// Skill XP earned this run, given when it ends: Blocking (1 a block, 2 a parry, as the game
+	// gives) and Dodge (1 a dodged attack).
+	private float m_blockXp;
+	private float m_dodgeXp;
 
 	private static float MaxStamina => Mathf.Max(10f, Plugin.MaxStamina.Value);
 
@@ -26,6 +34,10 @@ internal sealed partial class SurfGame
 		m_sprinting = false;
 		m_blocking = false;
 		m_blockPressed = -99f;
+		m_guardDown = 0f;
+		m_blockSlow = 0f;
+		m_blockXp = 0f;
+		m_dodgeXp = 0f;
 		m_flash2 = 0f;
 		m_iconPulse = 0f;
 		AvatarBool("blocking", false);
@@ -34,12 +46,18 @@ internal sealed partial class SurfGame
 	// Sprint and block from the keys; returns how they change the running speed.
 	private float UpdateMoves(float dt, bool canInput)
 	{
-		bool block = canInput && Input.GetKey(Plugin.BlockKey.Value);
+		m_guardDown = Mathf.Max(0f, m_guardDown - dt);
+		bool block = canInput && Input.GetKey(Plugin.BlockKey.Value) && m_guardDown <= 0f;
 		if (block && !m_blocking)
 		{
 			m_blockPressed = m_runTime;
 		}
 		m_blocking = block;
+		if (m_blocking)
+		{
+			// 1.16.1 (Sam): holding the shield up tires you.
+			m_stamina = Mathf.Max(0f, m_stamina - Plugin.BlockHoldStamina.Value * dt);
+		}
 		bool sprint = canInput && !block && Input.GetKey(Plugin.SprintKey.Value);
 		// A sprint needs a little stamina to start, then runs until it's gone.
 		m_sprinting = sprint && m_stamina > (m_sprinting ? 0f : 8f);
@@ -61,7 +79,10 @@ internal sealed partial class SurfGame
 		}
 		AvatarBool("blocking", m_blocking);
 		m_sprintLook = Mathf.MoveTowards(m_sprintLook, m_sprinting ? 1f : 0f, dt * 4f);
-		return m_sprinting ? Plugin.SprintSpeed.Value : m_blocking ? 0.85f : 1f;
+		// Slower behind the shield (1.16.1, Sam: it helps to pick a way through), easing in and
+		// out over a quarter of a second.
+		m_blockSlow = Mathf.MoveTowards(m_blockSlow, m_blocking ? 1f : 0f, dt * 4f);
+		return m_sprinting ? Plugin.SprintSpeed.Value : Mathf.Lerp(1f, Plugin.BlockSpeed.Value, m_blockSlow);
 	}
 
 	// A creature's hit while you hold block: a parry if block went up just before it, else
@@ -90,6 +111,7 @@ internal sealed partial class SurfGame
 			m_shake = Mathf.Max(m_shake, 0.15f);
 			// A parry also gives back a little breath.
 			m_stamina = Mathf.Min(MaxStamina, m_stamina + 10f);
+			m_blockXp += 2f;
 			Plugin.Log.LogInfo($"Parried {t.Label}.");
 			return true;
 		}
@@ -110,6 +132,7 @@ internal sealed partial class SurfGame
 		}
 		m_stamina -= cost;
 		t.Collidable = false;
+		m_blockXp += 1f;
 		PlayBlock(false);
 		Flash(new Color(1f, 0.85f, 0.4f), 0.25f);
 		m_shake = Mathf.Max(m_shake, 0.25f);

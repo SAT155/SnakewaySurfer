@@ -130,6 +130,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public string Hint = "";
 		public float ChargeIn = -1f;
 		public float ChargeSpeed;
+		// 1.16.1: an attack (a strike, a blow, a cloud) that Dodge XP is given for getting out of
+		// the way of, once.
+		public bool Threat;
+		public bool Dodged;
 	}
 
 	private enum Special
@@ -246,6 +250,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float m_vy;
 	private int m_lane = 1;
 	private float m_slide;
+	// 1.16.1 (Sam): the slide is the game's dodge roll (its own animation and sound).
+	private bool m_rollPending;
+	private bool m_rollAnim;
+	private readonly float[] m_laneAt = new float[3];
 	private float m_speed;
 	private float m_runTime;
 	private int m_coins;
@@ -1216,7 +1224,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_crashText = why;
 		SetTrigger("stagger");
 		// Run XP for the running: time at sea is sailing.
-		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def));
+		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
+			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f);
+		m_blockXp = m_dodgeXp = 0f;
 		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
 	}
 
@@ -1505,12 +1515,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 				if (grounded)
 				{
 					m_slide = Plugin.SlideTime.Value;
-					m_audio.Play(Sfx.Slide);
+					Roll();
 				}
 				else
 				{
+					// Down out of a jump, rolling as you land.
 					m_vy = Mathf.Min(m_vy, -18f);
 					m_slide = Plugin.SlideTime.Value;
+					m_rollPending = true;
 				}
 			}
 		}
@@ -1526,6 +1538,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			m_y = 0f;
 			m_vy = 0f;
+			if (m_rollPending)
+			{
+				m_rollPending = false;
+				Roll();
+			}
 		}
 		else if (m_y <= 0.001f)
 		{
@@ -1545,6 +1562,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
 		m_x = Mathf.MoveTowards(m_x, LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
 		m_z += m_speed * dt;
+		// When you were last in each lane, for stepping out of the way of a blow (Dodge XP).
+		for (int l = 0; l < m_laneAt.Length; l++)
+		{
+			if (Mathf.Abs(m_x - LaneX(l)) < LaneWidth * 0.5f)
+			{
+				m_laneAt[l] = m_runTime;
+			}
+		}
 
 		Segment seg = SegAt(m_z);
 		int biome = seg.Biome;
@@ -1651,6 +1676,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					}
 					if (t.JumpOrSlide && (m_y > 0.7f || sliding))
 					{
+						Dodged(t);
 						break;
 					}
 					m_audio.Play(Sfx.HitMonster);
@@ -1662,6 +1688,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 						m_audio.Play(t.CrashText.Length > 0 ? Sfx.HitMonster : Sfx.HitLog);
 						Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 						return;
+					}
+					if (t.Label.Length > 0)
+					{
+						// Jumped a shockwave or a boss's bar.
+						Dodged(t);
 					}
 					break;
 				case Kind.High:
@@ -1677,7 +1708,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 						{
 							BatHit(t);
 						}
+						else
+						{
+							Dodged(t);
+						}
 						break;
+					}
+					if (sliding && t.Label.Length > 0)
+					{
+						// Rolled under a shot or a swoop.
+						Dodged(t);
 					}
 					if (!sliding)
 					{
@@ -1689,6 +1729,27 @@ internal sealed partial class SurfGame : MonoBehaviour
 					}
 					break;
 			}
+		}
+	}
+
+	// Got out of the way of an attack: Dodge XP, once for it (the game gives 1 for each).
+	private void Dodged(Thing t)
+	{
+		if (!t.Dodged)
+		{
+			t.Dodged = true;
+			m_dodgeXp += 1f;
+		}
+	}
+
+	// The game's own dodge roll for a slide (a crouch when the avatar has none).
+	private void Roll()
+	{
+		m_audio.Play(Sfx.Slide);
+		m_rollAnim = m_avatarAnim != null && m_avatarParams.Contains(Animator.StringToHash("dodge"));
+		if (m_rollAnim)
+		{
+			SetTrigger("dodge");
 		}
 	}
 
@@ -1785,6 +1846,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 			if (m_state == State.Running && t.Kind == Kind.Block && t.Moving != null)
 			{
 				UpdateStrike(t, dt);
+			}
+			else if (m_state == State.Running && t.Kind == Kind.Block && t.Go.name == "GasCloud")
+			{
+				FadeGasBehind(t);
+			}
+			// Stepped out of the lane of a blow that landed, or a strike, just in time.
+			if (m_state == State.Running && !t.Dodged && t.Collidable && (t.Threat || (t.Attacked && t.Info != null && !t.Helper))
+				&& t.Lane >= 0 && t.Lane < 3 && !t.FreeX && t.Z + t.HalfLength < m_z - 0.4f && t.Z + t.HalfLength > m_z - 4f
+				&& Mathf.Abs(m_x - LaneX(t.Lane)) > LaneWidth * 0.5f && m_runTime - m_laneAt[t.Lane] < 1.1f)
+			{
+				Dodged(t);
 			}
 			if (t.Life > 0f && m_state == State.Running)
 			{
@@ -2177,7 +2249,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		bool rise = giant.prefab != null && SpawnTables.Contains(Plugin.Ambushers.Value, giant.prefab);
 		if (giant.prefab != null && z > 60f && Random.value < Plugin.GiantChance.Value * (rise ? 0.4f : 1f))
 		{
-			if (!rise && Random.value < 0.5f)
+			// 1.16.1 (Sam): an abomination also sweeps two lanes from the side, like a troll's log.
+			if (Random.value < 0.5f && (!rise || CreatureInfo.Of(giant.prefab).Melee.Exists(a => a.Type == Attack.AttackType.Horizontal)))
 			{
 				SpawnSwingTroll(z, giants, giant);
 			}
@@ -2329,14 +2402,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// Mostly the troll's own attack with its own weapon; now and then the classic stiff log
 		// swing from 1.2, which Sam asked to keep, done by a young (small) troll.
 		CreatureInfo info = CreatureInfo.Of(prefab);
-		CreatureAttack? attack = Random.value < 0.3f ? null : info.PickMelee("swing");
+		// An abomination swings its arm across (its horizontal attack), with no weapon.
+		CreatureAttack? sweep = info.Melee.Find(a => a.Type == Attack.AttackType.Horizontal);
+		bool bare = SpawnTables.Contains(Plugin.Ambushers.Value, prefab) && sweep != null;
+		CreatureAttack? attack = bare ? sweep : Random.value < 0.3f ? null : info.PickMelee("swing");
 		const float young = 0.6f;
 		// Facing the track and a little toward the runner.
 		GameObject troll = Creature(prefab, Quaternion.Euler(0f, side < 0 ? 120f : 240f, 0f), RealScale(info) * (attack == null ? young : 1f));
 		troll.transform.SetParent(root.transform, false);
 		troll.transform.localPosition = new Vector3(trollX, 0f, 0f);
 		Animator anim = troll.GetComponentInChildren<Animator>();
-		bool armed = attack != null && Arm(troll, info, attack, anim);
+		bool armed = attack != null && (Arm(troll, info, attack, anim) || bare);
 		Transform? moving = null;
 		if (!armed)
 		{
@@ -2358,7 +2434,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Z = z,
 			HalfLength = 0.7f,
 			Label = label,
-			CrashText = $"A {label} clubbed you flat in the {b.Def.Name}!",
+			CrashText = bare ? $"The {label} swept you off the path in the {b.Def.Name}!" : $"A {label} clubbed you flat in the {b.Def.Name}!",
 			Collidable = false,
 			Special = Special.Swing,
 			Moving = moving,
@@ -2366,16 +2442,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Anim = anim,
 			Attack = attack,
 			Heavy = true,
+			Threat = true,
 		});
-		// 1.14.2 (Sam): a grown troll's log is long enough to sweep the middle lane too, now and
-		// then (both lanes are marked).
-		if (attack != null && Random.value < 0.5f)
+		// 1.16.1 (Sam): a troll's log, and an abomination's sweep, always reach the middle lane
+		// too (both lanes are marked).
 		{
 			Thing swing = m_things[m_things.Count - 1];
 			GameObject reach = new GameObject("TrollReach");
 			reach.transform.SetParent(m_stage, false);
 			reach.transform.localPosition = new Vector3(LaneX(1), RoadY(z), z);
-			Thing partner = new Thing { Go = reach, Kind = Kind.Block, Lane = 1, Z = z, HalfLength = 0.7f, Label = label, CrashText = swing.CrashText, Collidable = false, Heavy = true };
+			Thing partner = new Thing { Go = reach, Kind = Kind.Block, Lane = 1, Z = z, HalfLength = 0.7f, Label = label, CrashText = swing.CrashText, Collidable = false, Heavy = true, Threat = true };
 			swing.Partner = partner;
 			m_things.Add(partner);
 		}
@@ -2391,7 +2467,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		GameObject log = b.Logs.Count > 0 ? b.Logs[Random.Range(0, b.Logs.Count)] : m_biomes[1].Logs.Count > 0 ? m_biomes[1].Logs[0] : null!;
 		if (log != null)
 		{
-			GameObject club = Fitted(Picture(log), Quaternion.identity, new Vector3(0.55f, 4.4f, 0.55f), false);
+			GameObject club = Fitted(Picture(log), Quaternion.identity, new Vector3(0.55f, 6.6f, 0.55f), false);
 			club.transform.SetParent(pivot.transform, false);
 			club.transform.localPosition = Vector3.zero;
 		}
@@ -2473,7 +2549,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// The real attack animation winds up slower than the classic stiff swing.
 		bool real = swing && t.Moving == null;
 		// The real swing lands when its clip's blow does.
-		float windup = real ? AnimTiming.Delay(t.Anim, t.Attack?.Animation ?? "", 0.8f) : 0f;
+		// 1.16.1 (Sam: the log swings started too late): a big creature's swing is slow to wind up.
+		float windup = real ? AnimTiming.Delay(t.Anim, t.Attack?.Animation ?? "", 1.3f) : 0f;
 		if (!t.Triggered)
 		{
 			// 1.14 (Sam): the real log swing landed too late, and the leap onto the track (and its
@@ -2552,6 +2629,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			else if (t.Progress >= 0.5f)
 			{
 				t.Collidable = true;
+				if (t.Partner != null)
+				{
+					t.Partner.Collidable = true;
+				}
 			}
 		}
 		else if (t.Moving != null && t.Rise)
@@ -2914,7 +2995,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			// The blow lands as you arrive: the wind-up is the attack clip's own (learned the first
 			// time it plays), else a guess from the creature's size.
-			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, Mathf.Clamp(0.2f + 0.12f * t.Height, 0.3f, 0.8f));
+			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, FallbackWindup(t));
 			// A smasher strikes from further off so its shockwaves travel to you.
 			// 1.14 (Sam: golems and shamans struck too late): measured from its front, since a big
 			// creature's body reaches you before its middle does, and a beat early so the blow is
@@ -3295,7 +3376,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		AvatarFloat("forward_speed", running ? m_runAnimSpeed : 0f);
 		AvatarFloat("sideway_speed", 0f);
 		AvatarBool("onGround", m_y <= 0.05f);
-		AvatarBool("crouching", running && m_slide > 0f);
+		AvatarBool("crouching", running && m_slide > 0f && !m_rollAnim);
 		AvatarBool("inWater", false);
 		if (m_avatarAnim != null)
 		{

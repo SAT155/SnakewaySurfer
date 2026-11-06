@@ -116,24 +116,87 @@ internal static class AnimTiming
 		}
 	}
 
+	// 1.16.1: an estimate from the clip itself is kept as learned, with a note in the log.
+	public static void Estimate(Animator anim, string trigger, float delay, string clip)
+	{
+		string key = Key(anim, trigger);
+		if (!s_delay.ContainsKey(key))
+		{
+			Plugin.Log.LogInfo($"Attack timing {key}: no blow marked in '{clip}', so about {delay:0.00} s (a little before the middle of the clip).");
+			s_delay[key] = delay;
+		}
+	}
+
 	// Once the clip after a trigger is playing: seconds until its blow, or -1 if none yet.
+	// 1.16.1 (Sam: abomination and troll log swings landed late): every layer is looked at, not
+	// only the base one, since some attacks play on a layer of their own.
 	public static float Remaining(Animator anim)
+	{
+		for (int layer = 0; layer < anim.layerCount; layer++)
+		{
+			if (layer > 0 && anim.GetLayerWeight(layer) < 0.01f)
+			{
+				continue;
+			}
+			bool transition = anim.IsInTransition(layer);
+			AnimatorClipInfo[] clips = transition ? anim.GetNextAnimatorClipInfo(layer) : anim.GetCurrentAnimatorClipInfo(layer);
+			AnimatorStateInfo state = transition ? anim.GetNextAnimatorStateInfo(layer) : anim.GetCurrentAnimatorStateInfo(layer);
+			foreach (AnimatorClipInfo info in clips)
+			{
+				float hit = HitTime(info.clip);
+				if (hit < 0f || info.clip.length <= 0f)
+				{
+					continue;
+				}
+				float now = (state.normalizedTime % 1f) * info.clip.length;
+				return Mathf.Max(0f, (hit - now) / Rate(anim, state));
+			}
+		}
+		return -1f;
+	}
+
+	private static float Rate(Animator anim, AnimatorStateInfo state) => Mathf.Max(0.05f, Mathf.Abs(state.speed * state.speedMultiplier) * Mathf.Max(0.05f, anim.speed));
+
+	// The clip playing (or being blended into) on the base layer.
+	public static AnimationClip? Playing(Animator anim)
+	{
+		bool transition = anim.IsInTransition(0);
+		AnimatorClipInfo[] clips = transition ? anim.GetNextAnimatorClipInfo(0) : anim.GetCurrentAnimatorClipInfo(0);
+		AnimationClip? best = null;
+		float weight = -1f;
+		foreach (AnimatorClipInfo info in clips)
+		{
+			if (info.clip != null && info.weight > weight)
+			{
+				best = info.clip;
+				weight = info.weight;
+			}
+		}
+		return best;
+	}
+
+	// A one-shot clip that started after the trigger (not the one playing before it, and not a
+	// looping walk or run): the attack's own, even when its blow isn't marked.
+	public static bool NewClip(Animator anim, AnimationClip? before, out AnimationClip? clip, out float now, out float rate)
 	{
 		bool transition = anim.IsInTransition(0);
 		AnimatorClipInfo[] clips = transition ? anim.GetNextAnimatorClipInfo(0) : anim.GetCurrentAnimatorClipInfo(0);
 		AnimatorStateInfo state = transition ? anim.GetNextAnimatorStateInfo(0) : anim.GetCurrentAnimatorStateInfo(0);
 		foreach (AnimatorClipInfo info in clips)
 		{
-			float hit = HitTime(info.clip);
-			if (hit < 0f || info.clip.length <= 0f)
+			if (info.clip == null || info.clip == before || info.clip.isLooping || info.clip.length < 0.2f)
 			{
 				continue;
 			}
-			float now = (state.normalizedTime % 1f) * info.clip.length;
-			float rate = Mathf.Max(0.05f, Mathf.Abs(state.speed * state.speedMultiplier) * Mathf.Max(0.05f, anim.speed));
-			return Mathf.Max(0f, (hit - now) / rate);
+			clip = info.clip;
+			now = (state.normalizedTime % 1f) * info.clip.length;
+			rate = Rate(anim, state);
+			return true;
 		}
-		return -1f;
+		clip = null;
+		now = 0f;
+		rate = 1f;
+		return false;
 	}
 }
 
@@ -146,9 +209,18 @@ internal sealed partial class SurfGame
 		public string Trigger = "";
 		public float Since;
 		public System.Action<float>? OnKnown;
+		// What played before the trigger, and the attack clip once it starts, with the blow
+		// guessed from it (for clips that don't mark their blow).
+		public AnimationClip? Before;
+		public AnimationClip? Clip;
+		public float Guess = -1f;
 	}
 
 	private readonly List<AnimWatch> m_animWatches = new();
+
+	// Before an attack has been seen once: a guess from the creature's size. 1.16.1: big ones
+	// wind up longer (a troll's slam takes 1.3 s, a skeleton's swing 0.8 s).
+	private static float FallbackWindup(Thing t) => Mathf.Clamp(0.35f + 0.15f * t.Height, 0.4f, 1.4f);
 
 	// Triggers an attack animation and watches it: `onKnown` gets the seconds left until the
 	// blow as soon as the clip is playing (to land the hit with it).
@@ -164,7 +236,7 @@ internal sealed partial class SurfGame
 			AnimTiming.ReportMissing(anim, trigger);
 			return;
 		}
-		m_animWatches.Add(new AnimWatch { Anim = anim, Trigger = trigger, OnKnown = onKnown });
+		m_animWatches.Add(new AnimWatch { Anim = anim, Trigger = trigger, OnKnown = onKnown, Before = AnimTiming.Playing(anim) });
 	}
 
 	private void UpdateAnimWatches(float dt)
@@ -188,11 +260,29 @@ internal sealed partial class SurfGame
 					m_animWatches.RemoveAt(i);
 					continue;
 				}
+				if (w.Clip == null && AnimTiming.NewClip(w.Anim, w.Before, out AnimationClip? clip, out float now, out float rate))
+				{
+					// The attack's clip is playing but doesn't mark its blow: big swings land a
+					// little before the middle. The hit moves there now; a marked blow found
+					// later in the attack still wins.
+					w.Clip = clip;
+					float lands = Mathf.Max(0f, clip!.length * 0.45f - now) / rate;
+					w.Guess = w.Since + lands;
+					w.OnKnown?.Invoke(lands);
+				}
 			}
 			w.Since += dt;
-			if (w.Since > 1.5f)
+			// Long wind-ups (a troll's log, an abomination's) can take a while to show their blow.
+			if (w.Since > 2.6f || (w.Guess >= 0f && w.Since > w.Guess + 0.4f))
 			{
-				AnimTiming.ReportMissing(w.Anim, w.Trigger);
+				if (w.Clip != null)
+				{
+					AnimTiming.Estimate(w.Anim, w.Trigger, w.Guess, w.Clip.name);
+				}
+				else
+				{
+					AnimTiming.ReportMissing(w.Anim, w.Trigger);
+				}
 				m_animWatches.RemoveAt(i);
 			}
 		}

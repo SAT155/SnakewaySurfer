@@ -868,6 +868,7 @@ internal sealed partial class SurfGame
 	}
 
 	private readonly Dictionary<Color, Material> m_tints = new();
+	private float m_gasSfxAt = -99f;
 
 	private Material TintMaterial(Color c)
 	{
@@ -926,7 +927,9 @@ internal sealed partial class SurfGame
 			}
 			strike.transform.SetParent(root.transform, true);
 			strike.SetActive(false);
-			if (m_bossThing?.Attack != null)
+			// The game's attack effect inside the strike: not in gas, which is its own cloud (the
+			// effect would be stretched along with it).
+			if (look != "gas" && m_bossThing?.Attack != null)
 			{
 				foreach (GameObject fx in m_bossThing.Attack.Effects)
 				{
@@ -949,8 +952,12 @@ internal sealed partial class SurfGame
 				Label = def.Name,
 				CrashText = $"{def.Name} got you in the {biome}! (Watch the marked lanes.)",
 				Life = arrive + 1.5f + (length > 3f ? length / Mathf.Max(1f, m_speed) : 0f),
-				FireIn = Mathf.Max(0.05f, arrive - 0.5f),
+				// 1.16.1 (Sam: Bonemass's gas clouds appeared much too close): gas billows up
+				// where it's marked, well down the track, and hangs there as you come; other
+				// strikes still show as you arrive.
+				FireIn = look == "gas" ? 0.05f : Mathf.Max(0.05f, arrive - 0.5f),
 				Moving = strike.transform,
+				Threat = true,
 			});
 		}
 	}
@@ -964,9 +971,40 @@ internal sealed partial class SurfGame
 			if (t.FireIn <= 0f)
 			{
 				t.Moving.gameObject.SetActive(true);
-				m_shake = Mathf.Max(m_shake, 0.15f);
+				if (!IsGas(t))
+				{
+					m_shake = Mathf.Max(m_shake, 0.15f);
+				}
 				StrikeEffects(t);
 			}
+		}
+		FadeGasBehind(t);
+	}
+
+	private static bool IsGas(Thing t) => t.Moving != null && t.Moving.name == "GasCloud";
+
+	private MaterialPropertyBlock? m_gasBlock;
+
+	// Once you're past a gas cloud it thins away, so the camera behind you never flies into it.
+	private void FadeGasBehind(Thing t)
+	{
+		Transform? cloud = t.Moving;
+		if (cloud == null || cloud.name != "GasCloud" || !cloud.gameObject.activeSelf)
+		{
+			cloud = t.Go != null && t.Go.name == "GasCloud" ? t.Go.transform : null;
+		}
+		if (cloud == null)
+		{
+			return;
+		}
+		float fade = 1f - Mathf.Clamp01((m_z - (t.Z + t.HalfLength) + 0.5f) / 3f);
+		m_gasBlock ??= new MaterialPropertyBlock();
+		foreach (ParticleSystemRenderer r in cloud.GetComponentsInChildren<ParticleSystemRenderer>())
+		{
+			r.GetPropertyBlock(m_gasBlock);
+			m_gasBlock.SetColor("_Color", new Color(1f, 1f, 1f, fade));
+			r.SetPropertyBlock(m_gasBlock);
+			r.enabled = fade > 0.01f;
 		}
 	}
 
@@ -985,6 +1023,9 @@ internal sealed partial class SurfGame
 			at.z = t.Z - t.HalfLength + 1f;
 		}
 		bool shown = false;
+		// The boss's own burst, cut down to the lane for gas: at full size Bonemass's fills the
+		// screen.
+		bool gas = IsGas(t);
 		if (def.Storm)
 		{
 			StormStrike(def, at);
@@ -992,11 +1033,11 @@ internal sealed partial class SurfGame
 		}
 		else if (def.StrikeFx.Length > 0 && FindFx(def.StrikeFx) is GameObject fx)
 		{
-			PlayFx(fx, at, Quaternion.identity, 3f);
+			PlayFx(fx, at, Quaternion.identity, gas ? 1.6f : 3f, null, gas ? 0.4f : 1f);
 			shown = true;
 		}
 		CreatureAttack? attack = m_bossThing?.Attack;
-		if (attack != null)
+		if (attack != null && !gas)
 		{
 			foreach (GameObject impact in attack.Impact)
 			{
@@ -1011,7 +1052,12 @@ internal sealed partial class SurfGame
 		}
 		if (def.StrikeSfx.Length > 0)
 		{
-			m_audio.Play(def.StrikeSfx, 1f);
+			// Several clouds at once make one sound, not a pile of them.
+			if (!gas || Time.time - m_gasSfxAt > 0.2f)
+			{
+				m_audio.Play(def.StrikeSfx, gas ? 0.8f : 1f);
+				m_gasSfxAt = gas ? Time.time : m_gasSfxAt;
+			}
 		}
 		else
 		{

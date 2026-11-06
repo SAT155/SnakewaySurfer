@@ -246,14 +246,16 @@ internal sealed partial class SurfGame
 		// Lanes about to be hit are marked well before the blow.
 		if (t.Move.Length > 0 && !t.Attacked && t.HitLanes.Length == 0 && t.Attack != null)
 		{
-			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, Mathf.Clamp(0.2f + 0.12f * t.Height, 0.3f, 0.8f));
+			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, FallbackWindup(t));
 			float mark = t.Smashes > 0 ? (m_speed + t.Speed) * (windup + 2.0f) + 6f : (m_speed + t.Speed) * (windup + 1.0f) + 4f;
 			if (distance < mark && distance > 0f)
 			{
 				t.HitLanes = ChooseLanes(t);
 				foreach (int lane in t.HitLanes)
 				{
-					t.Markers.Add(MakeMarker(lane, t.Z - 2f, 3.6f, m_markerMaterial));
+					// 1.16.1 (Sam: it wasn't clear what to do with slime gas): gas over every
+					// lane is marked blue, the colour that means roll under it.
+					t.Markers.Add(MakeMarker(lane, t.Z - 2f, 3.6f, t.Move == "gas3" ? SlideMaterial : m_markerMaterial));
 				}
 			}
 		}
@@ -322,7 +324,8 @@ internal sealed partial class SurfGame
 		string biome = m_biomes[BiomeAt(t.Z)].Def.Name;
 		foreach (int lane in t.HitLanes)
 		{
-			GameObject zone = gas ? MakeCloud(lane, t.Z - 1.5f) : new GameObject("Sweep");
+			// Gas over every lane hangs at head height over blue: roll under it.
+			GameObject zone = gas ? MakeCloud(lane, t.Z - 1.5f, t.Move == "gas3") : new GameObject("Sweep");
 			zone.transform.SetParent(m_stage, false);
 			if (!gas)
 			{
@@ -339,6 +342,7 @@ internal sealed partial class SurfGame
 				JumpOrSlide = t.Move == "gas3",
 				CrashText = gas ? $"You choked in a {t.Label}'s cloud in the {biome}!" : $"A {t.Label}'s sweep caught you in the {biome}!",
 				Life = gas ? 5f : 0.6f,
+				Threat = true,
 			});
 		}
 		if (gas && t.Move == "sweep")
@@ -741,6 +745,11 @@ internal sealed partial class SurfGame
 						m_audio.Play(Sfx.HitMonster);
 						Hit(t, $"A {t.Label} caught you from behind in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					}
+					else if (m_lane == t.Lane || m_runTime - m_laneAt[t.Lane] < 1.1f)
+					{
+						// Rolled, jumped or stepped out of its way.
+						Dodged(t);
+					}
 				}
 				break;
 			default:
@@ -891,7 +900,7 @@ internal sealed partial class SurfGame
 	// 1.14.2 (Sam: the gas was a green see-through ball): a drifting, churning cloud of soft
 	// green puffs filling the lane, over a faint green patch on the ground. Scaling the returned
 	// object stretches the cloud (only its shape, not the puffs).
-	private GameObject MakeCloud(int lane, float z)
+	private GameObject MakeCloud(int lane, float z, bool high = false)
 	{
 		if (m_markerMaterial == null)
 		{
@@ -906,7 +915,11 @@ internal sealed partial class SurfGame
 		cloud.layer = m_layer;
 		cloud.transform.SetParent(m_stage, false);
 		cloud.transform.localScale = new Vector3(LaneWidth * 0.95f, 1.6f, 3.2f);
-		cloud.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.9f, z);
+		cloud.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + (high ? 1.9f : 0.9f), z);
+		if (high)
+		{
+			cloud.transform.localScale = new Vector3(LaneWidth * 0.95f, 1.2f, 3.2f);
+		}
 
 		GameObject puffs = new GameObject("Puffs");
 		puffs.layer = m_layer;
@@ -919,7 +932,8 @@ internal sealed partial class SurfGame
 		main.prewarm = true;
 		main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 2.6f);
 		main.startSpeed = new ParticleSystem.MinMaxCurve(0.1f, 0.5f);
-		main.startSize = new ParticleSystem.MinMaxCurve(1.1f, 2.2f);
+		// Smaller puffs for a cloud up high, so there's a clear gap under it.
+		main.startSize = high ? new ParticleSystem.MinMaxCurve(0.8f, 1.5f) : new ParticleSystem.MinMaxCurve(1.1f, 2.2f);
 		main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
 		main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.42f, 0.7f, 0.12f, 0.45f), new Color(0.6f, 0.82f, 0.25f, 0.3f));
 		main.gravityModifier = -0.03f;
@@ -950,8 +964,8 @@ internal sealed partial class SurfGame
 		pr.receiveShadows = false;
 		ps.Play(true);
 
-		// The poisoned ground under it.
-		GameObject patch = MakeMarker(lane, z, 3.2f, m_gasMaterial);
+		// The poisoned ground under it; blue under a cloud to roll beneath.
+		GameObject patch = MakeMarker(lane, z, 3.2f, high ? SlideMaterial : m_gasMaterial);
 		patch.transform.SetParent(cloud.transform, true);
 		return cloud;
 	}

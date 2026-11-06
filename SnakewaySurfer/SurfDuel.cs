@@ -110,6 +110,7 @@ internal sealed partial class SurfGame
 			// Parried: it reels, and your blow lands.
 			PlayBlock(true);
 			Flash(new Color(1f, 0.95f, 0.75f), 0.6f);
+			m_blockXp += 2f;
 			Plugin.Log.LogInfo($"Parried {def.Name}: counter-blow.");
 			EndDuel(false);
 			BossHit();

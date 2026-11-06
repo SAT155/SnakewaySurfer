@@ -13,7 +13,7 @@ internal static class Rewards
 
 	// Gives Run XP for the distance and, when allowed, one food from the highest biome reached.
 	// Returns the lines to show on the results screen.
-	public static string Grant(Player player, float distance, int highestBiome, float seconds, List<BiomeDef> biomes)
+	public static string Grant(Player player, float distance, int highestBiome, float seconds, List<BiomeDef> biomes, float blockRaise = 0f, float dodgeRaise = 0f)
 	{
 		List<string> lines = new();
 
@@ -22,10 +22,23 @@ internal static class Rewards
 		float raise = xpSeconds * Plugin.RunXpPerSecond.Value;
 		if (raise > 0.001f)
 		{
-			float gained = AddRunXp(player, raise);
+			float gained = AddSkillXp(player, Skills.SkillType.Run, raise);
 			if (gained > 0.001f)
 			{
 				lines.Add($"Run skill +{gained:0.00} levels");
+			}
+		}
+		// 1.16.1 (Sam): Blocking and Dodge XP as the game gives it for each block, parry and
+		// dodge (Humanoid.BlockAttack raises Blocking by 1, or 2 for a parry).
+		foreach ((Skills.SkillType type, float amount, string name) in new[] { (Skills.SkillType.Blocking, blockRaise, "Blocking"), (Skills.SkillType.Dodge, dodgeRaise, "Dodge") })
+		{
+			if (amount > 0.001f)
+			{
+				float gained = AddSkillXp(player, type, amount);
+				if (gained > 0.001f)
+				{
+					lines.Add($"{name} skill +{gained:0.00} levels");
+				}
 			}
 		}
 
@@ -75,14 +88,14 @@ internal static class Rewards
 	// factor 1 for each second of running (Player.Update), so `raise` is in seconds of running.
 	// Skills.RaiseSkill levels up at most once per call and resets the accumulator, so it is fed
 	// in steps that stop at each level. Returns the levels gained (fractions included).
-	private static float AddRunXp(Player player, float raise)
+	private static float AddSkillXp(Player player, Skills.SkillType type, float raise)
 	{
 		Skills skills = player.m_skills;
 		if (skills == null)
 		{
 			return 0f;
 		}
-		Skills.Skill skill = skills.GetSkill(Skills.SkillType.Run);
+		Skills.Skill skill = skills.GetSkill(type);
 		float stepRate = skill.m_info.m_increseStep * Game.m_skillGainRate;
 		if (stepRate <= 0f)
 		{
@@ -100,12 +113,12 @@ internal static class Rewards
 			float toLevel = Mathf.Max(0f, req - skill.m_accumulator) / stepRate;
 			if (remaining >= toLevel)
 			{
-				skills.RaiseSkill(Skills.SkillType.Run, toLevel + 0.0001f);
+				skills.RaiseSkill(type, toLevel + 0.0001f);
 				remaining -= toLevel;
 			}
 			else
 			{
-				skills.RaiseSkill(Skills.SkillType.Run, remaining);
+				skills.RaiseSkill(type, remaining);
 				remaining = 0f;
 			}
 		}

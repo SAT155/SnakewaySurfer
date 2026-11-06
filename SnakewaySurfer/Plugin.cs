@@ -97,6 +97,9 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> MaxStamina = null!;
 	internal static ConfigEntry<float> SprintStamina = null!;
 	internal static ConfigEntry<float> BlockStamina = null!;
+	internal static ConfigEntry<float> BlockHoldStamina = null!;
+	internal static ConfigEntry<float> BlockSpeed = null!;
+	internal static ConfigEntry<bool> SkillXp = null!;
 	internal static ConfigEntry<float> StaminaRegen = null!;
 	internal static ConfigEntry<float> ParryWindow = null!;
 	internal static ConfigEntry<bool> PopupText = null!;
@@ -324,7 +327,7 @@ public class Plugin : BaseUnityPlugin
 		SprintKey = Config.Bind("2 - Keys", "Sprint Key", KeyCode.LeftShift,
 			"Hold to sprint: faster, so you can get past an attack before it lands. Uses stamina.");
 		BlockKey = Config.Bind("2 - Keys", "Block Key", KeyCode.Mouse1,
-			"Hold to block a creature's attack with your shield (costs stamina per blocked hit, and you run a little slower). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas and tar can't be blocked.");
+			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas and tar can't be blocked, and a bat in the face knocks your guard down for a moment.");
 		ThrowKey = Config.Bind("2 - Keys", "Throw Key", KeyCode.Mouse0,
 			"Throws a spear you picked up at the boss (Eikthyr): it flies down your lane, so throw when he's lined up with you.");
 		SprintSpeed = Config.Bind("1 - Run", "Sprint Speed", 1.35f,
@@ -335,6 +338,12 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Stamina used each second of sprinting.", new AcceptableValueRange<float>(0f, 100f)));
 		BlockStamina = Config.Bind("1 - Run", "Block Stamina", 30f,
 			new ConfigDescription("Stamina used by each blocked hit (a parry is free). Without enough, the guard breaks and the hit gets through.", new AcceptableValueRange<float>(0f, 200f)));
+		BlockHoldStamina = Config.Bind("1 - Run", "Block Hold Stamina Per Second", 8f,
+			new ConfigDescription("Stamina used each second the block is held. At none left the guard stays up, but blocked hits break through it (a parry still works).", new AcceptableValueRange<float>(0f, 100f)));
+		BlockSpeed = Config.Bind("1 - Run", "Block Speed", 0.75f,
+			new ConfigDescription("How fast you run behind your shield, from your normal speed (it eases in and out).", new AcceptableValueRange<float>(0.3f, 1f)));
+		SkillXp = Config.Bind("2 - Rewards", "Block And Dodge XP", true,
+			"Blocking and Dodge skill XP as the game gives it: 1 for each blocked hit, 2 for each parry (Blocking), and 1 for each attack you roll under, jump or step out of the way of (Dodge). Given with the Run XP when the run ends.");
 		StaminaRegen = Config.Bind("1 - Run", "Stamina Regen Per Second", 22f,
 			new ConfigDescription("Stamina recovered each second once you stop sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
 		ParryWindow = Config.Bind("1 - Run", "Parry Window", 0.3f,
