@@ -108,14 +108,16 @@ internal static class Progress
 		new BossDef
 		{
 			Biome = 3, Name = "Moder", Prefab = "Dragon", Key = "defeated_dragon", Item = "DragonEgg", Amount = 3,
-			HitItem = "BoltIron|BoltBone|ArrowIron", HitVerb = "The ballista bolt strikes", Mode = "fly", Distance = 30f, Fly = 7f, MaxHeight = 6f, Aim = true,
+			HitItem = "ArrowObsidian|ArrowIron|ArrowFlint", HitVerb = "The obsidian arrow strikes", Mode = "fly", Distance = 46f, Fly = 7f, MaxHeight = 6f, Aim = true,
 			Location = "Dragonqueen", Walls = 9f, Torch = "piece_groundtorch_blue", Tint = new Color(0.6f, 0.85f, 1f),
 			Env = "Moder|SnowStorm",
 			Moves = new[]
 			{
-				new[] { "sweep" },
-				new[] { "jumprow", "slide", "sweep" },
-				new[] { "strike2", "sweep", "jumprow" },
+				// 1.16.2 (Sam): her ice volley from the air and her frost breath once she lands,
+				// as in the game; no more logs and bars.
+				new[] { "icevolley", "icevolley", "land" },
+				new[] { "icevolley", "icewide", "land" },
+				new[] { "icewide", "icevolley", "land", "icewide" },
 			},
 			StarMoves = new[] { "minions:drake", "meteors", "gap" },
 		},

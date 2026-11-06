@@ -313,7 +313,7 @@ public class Plugin : BaseUnityPlugin
 		GameGrass = Config.Bind("3 - Look", "Game Grass", true,
 			"Grow the game's own grass and ground clutter beside the track, by the game's rules for each biome (and its grass quality setting).");
 		TrackStyle = Config.Bind("3 - Look", "Track Style", "dirt",
-			"With Game Terrain: \"dirt\" (a dirt path like a hoed one), \"paved\" (like the hoe's paved road) or \"stone\" (the Track Piece's stone floor).");
+			"\"dirt\" (the game's dirt ground), \"paved\" (its paved road), \"stone\" (the Track Piece's stone floor), or \"hoed\" / \"hoed paved\" (drawn by the game's terrain shader like a hoed path; it can look very dark).");
 		UseGameCamera = Config.Bind("3 - Look", "Use Game Camera", true,
 			"Draw the minigame through the game's own camera, with its post effects (bloom, colour grading, ambient occlusion) and sky. Off: the minigame's own plain camera.");
 		GameLighting = Config.Bind("3 - Look", "Game Lighting", true,

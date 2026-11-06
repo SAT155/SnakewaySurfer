@@ -17,6 +17,7 @@ internal sealed partial class SurfGame
 	private const float OceanStep = 3.4f;
 	// The grid's outer ring reaches this many times further out, to the horizon.
 	private const float RimReach = 8f;
+	private static readonly Bounds OceanBounds = new Bounds(new Vector3(0f, SeaY, 0f), new Vector3((OceanN - 1) * OceanStep * RimReach + 10f, 40f, (OceanN - 1) * OceanStep * RimReach + 10f));
 	// One ripple tile per this many metres (the texture is laid out in stage space).
 	private const float RippleTile = 9f;
 
@@ -194,12 +195,19 @@ internal sealed partial class SurfGame
 				{
 					y = SeaY - 6f;
 				}
+				if (float.IsNaN(y) || float.IsInfinity(y))
+				{
+					y = SeaY;
+				}
 				m_oceanVerts[iz * OceanN + ix] = new Vector3(lx, y, lz);
 			}
 		}
 		m_oceanMesh!.vertices = m_oceanVerts;
 		m_oceanMesh.RecalculateNormals();
-		m_oceanMesh.RecalculateBounds();
+		// 1.16.2 (Sam: the water was missing; his log had "abnormal mesh bounds" for this mesh
+		// all along the coast, so the sea was culled): fixed bounds that always hold the grid,
+		// never worked out from the vertices.
+		m_oceanMesh.bounds = OceanBounds;
 
 		if (m_oceanMaterial != null)
 		{
@@ -310,6 +318,7 @@ internal sealed partial class SurfGame
 		m_oceanMesh.uv = uv;
 		m_oceanMesh.triangles = tris;
 		m_oceanMesh.RecalculateNormals();
+		m_oceanMesh.bounds = OceanBounds;
 		m_ocean.AddComponent<MeshFilter>().sharedMesh = m_oceanMesh;
 		MeshRenderer r = m_ocean.AddComponent<MeshRenderer>();
 		m_oceanMaterial = MakeOceanMaterial();

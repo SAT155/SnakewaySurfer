@@ -478,6 +478,10 @@ internal sealed partial class SurfGame
 			}
 			SetBool(m_bossAnim, "flying", def.Mode == "fly");
 		}
+		if (Flies(def))
+		{
+			StartFlight(def);
+		}
 		m_bossHits = 0;
 		m_bossIntro = 0f;
 		m_bossAttackTimer = 2.5f;
@@ -539,8 +543,11 @@ internal sealed partial class SurfGame
 		m_bossSink = -1f;
 		m_bossHidden = 0f;
 		EndDuel(false);
+		EndCombo();
+		m_recede = 0f;
 		ClearChase();
 		ClearSummon();
+		ClearIce();
 		m_chase = false;
 	}
 
@@ -552,6 +559,7 @@ internal sealed partial class SurfGame
 		}
 		UpdateBossHidden(dt);
 		UpdateVines(dt);
+		UpdateIce(dt);
 		BossDef def = m_boss;
 		if (m_bossSink >= 0f)
 		{
@@ -565,7 +573,7 @@ internal sealed partial class SurfGame
 			// (a flyer falls out of the sky first).
 			Vector3 p = m_bossGo.transform.localPosition;
 			float fall = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((m_bossSink - 0.4f) / 1.1f));
-			float fly = def.Fly * (1f - fall);
+			float fly = (Flies(def) ? m_bossFlyNow : def.Fly) * (1f - fall);
 			float sink = Mathf.Max(0f, m_bossSink - 2.8f) * 2f;
 			m_bossGo.transform.localPosition = new Vector3(p.x, RoadY(m_bossZ) + fly - sink, m_bossZ);
 			m_bossGo.transform.localRotation = m_bossDeathRot * Quaternion.Euler(0f, 0f, m_bossDeathSide * 82f * fall);
@@ -590,7 +598,7 @@ internal sealed partial class SurfGame
 			UpdateSummon(dt, def);
 			return;
 		}
-		if (Dueling)
+		if (DuelBusy)
 		{
 			UpdateDuel(dt, def);
 			return;
@@ -601,22 +609,23 @@ internal sealed partial class SurfGame
 			return;
 		}
 		m_bossIntro = Mathf.Min(1f, m_bossIntro + dt * 0.6f);
-		float want = m_z + def.Distance;
-		switch (def.Mode)
+		float want = m_z + BossDistance(def);
+		if (m_bossIntro < 1f)
 		{
-			case "stand":
-				// It looms ahead, facing you, keeping its distance (1.13: no more sinking into
-				// the ground and rising again on every move).
-				m_bossZ = Mathf.Lerp(m_bossZ, want, m_bossIntro < 1f ? dt * 2f : 1f);
-				break;
-			default:
-				m_bossZ = Mathf.Lerp(m_bossZ, want, m_bossIntro < 1f ? dt * 1.5f : 1f);
-				break;
+			m_bossZ = Mathf.Lerp(m_bossZ, want, dt * (def.Mode == "stand" ? 2f : 1.5f));
 		}
-		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 6f) : 0f;
+		else
+		{
+			// It keeps its distance ahead (1.13: a stander no longer sinks and rises on every
+			// move); 1.16.2: when that distance changes (Moder landing or taking off) it gets
+			// there smoothly instead of jumping.
+			m_bossZ = m_z + Mathf.MoveTowards(m_bossZ - m_z, want - m_z, dt * 14f);
+		}
+		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 6f) : Flies(def) ? FlightSway() : 0f;
+		float lift = Flies(def) ? FlightHeight(def, dt) : def.Fly;
 		// After moving on it comes up out of the ground.
 		m_bossRise = Mathf.Max(0f, m_bossRise - dt * 1.4f);
-		Vector3 pos = new Vector3(Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + def.Fly - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
+		Vector3 pos = new Vector3(Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
 		m_bossGo.transform.localPosition = pos;
 		m_bossThing.Z = m_bossZ;
 
@@ -624,7 +633,9 @@ internal sealed partial class SurfGame
 		m_bossTurn = Mathf.Max(0f, m_bossTurn - dt);
 		float yaw = def.Mode switch
 		{
-			"run" or "fly" => m_bossTurn > 0f ? 180f : 0f,
+			// 1.16.2: Moder flies on ahead, or runs on the track when she's down, and turns to
+			// attack like the runners.
+			"fly" or "run" => m_bossTurn > 0f ? 180f : 0f,
 			"side" => m_bossTurn > 0f ? (m_bossSide < 0 ? 90f : -90f) : 0f,
 			_ => 180f,
 		};
@@ -644,7 +655,7 @@ internal sealed partial class SurfGame
 		m_bossAttackTimer -= dt;
 		if (m_bossAttackTimer <= 0f)
 		{
-			BossMove(def, NextMove(def, phase));
+			BossMove(def, Flies(def) && m_bossLanded ? LandedMove() : NextMove(def, phase));
 			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.12f * (m_bossSeg?.Stars ?? 0));
 			// Some moves (branches, the dash) hold the next one back themselves.
 			m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, interval);
@@ -653,10 +664,17 @@ internal sealed partial class SurfGame
 		if (m_bossHitTimer <= 0f)
 		{
 			m_bossHitTimer = 7f;
-			GameObject? template = ItemTemplate(def.HitItem);
+			// 1.16.2: Moder down on the track brings a silver atgeir to fight her up close; in
+			// the air it's obsidian arrows for the bow.
+			bool atgeir = Flies(def) && m_bossLanded;
+			GameObject? template = ItemTemplate(atgeir ? ModerWeapon : def.HitItem);
 			if (template != null)
 			{
-				SpawnPickup(template, Random.Range(0, 3), m_z + m_speed * 3f + 6f, Kind.BossHit);
+				Thing pickup = SpawnPickup(template, Random.Range(0, 3), m_z + m_speed * 3f + 6f, Kind.BossHit);
+				if (atgeir)
+				{
+					Silver(pickup.Go);
+				}
 			}
 		}
 	}
@@ -673,9 +691,14 @@ internal sealed partial class SurfGame
 		return moves[m_bossMove++ % moves.Count];
 	}
 
-	private void BossAnimate()
+	private void BossAnimate(string? animation = null)
 	{
 		m_bossTurn = 1.1f;
+		// 1.16.2: a move that is one of its own attacks plays that attack's clip.
+		if (m_bossAnim != null && animation != null && SetTrigger(m_bossAnim, animation) != null)
+		{
+			return;
+		}
 		if (m_bossAnim != null && m_bossInfo != null)
 		{
 			List<CreatureAttack> all = new(m_bossInfo.Melee);
@@ -688,7 +711,26 @@ internal sealed partial class SurfGame
 	}
 
 	// Where a move lands: this far ahead of you, so you see the marks for about `seconds`.
-	private float AheadZ(float seconds) => m_z + m_speed * seconds + 3f;
+	// 1.16.2 (Sam: boss attacks popped into existence too close): BossLead metres further down
+	// the track, so they show well before you reach them. A boss standing on the track still
+	// lands its blows between you and it.
+	private const float BossLead = 10f;
+
+	private float AheadZ(float seconds)
+	{
+		float z = NearZ(seconds) + BossLead;
+		if (m_boss != null && !m_chase && m_boss.Mode == "stand" && m_bossGo != null)
+		{
+			z = Mathf.Min(z, Mathf.Max(NearZ(seconds), m_bossZ - 4f));
+		}
+		return z;
+	}
+
+	// Without the lead: for what reaches out from the boss towards you (Moder's frost breath).
+	private float NearZ(float seconds) => m_z + m_speed * seconds + 3f;
+
+	// How far ahead it keeps (Moder flies further off than she runs once she's down).
+	private float BossDistance(BossDef def) => Flies(def) ? ModerDistance(def) : def.Distance;
 
 	private int NearLane(int lane) => lane == 0 ? 1 : lane == 2 ? 1 : (Random.value < 0.5f ? 0 : 2);
 
@@ -703,9 +745,32 @@ internal sealed partial class SurfGame
 			arg = move.Substring(colon + 1);
 			move = move.Substring(0, colon);
 		}
-		BossAnimate();
+		if (move != "land" && move != "takeoff")
+		{
+			BossAnimate(BossAnimationFor(move));
+		}
 		switch (move)
 		{
+			case "icevolley":
+				IceVolley(def, false);
+				break;
+			case "icewide":
+				IceVolley(def, true);
+				break;
+			case "icebreath":
+				IceBreath(def);
+				break;
+			case "claws":
+				// Down on the track: she wheels round and rakes the ground ahead of her with
+				// claws or jaws, your lane first.
+				BossStrike(def, Random.value < 0.5f ? new[] { m_lane } : new[] { m_lane, NearLane(m_lane) }, AheadZ(1.2f), 2.2f, "strike");
+				break;
+			case "land":
+				LandOnTrack(def);
+				break;
+			case "takeoff":
+				TakeWing();
+				break;
 			case "shot2":
 				// Two shots at once: your lane and the one beside it.
 				if (boss.Info != null && boss.Info.PickRanged() is CreatureAttack r2 && r2.Projectile != null)
@@ -1448,161 +1513,6 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_things.Add(new Thing { Go = go, Kind = Kind.Scenery, Z = z, HalfLength = 2f });
-	}
-
-	// ---------------------------------------------------------------- the ballista (Moder)
-
-	private float m_aimTime;
-	private Vector2 m_aim;
-	private float m_aimClock;
-	private const float AimSeconds = 3.5f;
-
-	// Grabbing a bolt stops the run: a few seconds to aim the ballista at Moder as she weaves.
-	// Miss and the bolt is gone; grab another.
-	private void StartAim()
-	{
-		m_aimTime = AimSeconds;
-		m_aim = new Vector2(0.5f, 0.6f);
-		m_speed = 0f;
-		m_audio.Play(Sfx.ClubSwing, 0.8f, 0.6f);
-	}
-
-	private void UpdateAim(float dt, bool canInput)
-	{
-		m_aimTime -= dt;
-		m_aimClock += dt;
-		m_speed = 0f;
-		if (m_bossGo != null && m_boss != null)
-		{
-			// She weaves about over the track while you aim.
-			float x = Mathf.Sin(m_aimClock * 1.7f) * 7f;
-			float y = m_boss.Fly + 1.5f + Mathf.Sin(m_aimClock * 2.6f) * 2.2f;
-			m_bossZ = m_chase ? m_z - ChaseDistance(m_boss) - 6f : m_z + m_boss.Distance;
-			m_bossOff = m_bossZ - m_z;
-			m_bossGo.transform.localPosition = Vector3.Lerp(m_bossGo.transform.localPosition, new Vector3(x, RoadY(m_bossZ) + y, m_bossZ), dt * 4f);
-			m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.Euler(0f, m_chase ? 0f : 180f, 0f), 360f * dt);
-		}
-		if (UpdateBolt(dt))
-		{
-			return;
-		}
-		if (canInput)
-		{
-			float sx = (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow) ? 1f : 0f);
-			float sy = (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow) ? 1f : 0f) - (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow) ? 1f : 0f);
-			m_aim += new Vector2(sx * 0.55f, sy * 0.55f * Screen.width / Mathf.Max(1f, Screen.height)) * dt;
-			m_aim = new Vector2(Mathf.Clamp01(m_aim.x), Mathf.Clamp01(m_aim.y));
-			if (m_aimTime < AimSeconds - 0.3f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter, KeyCode.Mouse0))
-			{
-				FireBallista();
-				return;
-			}
-		}
-		if (m_aimTime <= 0f)
-		{
-			FireBallista();
-		}
-	}
-
-	// The bolt in flight (1.14, Sam: it needs travel time): it flies to where you aimed, and
-	// hits if she's there when it arrives, so you lead her as she weaves.
-	private GameObject? m_bolt;
-	private Vector3 m_boltFrom;
-	private Vector3 m_boltTo;
-	private float m_boltTime;
-	private float m_boltDuration;
-	private const float BoltSpeed = 45f;
-
-	private void FireBallista()
-	{
-		m_audio.Play(Sfx.ClubSwing, 1f, 0.8f);
-		m_audio.Play("sfx_reload_start|sfx_arrow_hit", 0.7f, 1.2f);
-		if (m_bossGo == null || m_camera == null || m_bolt != null)
-		{
-			m_aimTime = 0f;
-			return;
-		}
-		// Along the crosshair's ray, as far off as she is.
-		Vector3 centre = BossCentre();
-		Ray ray = m_camera.ScreenPointToRay(new Vector3(m_aim.x * Screen.width, m_aim.y * Screen.height, 0f));
-		float depth = Vector3.Distance(m_camera.transform.position, centre);
-		m_boltFrom = m_avatar != null ? m_avatar.transform.position + m_stage.up * 1.6f : ray.origin;
-		m_boltTo = ray.origin + ray.direction * depth;
-		m_boltDuration = Mathf.Max(0.25f, Vector3.Distance(m_boltFrom, m_boltTo) / BoltSpeed);
-		m_boltTime = 0f;
-		GameObject? prefab = null;
-		foreach (string name in (m_boss?.HitItem ?? "").Split('|'))
-		{
-			prefab = Pictures.Item(name.Trim());
-			if (prefab != null)
-			{
-				break;
-			}
-		}
-		GameObject bolt = prefab != null ? Fitted(Picture(prefab), Quaternion.identity, new Vector3(1.6f, 1.6f, 1.6f), true, 3f) : GameObject.CreatePrimitive(PrimitiveType.Sphere);
-		Collider c = bolt.GetComponent<Collider>();
-		if (c != null)
-		{
-			Destroy(c);
-		}
-		bolt.transform.SetParent(m_stage, true);
-		Pictures.SetLayer(bolt, m_layer);
-		bolt.transform.position = m_boltFrom;
-		bolt.transform.rotation = Quaternion.LookRotation(m_boltTo - m_boltFrom, m_stage.up);
-		m_bolt = bolt;
-		// Keep the aim going (the run stays stopped) until it lands.
-		m_aimTime = 999f;
-	}
-
-	private Vector3 BossCentre() => m_bossGo!.transform.position + m_stage.up * (m_boss != null ? m_boss.MaxHeight * 0.4f : 2f);
-
-	// True while a bolt is flying (UpdateAim does nothing else then).
-	private bool UpdateBolt(float dt)
-	{
-		if (m_bolt == null)
-		{
-			return false;
-		}
-		m_boltTime += dt;
-		float p = Mathf.Clamp01(m_boltTime / m_boltDuration);
-		m_bolt.transform.position = Vector3.Lerp(m_boltFrom, m_boltTo, p);
-		if (p < 1f)
-		{
-			return true;
-		}
-		Destroy(m_bolt);
-		m_bolt = null;
-		m_aimTime = 0f;
-		float radius = Mathf.Max(2.2f, (m_boss != null ? m_boss.MaxHeight : 4f) * 0.55f);
-		if (m_bossGo != null && Vector3.Distance(BossCentre(), m_boltTo) <= radius)
-		{
-			BossHit();
-		}
-		else
-		{
-			m_banner = "Missed! Grab another bolt.";
-			m_bannerTime = 1.8f;
-			m_audio.Play(Sfx.Miss, 1f, 0.8f);
-		}
-		return true;
-	}
-
-	private void AimGui(float k, float w, float h)
-	{
-		float x = m_aim.x * w;
-		float y = (1f - m_aim.y) * h;
-		if (m_bolt != null)
-		{
-			return;
-		}
-		Shadowed(new Rect(x - 60 * k, y - 60 * k, 120 * k, 120 * k), "+", m_big!);
-		// The time left to aim, as a shrinking bar under the crosshair.
-		Bar(new Rect(x - 50 * k, y + 50 * k, 100 * k, 8 * k), m_aimTime / AimSeconds, new Color(1f, 0.85f, 0.3f));
-		if (Plugin.PopupText.Value)
-		{
-			Shadowed(new Rect(w * 0.1f, h * 0.12f, w * 0.8f, 100 * k),
-				$"Aim the ballista!  A/D/W/S to aim, Space to fire  ({Mathf.Max(0f, m_aimTime):0.0} s)", m_mid!);
-		}
 	}
 
 	// ---------------------------------------------------------------- the dash (star trick)

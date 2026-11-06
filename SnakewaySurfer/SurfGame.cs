@@ -577,8 +577,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_trackMaterial.mainTextureScale = new Vector2(2f, 3f);
 			if (m_trackMaterial.HasProperty("_Color"))
 			{
-				m_trackMaterial.color = new Color(0.85f, 0.85f, 0.85f) * Plugin.TrackBrightness.Value;
+				// Dirt keeps its own colour; Track Brightness is for the paved stone.
+				m_trackMaterial.color = style == "paved" ? new Color(0.85f, 0.85f, 0.85f) * Plugin.TrackBrightness.Value : new Color(0.95f, 0.92f, 0.88f);
 			}
+			Plugin.Log.LogInfo($"Track: the game's {style} ground texture '{path.name}' on {m_trackMaterial.shader.name}.");
 		}
 		m_waterMaterial = MakeWaterMaterial();
 	}
@@ -855,8 +857,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_terrainLand.SetFloat("_WaterLevel", sea);
 		}
 		string style = Plugin.TrackStyle.Value.Trim().ToLowerInvariant();
-		if (style != "stone")
+		// 1.16.2 (Sam: the road looked oddly black, not like a stone or dirt path): the game's
+		// terrain shader drew our path strip nearly black, so the path is the game's dirt or
+		// paved ground texture on a plain lit material unless "hoed" asks for the shader's own.
+		if (style.StartsWith("hoed"))
 		{
+			style = style.Contains("paved") ? "paved" : "dirt";
 			// 1.16 (Sam: the dirt path looked very dark): the dirt worn in at 70%, so a little of
 			// the biome's own ground shows through, as on a trodden path.
 			Color path = style == "paved" ? new Color(0f, 0f, 1f, 1f) : new Color(0.7f, 0f, 0f, 1f);
@@ -1228,6 +1234,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_hint = "";
 		ResetMoves();
 		ResetSpears();
+		EndCombo();
+		m_recede = 0f;
+		m_rollAway = -1f;
 		if (!m_explicitStart && m_player != null)
 		{
 			// Again from the latest checkpoint (a boss beaten this run moves it on).
@@ -1424,6 +1433,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		UpdateOcean(dt);
 		UpdateRipples(dt);
 		UpdateBolts(dt);
+		UpdateArrows(dt);
 		PlaceAvatar(dt);
 		PlaceCamera(dt);
 	}
@@ -1672,7 +1682,19 @@ internal sealed partial class SurfGame : MonoBehaviour
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
 						// These change the run (and the list), so stop looking this frame.
-						if (hit && m_boss != null && m_boss.Aim)
+						if (hit && m_boss != null && Flies(m_boss) && m_bossLanded && m_bossSink < 0f)
+						{
+							// Moder down on the track: the silver atgeir, up close.
+							if (Plugin.ParryDuel.Value)
+							{
+								ArmDuel();
+							}
+							else
+							{
+								StartCombo(m_boss);
+							}
+						}
+						else if (hit && m_boss != null && m_boss.Aim)
 						{
 							StartAim();
 						}
@@ -1683,6 +1705,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 						else if (hit && m_boss != null && m_bossSink < 0f && Plugin.ParryDuel.Value)
 						{
 							ArmDuel();
+						}
+						else if (hit && m_boss != null && m_bossSink < 0f)
+						{
+							// 1.16.2: no duel, but still a combo of blows and a roll away.
+							StartCombo(m_boss);
 						}
 						else if (hit)
 						{
@@ -3402,7 +3429,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		m_avatar.transform.localPosition = new Vector3(m_x, RoadY(m_z) + m_y, m_z);
+		Vector3 roll = RollAwayOffset(dt);
+		m_avatar.transform.localPosition = new Vector3(m_x, RoadY(m_z + roll.z) + m_y, m_z + roll.z);
 		// Blink while recovering from a hit.
 		bool show = m_hurtTime <= 0f || Mathf.FloorToInt(m_hurtTime * 12f) % 2 == 0;
 		foreach (Renderer r in m_avatarRenderers)
@@ -3412,8 +3440,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 				r.enabled = show;
 			}
 		}
+		foreach (Renderer r in m_wieldedRenderers)
+		{
+			if (r != null)
+			{
+				r.enabled = show;
+			}
+		}
 		float lean = (LaneX(m_lane) - m_x) * -6f;
-		m_avatar.transform.localRotation = Quaternion.Euler(0f, 0f, m_state == State.Running ? lean : 0f);
+		m_avatar.transform.localRotation = Quaternion.Euler(0f, m_avatarYaw, m_state == State.Running ? lean : 0f);
 		bool running = m_state == State.Running && m_aimTime <= 0f;
 		AvatarFloat("forward_speed", running ? m_runAnimSpeed : 0f);
 		AvatarFloat("sideway_speed", 0f);

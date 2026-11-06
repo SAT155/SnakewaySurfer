@@ -32,11 +32,7 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_flying.Clear();
-		if (m_bolt != null)
-		{
-			Destroy(m_bolt);
-			m_bolt = null;
-		}
+		ClearArrows();
 	}
 
 	private void PickUpSpear()

@@ -22,10 +22,16 @@ opens the next biome. Some coins become the boss's summoning item, in the game's
 sealbreaker fragments). You stay in the biome until you hold them all, then the boss fights
 you: every attack marks the lanes it will hit first. To hurt it, grab its weapon from the track
 (surtling cores, maces, frost arrows, bombs): the boss closes in and swings at your lane up to
-three times, and parrying a swing (block just before it lands) staggers it and lands your blow. Eikthyr's spears
+three times, and parrying a swing (block just before it lands) staggers it: you get a chain of
+blows in with the weapon in your hands, then roll back away. Eikthyr's spears
 you throw yourself (left mouse): the spear flies down your lane and he weaves between the lanes
-behind you, so throw when he's lined up. For Moder the run stops and you aim the ballista; the
-bolt takes a moment to fly, so lead her. Three hits
+behind you, so throw when he's lined up. **Moder** flies ahead of you and spits shotgun volleys
+of ice that grow into crystals and burst a moment later (each row leaves a lane free), then
+lands to breathe frost down two lanes and rake the track with her claws. While she flies, grab
+the obsidian arrows: the run stops, the Draugr Fang is in your hand, and you aim with the mouse
+through the game's crosshair; hold to draw (the circle closes and turns yellow) and let go to
+loose. Arrows fly and drop as in the game and hit her wherever their path goes through her.
+When she's down, grab the silver atgeir and fight her up close. Three hits
 wins and saves a checkpoint for the next biome. `surfsup` starts at your latest checkpoint;
 `surfsup swamp`, `surfsup 3` or `surfsup plains 1` (biome, then stars) picks another one.
 
@@ -103,6 +109,7 @@ Friends without the mod see that too.
 | Right mouse (hold) | Block a creature's attack (stamina per blow and while held; you run a little slower, handy in the Elder's maze) |
 | Right mouse just before a hit | Parry: free, and the attacker staggers |
 | Left mouse | Throw a spear you picked up (Eikthyr); at sea, fire the bow ballista |
+| Mouse, left mouse (hold) | Moder's bow: aim, hold to draw, let go to loose (Space or the arrow keys work too) |
 | A / D at sea | Rudder: steer left and right |
 | W / S at sea | Set the sail: oars, half sail, full sail |
 | P | Pause and carry on |
@@ -167,6 +174,14 @@ and for players without the mod.
   swamp's banks past sunken crypts and surtling fire vents, Bonemass's landmark faces you,
   the Mountains are snow, wolves can be jumped, boss summoning items come later in a biome, and
   lane marks in the Swamp sit on the water where you can see them.
+  1.16.2: Moder really flies, fires her ice volleys from the air (crystals that burst after a
+  moment) and lands for her frost breath and claws; she's shot with the Draugr Fang and
+  obsidian arrows, aimed with the mouse through the game's own crosshair, and arrows hit along
+  their whole path; down on the track she's fought with a silver atgeir. A parried boss
+  staggers, takes a chain of blows from the weapon in your hands, and you roll back away. Boss
+  attacks show further down the track. The sea is drawn all the way to the coast again, the
+  road is the game's lit dirt (Track Style "hoed" brings back the darker hoed look), and the
+  abomination's marks show on the swamp water.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

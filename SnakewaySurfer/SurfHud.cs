@@ -357,7 +357,7 @@ internal sealed partial class SurfGame
 		}
 
 		// Armed for a duel: the weapon, with a pip for each swing left to parry.
-		if (Dueling && m_boss != null && ItemIcon(m_boss.HitItem) is Sprite weapon)
+		if (Dueling && m_boss != null && ItemIcon(m_wieldName.Length > 0 ? m_wieldName : m_boss.HitItem) is Sprite weapon)
 		{
 			float s = 56f * k * (1f + 0.3f * m_iconPulse);
 			DrawSprite(new Rect(w * 0.5f + 200f * k, h - 100f * k, s, s), weapon, Color.white);
