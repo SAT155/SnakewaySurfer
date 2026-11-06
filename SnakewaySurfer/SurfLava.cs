@@ -117,15 +117,15 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// Along one lane, or two side by side: keep out of it.
-	private void LavaPool(float z)
+	// Along one lane, or two side by side: keep out of it. `lane`: one it covers (else any).
+	private void LavaPool(float z, int lane0 = -1)
 	{
 		float length = Random.Range(7f, 12f);
-		int first = Random.Range(0, 3);
+		int first = lane0 >= 0 ? lane0 : Random.Range(0, 3);
 		int count = Random.value < 0.35f ? 2 : 1;
-		if (count == 2 && first == 2)
+		if (count == 2 && (first == 2 || (lane0 >= 0 && Random.value < 0.5f && first > 0)))
 		{
-			first = 1;
+			first--;
 		}
 		for (int lane = first; lane < first + count; lane++)
 		{

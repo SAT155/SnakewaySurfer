@@ -195,7 +195,8 @@ internal sealed partial class SurfGame
 	}
 
 	// A rush with every boss of the game earns the golden shoes.
-	private bool FullRush() => RushBosses().Count >= Progress.Bosses.Length;
+	// (The six of the usual lap: 1.16.13's Fader, past it, isn't needed for them.)
+	private bool FullRush() => RushBosses().Count >= Mathf.Min(6, Progress.Bosses.Length);
 
 	private Segment SegAt(float z)
 	{
@@ -799,6 +800,18 @@ internal sealed partial class SurfGame
 				break;
 			case "firewall":
 				BossStrike(def, new[] { m_lane, NearLane(m_lane) }, AheadZ(1.8f), 8f, "wall");
+				break;
+			case "lava":
+				// 1.16.13: Fader's lava, a pool down your lane (and maybe the next) or a channel
+				// across the track, glowing well ahead.
+				if (Random.value < 0.35f)
+				{
+					LavaChannel(AheadZ(1.7f));
+				}
+				else
+				{
+					LavaPool(AheadZ(1.9f), m_lane);
+				}
 				break;
 			case "dash":
 				BossDash(def);

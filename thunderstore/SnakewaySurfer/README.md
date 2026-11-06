@@ -114,8 +114,13 @@ Elder's stones, Bonemass's sunken tomb, Moder's peak, Yagluth's ruins, the Queen
 out of the ground as you arrive. The path flattens, the land rises into walls on both sides,
 torches in the boss's colour line the way, and the light and fog take on its colour.
 
+**Fader** waits at the end of the Ashlands, in a lap that reaches them (Loop Biomes 7 or more)
+and once you've beaten him in the world: collect three bell fragments, then dodge rocks falling
+from the burning sky, walls of flame, and lava he pours down your lane or across the track
+(keep out of the pools, jump the channels). Grab the blade on the track to strike him.
+
 After the 3-star lap comes the **boss rush**: every boss in a row, with no items to collect and
-no checkpoints. Beat all six in one rush for the **Golden Surfer Shoes**, a trinket with a
+no checkpoints. Beat the usual six (Eikthyr to the Queen) in one rush for the **Golden Surfer Shoes**, a trinket with a
 winged emblem: +15% movement speed, and at full adrenaline another 5% plus 2.5x stamina regen.
 You only get them once per character, and only players with the mod can see them. Don't drop
 them on a shared server, because players without the mod can't load them.
@@ -291,6 +296,9 @@ and for players without the mod.
   waiting in the lane.
   1.16.12: lava in the open Ashlands: channels across the track to jump, pools along a lane or
   two to keep out of, glowing cracks beside the track; the fortresses' lava glows the same way.
+  1.16.13: Fader, the Ashlands' boss (Loop Biomes 7+, once beaten in the world): falling
+  rocks, flame walls and lava pools down your lane; three bell fragments to summon him, a blade
+  to strike him. The golden shoes still need only the usual six bosses.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

@@ -149,6 +149,23 @@ internal static class Progress
 			},
 			StarMoves = new[] { "minions:tick", "branches", "dash" },
 		},
+		// 1.16.13 (gap doc): Fader, the Ashlands' boss, far ahead in his ring of pillars: rocks
+		// falling from the burning sky, walls of flame, and lava pouring across the lanes. Only
+		// in a lap that reaches the Ashlands (Loop Biomes 7 or more), once he's beaten in this world.
+		new BossDef
+		{
+			Biome = 6, Name = "Fader", Prefab = "Fader", Key = "defeated_fader", Item = "BellFragment|Bell|FlametalNew|Flametal", Amount = 3,
+			HitItem = "SwordDyrnwyn|SwordNiedhogg|SwordMistwalker|FreezeGland", HitVerb = "The blade strikes", Mode = "stand", Distance = 52f, MaxHeight = 10f,
+			Minion = "charred_melee", Location = "FaderLocation", Walls = 6f, Torch = "piece_groundtorch_wood", Tint = new Color(1f, 0.4f, 0.1f),
+			Env = "Fader|Ashlands_storm|Ashlands_ashrain",
+			Moves = new[]
+			{
+				new[] { "meteors", "lava" },
+				new[] { "firewall", "meteors", "lava" },
+				new[] { "lava", "firewall", "meteors", "lava" },
+			},
+			StarMoves = new[] { "minions:charred_melee", "minions:charred_archer", "sweep" },
+		},
 	};
 
 	public static BossDef? BossOf(int biome) => biome >= 0 && biome < Bosses.Length ? Bosses[biome] : null;
