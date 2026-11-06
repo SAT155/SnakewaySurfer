@@ -74,6 +74,16 @@ internal sealed partial class SurfGame
 		// standing at the foot of a wall.
 		public string TallPillar = "stone_pillar_high|stone_pillar";
 		public Vector3 SconceSize = new Vector3(0.9f, 1.15f, 0.9f);
+		public float SconceIntensity = 1.25f;
+		// 1.16.8, a troll cave (SurfTrollCave.cs): shorter, with one big creature waiting in its
+		// longest hall, and rocks falling from its roof.
+		public float MinLength = 160f;
+		public float MaxLength = 320f;
+		public string Lurker = "";
+		public float FallChance = 0.45f;
+		public string FallText = "An icicle fell in your way in a frost cave! (Jump the spikes, or get out from under them.)";
+		public string CrackFx = "vfx_ice_hit|vfx_ice_destroyed|vfx_RockHit";
+		public string ShatterFx = "vfx_ice_destroyed|vfx_icecube_destroyed|vfx_RockHit";
 	}
 
 	private static readonly CryptTheme s_burialChamber = new CryptTheme
@@ -231,8 +241,8 @@ internal sealed partial class SurfGame
 		DropLandSound = "sfx_tick_attack_land|sfx_seeker_land",
 	};
 
-	private static CryptTheme? ThemeFor(string biome) =>
-		biome == s_burialChamber.Biome ? s_burialChamber
+	private CryptTheme? ThemeFor(string biome) =>
+		biome == s_burialChamber.Biome ? (m_forestDungeons % 2 == 0 ? s_burialChamber : s_trollCave)
 		: biome == s_sunkenCrypt.Biome ? s_sunkenCrypt
 		: biome == s_frostCave.Biome ? s_frostCave
 		: biome == s_infestedMine.Biome ? s_infestedMine

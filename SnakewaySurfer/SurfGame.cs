@@ -2494,7 +2494,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				case Kind.Low:
 				{
 					// In a frost cave, an icicle that falls as you come (SurfCave.cs).
-					if (crypt && m_crypt!.Theme.Icicles && Random.value < 0.45f && SpawnIcicle(lane, z))
+					if (crypt && m_crypt!.Theme.Icicles && Random.value < m_crypt.Theme.FallChance && SpawnIcicle(lane, z))
 					{
 						break;
 					}

@@ -66,6 +66,9 @@ internal sealed partial class SurfGame
 		public readonly List<(Light light, float z)> Glows = new();
 		public readonly List<CryptIronGate> Gates = new();
 		public float NextSound = 3f;
+		// 1.16.8: the one big creature waiting in a troll cave (SurfTrollCave.cs).
+		public float LurkerZ = float.NaN;
+		public bool LurkerOut;
 	}
 
 	private CryptRun? m_crypt;
@@ -154,6 +157,11 @@ internal sealed partial class SurfGame
 				return true;
 			}
 		}
+		// The lanes clear around a troll cave's troll.
+		if (!float.IsNaN(m_crypt.LurkerZ) && Mathf.Abs(z - m_crypt.LurkerZ) < 9f)
+		{
+			return true;
+		}
 		// The lanes clear by an iron gate.
 		foreach (CryptIronGate g in m_crypt.Gates)
 		{
@@ -216,7 +224,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			float len = Plugin.BiomeLength.Value;
-			float length = Mathf.Clamp(Mathf.Round(len * 0.45f / GroundTile) * GroundTile, 160f, 320f);
+			float length = Mathf.Clamp(Mathf.Round(len * 0.45f / GroundTile) * GroundTile, theme.MinLength, theme.MaxLength);
 			float start = Mathf.Ceil((s.Start + Mathf.Max(120f, len * 0.25f)) / GroundTile) * GroundTile;
 			// Ground already laid stays as it is, so it starts past it (and the tile before eases down).
 			start = Mathf.Max(start, Mathf.Ceil((m_nextGroundZ + GroundTile) / GroundTile) * GroundTile);
@@ -231,6 +239,11 @@ internal sealed partial class SurfGame
 				}
 			}
 			MakeCrypt(start, start + length, theme);
+			if (theme.Biome == s_burialChamber.Biome)
+			{
+				// (The Black Forest's burial chambers and troll caves take turns.)
+				m_forestDungeons++;
+			}
 			return;
 		}
 	}
@@ -336,6 +349,7 @@ internal sealed partial class SurfGame
 				}
 			}
 		}
+		PlanLurker(c);
 		CryptBiome();
 		int flooded = c.Legs.FindAll(l => l.Flooded).Count;
 		Plugin.Log.LogInfo($"A {theme.Name} from {start:0} to {end:0} m: corners at {string.Join(", ", c.Corners.ConvertAll(x => x.ToString("0")))} ({string.Join("", c.Dirs.ConvertAll(x => x > 0 ? "R" : "L"))}), {c.Piles.Count} piles, {flooded} flooded halls, {c.Gates.Count} iron gates.");
@@ -696,6 +710,10 @@ internal sealed partial class SurfGame
 			}
 		}
 
+		if (!c.LurkerOut && !float.IsNaN(c.LurkerZ) && c.LurkerZ >= leg.A && c.LurkerZ < leg.B)
+		{
+			SpawnLurker(c);
+		}
 		if (first)
 		{
 			CryptGate(root, c.Start, y, -1);
@@ -781,6 +799,7 @@ internal sealed partial class SurfGame
 		UpdateIronGates(dt);
 		UpdateIcicles(dt);
 		UpdateDrops(dt);
+		UpdateLurker();
 		for (int i = c.Glows.Count - 1; i >= 0; i--)
 		{
 			(Light light, float z) = c.Glows[i];
@@ -1265,6 +1284,7 @@ internal sealed partial class SurfGame
 		m_rising.Clear();
 		m_icicles.Clear();
 		ClearDrops();
+		m_lurker = null;
 		m_cryptOver = 0f;
 		m_cryptBonk = -1f;
 		m_cryptLagPos = Vector3.zero;
@@ -1279,6 +1299,7 @@ internal sealed partial class SurfGame
 			m_avatar.transform.SetParent(m_stage, false);
 		}
 		ReleaseCrypt();
+		m_forestDungeons = 0;
 		if (m_torchHeld)
 		{
 			HoldTorch(false);

@@ -70,7 +70,7 @@ internal sealed partial class SurfGame
 		glow.transform.localPosition = foot + facing * 0.4f + Vector3.up * (theme.SconceSize.y * 0.7f);
 		glow.type = LightType.Point;
 		glow.range = range;
-		glow.intensity = 1.25f;
+		glow.intensity = theme.SconceIntensity;
 		glow.color = theme.SconceColor;
 		glow.shadows = LightShadows.None;
 		glow.cullingMask = 1 << m_layer;
@@ -135,7 +135,7 @@ internal sealed partial class SurfGame
 			Z = z,
 			HalfLength = 0.35f,
 			Collidable = false,
-			CrashText = "An icicle fell in your way in a frost cave! (Jump the spikes, or get out from under them.)",
+			CrashText = m_crypt.Theme.FallText,
 		};
 		m_things.Add(t);
 		m_icicles.Add(new Icicle { T = t, Ice = ice });
@@ -184,7 +184,7 @@ internal sealed partial class SurfGame
 					ic.Ice.SetActive(true);
 					t.Markers.Add(MakeMarker(t.Lane, t.Z, 1.6f, JumpMaterial));
 					m_audio.Play(m_crypt != null ? m_crypt.Theme.CrackSound : "sfx_rock_destroyed", 0.85f, Random.Range(1.05f, 1.25f));
-					GameObject? dust = FindFx("vfx_ice_hit|vfx_ice_destroyed|vfx_RockHit");
+					GameObject? dust = FindFx(m_crypt != null ? m_crypt.Theme.CrackFx : "vfx_RockHit");
 					if (dust != null)
 					{
 						PlayFx(dust, t.Go.transform.localPosition + Vector3.up * (WallH + 0.5f), Quaternion.identity, 2f);
@@ -203,7 +203,7 @@ internal sealed partial class SurfGame
 				{
 					t.Collidable = true;
 					m_audio.Play(m_crypt != null ? m_crypt.Theme.ShatterSound : "sfx_rock_hit", 1f, Random.Range(0.9f, 1.1f));
-					GameObject? shards = FindFx("vfx_ice_destroyed|vfx_icecube_destroyed|vfx_RockHit");
+					GameObject? shards = FindFx(m_crypt != null ? m_crypt.Theme.ShatterFx : "vfx_RockHit");
 					if (shards != null)
 					{
 						PlayFx(shards, t.Go.transform.localPosition + Vector3.up * 0.3f, Quaternion.identity, 2f);

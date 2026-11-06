@@ -41,8 +41,13 @@ Once in each stretch of the Mistlands it runs into an **infested mine**: the dve
 marble halls, lit by their standing lanterns and overrun. Seekers and their soldiers fill the
 halls, egg sacs split open as you come and seekers crawl out, crates lie in the lanes to jump
 and old timber beams to slide under. Ticks wait in the roof: as one lets go a red mark shows on
-your lane, so get out from under it or jump it when it lands. Dungeons in the config turns all
-four off.
+your lane, so get out from under it or jump it when it lands.
+
+The Black Forest's burial chambers take turns with **troll caves**: shorter, of rough mossy rock
+lit only by blue cave mushrooms and your torch, with greydwarfs about and one troll waiting in
+the dark of the longest hall. As you come round into that hall it roars, the cave shakes and
+rocks come down over your lane (get out from under them or jump what lands); then it comes for
+you. Dungeons in the config turns them all off.
 
 ## Bosses and checkpoints
 
@@ -246,6 +251,8 @@ and for players without the mod.
   crystals, ulvs, fenrings, fire-breathing cultists, bats, and icicles that fall over your lane.
   1.16.7: infested mines in the Mistlands, the fourth dungeon: black marble halls, dvergr
   lanterns, seekers, egg sacs that burst, crates and beams, and ticks dropping from the roof.
+  1.16.8: troll caves in the Black Forest, taking turns with the burial chambers: mossy rock,
+  blue cave mushrooms, greydwarfs, one troll in the longest hall, and rocks falling from the roof.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own
