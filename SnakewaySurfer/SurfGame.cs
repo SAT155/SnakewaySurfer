@@ -1235,6 +1235,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_dividers.Clear();
 		m_nextTorchZ = 0f;
 		ResetSwampSights();
+		ResetTraders();
+		m_livesFlash = 0f;
 		ResetMaze();
 		m_torchCount = 0;
 		DestroyBackdrop();
@@ -1664,6 +1666,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		UpdateStretch(dt);
 		SpawnAhead();
 		UpdateCrypt(dt);
+		UpdateTraders(dt);
 		UpdateHints();
 		UpdateShore(dt);
 	}
@@ -1987,6 +1990,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		float horizon = m_z + AheadDistance;
 		PlanCrypt();
+		PlanTraders(horizon);
 		while (m_nextGroundZ < horizon + GroundTile)
 		{
 			SpawnGround(m_nextGroundZ + GroundTile * 0.5f);
@@ -1996,14 +2000,21 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			if (!CryptCovers(m_nextSceneryZ))
 			{
-				SpawnScenery(m_nextSceneryZ, -1);
-				SpawnScenery(m_nextSceneryZ + Random.Range(0f, 3f), 1);
+				if (!TraderSide(m_nextSceneryZ, -1))
+				{
+					SpawnScenery(m_nextSceneryZ, -1);
+				}
+				if (!TraderSide(m_nextSceneryZ, 1))
+				{
+					SpawnScenery(m_nextSceneryZ + Random.Range(0f, 3f), 1);
+				}
 				MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
 			}
 			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
 		SpawnArenaTorches(horizon);
 		SpawnSwampSights(horizon);
+		SpawnTraders(horizon);
 		while (m_nextRowZ < horizon)
 		{
 			if (SegAt(m_nextRowZ).Boss)
@@ -2379,6 +2390,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		bool crypt = InCrypt(z);
 		if (crypt && CryptNoRow(z))
+		{
+			return;
+		}
+		// The lanes clear around a trader.
+		if (NearTrader(z, TraderClear))
 		{
 			return;
 		}
@@ -3677,6 +3693,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private GUIStyle? m_big;
 	private GUIStyle? m_mid;
 	private GUIStyle? m_small;
+	private GUIStyle? m_smallRich;
 
 	private void OnGUI()
 	{
@@ -3693,9 +3710,21 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		bool sea = m_biomes.Count > 0 && (m_atSea || SegAt(m_z).Sea);
 		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z), sea) : "";
-		string stretch = (m_biomes.Count > 0 ? StretchHud() : "") + (Plugin.Lives.Value > 1 ? $"   ·   lives {m_lives}" : "");
-		Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k),
-			$"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}", m_small);
+		string stretch = m_biomes.Count > 0 ? StretchHud() : "";
+		string lives = Plugin.Lives.Value > 1 || m_lives > 1 ? $"   ·   lives {m_lives}" : "";
+		string top = $"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}";
+		if (m_livesFlash > 0f && lives.Length > 0)
+		{
+			// 1.16.10: gold for a moment after a trader gives you lives.
+			m_smallRich ??= new GUIStyle(m_small!) { richText = true };
+			m_smallRich.fontSize = m_small!.fontSize;
+			Color gold = Color.Lerp(Color.white, new Color(1f, 0.8f, 0.25f), Mathf.Clamp01(m_livesFlash * 1.5f));
+			ShadowedRich(new Rect(24 * k, 18 * k, 1400 * k, 200 * k), top + lives, top + $"<color=#{ColorUtility.ToHtmlStringRGB(gold)}>{lives}</color>", m_smallRich);
+		}
+		else
+		{
+			Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k), top + lives, m_small);
+		}
 
 		float w = Screen.width;
 		float h = Screen.height;
@@ -3748,6 +3777,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 				MenuGui(k, w, h);
 				break;
 		}
+	}
+
+	// The shadow from the plain text, the colours only on top.
+	private static void ShadowedRich(Rect r, string plain, string rich, GUIStyle style)
+	{
+		Color old = style.normal.textColor;
+		style.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
+		GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), plain, style);
+		style.normal.textColor = Color.white;
+		GUI.Label(r, rich, style);
+		style.normal.textColor = old;
 	}
 
 	private static void Shadowed(Rect r, string text, GUIStyle style)

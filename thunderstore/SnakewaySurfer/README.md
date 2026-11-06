@@ -56,6 +56,13 @@ as you come (roll under them), and channels of glowing lava run across some hall
 (The Ashlands come after the Mistlands, so set Loop Biomes to 7 or more to reach them.)
 Dungeons in the config turns them all off.
 
+Now and then one of the game's **traders** stands at the edge of the track in front of their
+camp, lit by a lantern: Haldor in the Black Forest, the Bog Witch in the Swamp, and Hildir in the
+Meadows once you're on the 1-star lap or later. They greet you as you come, and a line of coins
+and a gold mark lead along the lane on their side. Run past them in that lane and they trade:
+your lives back to full, or one extra if you already have them all (the lives on the HUD glow
+gold). The lanes around them are kept clear. Traders in the config turns them off.
+
 ## Bosses and checkpoints
 
 Each biome ends with its boss, but only bosses you've already beaten in this world: a new
@@ -263,6 +270,9 @@ and for players without the mod.
   1.16.9: charred fortresses in the Ashlands, the last of the dungeons: grausten halls, lava
   lanterns, charred warriors, archers, mages and twitchers, spawners, spiked beams, flametal
   gates to roll under, and lava channels across the halls to jump.
+  1.16.10: traders by the track, the first of the points of interest: Haldor (Black Forest),
+  the Bog Witch (Swamp) and Hildir (Meadows, from the 1-star lap) in front of their camps. Pass
+  them in their lane for your lives back, or one extra if you're full.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

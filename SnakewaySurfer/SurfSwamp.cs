@@ -28,7 +28,7 @@ internal sealed partial class SurfGame
 			m_nextSightZ += Random.Range(180f, 300f);
 			Segment s = SegAt(z);
 			if (m_biomes.Count == 0 || m_biomes[s.Biome].Def.Name != "Swamp" || s.Boss || s.Sea || ArenaWeight(z, out _) > 0.05f
-				|| (m_crypt != null && z > m_crypt.Start - 40f && z < m_crypt.End + 40f)
+				|| (m_crypt != null && z > m_crypt.Start - 40f && z < m_crypt.End + 40f) || NearTrader(z, 40f)
 				|| z < s.Start + 50f || (s.End != float.MaxValue && z > s.End - 40f))
 			{
 				continue;

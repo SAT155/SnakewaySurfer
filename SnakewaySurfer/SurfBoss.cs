@@ -34,6 +34,8 @@ internal sealed partial class SurfGame
 		public bool PrevSea;
 		// 1.16.4: whether this stretch has been given its burial chamber (SurfCrypt.cs).
 		public bool CryptChecked;
+		// 1.16.10: whether this stretch has had its chance of a trader (SurfTraders.cs).
+		public bool TraderChecked;
 
 		public float Level => Biome + 1.5f * Stars;
 	}
@@ -1456,7 +1458,7 @@ internal sealed partial class SurfGame
 	// A creature's home beside the track, now and then, near where it turns up.
 	private void MaybeLandmark(GameObject creature, float z)
 	{
-		if (z - m_lastLandmarkZ < 45f || Random.value > 0.45f)
+		if (z - m_lastLandmarkZ < 45f || Random.value > 0.45f || NearTrader(z, 30f))
 		{
 			return;
 		}

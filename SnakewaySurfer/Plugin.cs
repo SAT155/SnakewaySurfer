@@ -113,6 +113,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> SailSpeed = null!;
 	internal static ConfigEntry<bool> SeaSerpent = null!;
 	internal static ConfigEntry<bool> Dungeons = null!;
+	internal static ConfigEntry<bool> Traders = null!;
 
 	private void Awake()
 	{
@@ -413,6 +414,8 @@ public class Plugin : BaseUnityPlugin
 
 		Dungeons = Config.Bind("1 - Run", "Dungeons", true,
 			"Once in each stretch of the Black Forest the track runs into a burial chamber, once in each stretch of the Swamp into a sunken crypt, once in each stretch of the Mountains into a frost cave, and once in each stretch of the Mistlands into an infested mine: dark halls seen from above, lit by the torch you carry. The halls turn 90 degrees: press A or D toward the opening as you reach a corner (a torch burns on the wall ahead and the camera starts to swing round), or run into the wall. Burial chambers: skeletons, bone piles that raise more as you come, ghosts drifting in through the walls. Sunken crypts: draugr and blobs, flooded halls with leeches (slower going), mud piles to jump, grave mounds that raise draugr, and iron gates that crash down as you come (roll under them). Frost caves: rough rock lit by glowing crystals, ulvs, fenrings, cultists breathing fire, bats, and icicles that crack loose over your lane as you come (jump the spike or move). Infested mines: black marble halls with dvergr lanterns, seekers, egg sacs that burst, and ticks that drop from the roof onto your lane (a red mark as one lets go). The Black Forest's burial chambers take turns with troll caves: mossy rock and blue mushrooms, greydwarfs, one troll waiting in the longest hall, and rocks falling from the roof as it roars. Charred fortresses (Ashlands, when Loop Biomes reaches it): grausten halls lit by lava lanterns, charred warriors, archers and mages, spawners that raise more, spiked beams, flametal gates that drop (roll under) and channels of lava across the halls (jump them). Old chests are worth ten coins. Off: those biomes run on as before.");
+		Traders = Config.Bind("1 - Run", "Traders", true,
+			"Now and then one of the game's traders stands by the track in front of their camp: Haldor in the Black Forest, the Bog Witch in the Swamp, and Hildir in the Meadows from the 1-star lap on. Coins and a gold mark lead along the lane on their side; run past them in that lane and they give you your lives back, or one extra if you have them all. Off: no traders.");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 	}
