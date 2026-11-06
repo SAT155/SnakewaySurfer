@@ -174,8 +174,9 @@ internal sealed partial class SurfGame
 		cz = Mathf.Round(cz / OceanStep) * OceanStep;
 		m_ocean.transform.localPosition = new Vector3(cx, 0f, cz);
 		// No sea inland of either coast: there it tucks away under the land.
-		float back = sea.Start - ShoreRamp - 6f;
-		float front = sea.End == float.MaxValue ? float.MaxValue : sea.End + ShoreRamp + 6f;
+		// (The land beside the track goes under further inland than the track: SurfSea.cs.)
+		float back = sea.Start - ShoreRamp * SideReach - 6f;
+		float front = sea.End == float.MaxValue ? float.MaxValue : sea.End + ShoreRamp * SideReach + 6f;
 		float half = (OceanN - 1) * OceanStep * 0.5f;
 		for (int iz = 0; iz < OceanN; iz++)
 		{

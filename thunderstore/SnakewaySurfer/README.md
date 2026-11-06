@@ -61,28 +61,42 @@ them on a shared server, because players without the mod can't load them.
 ## The ocean crossing
 
 Between the Mountains and the Plains you cross the sea. The track runs down a beach into the
-shallows, where a longship waits stern to the shore; you leap aboard at the helm and the camera
-rises high above the ship, ahead always up the screen. Steer with the rudder (A / D) and set the
+shallows, where a longship waits stern to the shore with open water either side; you leap
+aboard at the helm and the camera rises above and behind the ship, low enough to see the swell,
+ahead always up the screen. Steer with the rudder (A / D) and set the
 sail with W / S, as in the game: oars (slow but steady, and the tightest turns), half sail or
-full sail. The wind never stops, and now and then it turns (a gust, and the wind arrow on the
-rose by the stamina bar swings round). As in the game, a sail is fastest with the wind from the
-side, a little slower with it behind, and useless heading into it: tack across a headwind. The
-arrow is bright when the wind fills your sail and dark when it doesn't. Holding sprint puts the
-crew to the oars as well.
+full sail. The wind never stops, and now and then it turns (a gust, and the wind's icon swings
+round the gauge by the stamina bar). The gauge is a ring round the ship's wheel, as in the game:
+the wind's icon rides the ring on the side the wind comes from, and the dark arc at the bow is
+where a sail does nothing. As in the game, a sail is fastest with the wind from the side, a
+little slower with it behind, and useless heading into it: keep the icon out of the dark arc
+and tack across a headwind. The icon is bright when the wind fills your sail and dark when it
+doesn't. Holding sprint puts the crew to the oars as well.
 
-The bow ballista (left mouse) fires along your heading. Off the Mountains coast drakes come down
-from the peaks to spit at where you're going (a red ring on the water), serpents swim in under
-the surface, rear up beside the ship and lunge along a red streak (only a parry stops a lunge),
-leviathans drift across your way until a bolt makes them shake and dive, sea stacks stand in the
+At sea the blows land on the **ship**, not on you: the planks over the gauge are her hull. A
+blow cracks one (a heavy one two), she sits lower and lists as the hull fails, and only when
+it gives way does it cost a life (the crew patches her up to half). Driftwood mends two planks.
+Three small islands lie at the channel's edge, the first a third of the way over, with a
+workbench on the shore and a golden ring on the water around it: steer into the ring and take
+in the sail (oars), and the ship moors while the hull is mended plank by plank. Raise the sail
+to go on.
+
+The bow ballista (left mouse) fires along your heading. The first stretch off the Mountains
+coast is calm: sea stacks, loot and leviathans, and further out drakes come down from the peaks
+to spit at where you're going (a red ring on the water). Past the first island the serpents
+come, weaving in under the surface. A serpent either rears up beside the ship and lunges along
+a red streak (only a parry stops a lunge), or comes up well ahead, stops dead and rears while a
+wide red streak runs from its jaws toward you, then breathes freezing spray down it: steer out
+of the streak (a block takes the spray). It's open to the ballista while it rears. Leviathans drift across your way until a bolt makes them shake and dive, sea stacks stand in the
 channel, and barrels, chests and driftwood float by: sail through them for coins, and driftwood
-mends the hull (a life back). Gulls wheel overhead.
+mends the hull (two planks, or a life back when she is whole). Gulls wheel overhead.
 
-A third of the way across the sky darkens into a storm. Big rolling waves come with the wind:
+Past the second island the sky darkens into a storm. Big rolling waves come with the wind:
 meet them bow or stern first and you surf down their backs, but side on they roll the ship. A
 pale band on the water shows the safe way to meet the next one, and it turns red while you're
 side on. Lightning strikes on red rings. In the heart of the storm the **serpent of the deep**
 rises: it circles the ship, lunges, slams the sea into a wave at you, and comes up from under
-the keel (a red ring follows the ship; get off it). Hit it with the ballista while it's above
+the keel (a red ring follows the ship; get off it), and stops to breathe a wide streak of spray. Hit it with the ballista while it's above
 the water. Once it's beaten the storm clears, the Plains' deathsquitos come out over the
 shallows, and the ship runs up the far beach; you run the length of the deck, leap off the bow
 and carry on.
@@ -182,6 +196,12 @@ and for players without the mod.
   attacks show further down the track. The sea is drawn all the way to the coast again, the
   road is the game's lit dirt (Track Style "hoed" brings back the darker hoed look), and the
   abomination's marks show on the swamp water.
+  1.16.3: the ship has her own hull, mended by driftwood and at the workbenches on three small
+  islands (moor in the golden ring under oars). The crossing starts calm: no serpents for the
+  first third, and the storm gathers past the second island. Serpents weave as they swim, and
+  stop to breathe freezing spray down a wide red streak; leeches swing their bodies as they
+  swim. The sea camera sits lower so the swell reads, the wind gauge is a ring round the wheel
+  with the no-go arc at the bow, and there's open water either side of the beached ship.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

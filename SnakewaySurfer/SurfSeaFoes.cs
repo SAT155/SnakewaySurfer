@@ -106,8 +106,10 @@ internal sealed partial class SurfGame
 		float along = m_z - sea.Start;
 		float len = Mathf.Max(200f, Plugin.OceanLength.Value);
 		bool fight = m_seaBoss != null && !m_seaBoss.Dead;
-		// The storm gathers from a third of the way to the serpent and clears once it's beaten.
-		float goal = m_seaBossBeaten ? 0f : Mathf.Clamp01((along - len * 0.3f) / (len * 0.15f));
+		// 1.16.3 (Sam: the storm and the serpent came way too early): a calm first stretch, then
+		// serpents, and the storm gathers from 60% of the way (past the second island) to full at
+		// 78%. It clears once the serpent of the deep is beaten.
+		float goal = m_seaBossBeaten ? 0f : Mathf.Clamp01((along - len * 0.6f) / (len * 0.18f));
 		m_storm = Mathf.MoveTowards(m_storm, goal, dt / (m_seaBossBeaten ? 9f : 7f));
 		if (!m_seaBossBeaten && m_seaBoss == null && along >= len)
 		{
@@ -142,7 +144,7 @@ internal sealed partial class SurfGame
 		{
 			SpawnSeaFoes(along, len, sea);
 			float difficulty = Mathf.Clamp01(along / len);
-			m_nextFoeZ = m_z + Mathf.Lerp(34f, 24f, difficulty) / (1f + 0.15f * SeaStars) * Random.Range(0.8f, 1.2f);
+			m_nextFoeZ = m_z + Mathf.Lerp(42f, 24f, difficulty) / (1f + 0.15f * SeaStars) * Random.Range(0.8f, 1.2f);
 		}
 	}
 
@@ -190,28 +192,49 @@ internal sealed partial class SurfGame
 			return;
 		}
 		float p = along / len;
-		if (p < 0.4f)
+		if (p < 0.33f)
 		{
-			// Off the Mountains coast: drakes come down from the peaks.
-			if (r < 0.28f && flyers < 2)
+			// Off the Mountains coast: sea stacks, leviathans and loot, and drakes come down
+			// from the peaks once you're out a way. No serpents yet.
+			if (r < 0.24f && flyers < 2 && p > 0.12f)
 			{
 				SpawnFlyer("drake");
 			}
-			else if (r < 0.5f && serpents < 1)
-			{
-				SpawnSerpent();
-			}
-			else if (r < 0.72f)
+			else if (r < 0.55f)
 			{
 				SpawnRocks();
 			}
-			else if (r < 0.82f)
+			else if (r < 0.7f)
 			{
 				SpawnLeviathan();
 			}
 			else
 			{
-				SpawnLoot(Random.value < 0.2f);
+				SpawnLoot(Random.value < 0.25f);
+			}
+		}
+		else if (p < 0.62f)
+		{
+			// Open sea: the first serpents, one at a time.
+			if (r < 0.3f && serpents < 1)
+			{
+				SpawnSerpent();
+			}
+			else if (r < 0.45f && flyers < 1)
+			{
+				SpawnFlyer("drake");
+			}
+			else if (r < 0.68f)
+			{
+				SpawnRocks();
+			}
+			else if (r < 0.8f)
+			{
+				SpawnLeviathan();
+			}
+			else
+			{
+				SpawnLoot(Random.value < 0.3f);
 			}
 		}
 		else
@@ -318,6 +341,8 @@ internal sealed partial class SurfGame
 		f.Facing = 180f;
 		f.Attack = f.Info?.PickMelee();
 		f.Wait = Random.Range(0.5f, 1.5f);
+		// It takes turns: a breath, then a lunge (or the other way round).
+		f.Move = Random.value < 0.5f ? "breath" : "lunge";
 	}
 
 	private void SpawnFlyer(string kind)
@@ -380,6 +405,11 @@ internal sealed partial class SurfGame
 			if (Mathf.Abs(x - gapX) < 7f)
 			{
 				x = gapX + Mathf.Sign(x - gapX + 0.01f) * 7f;
+			}
+			if (IslandWeight(x, m_z + 81f) > 0f)
+			{
+				// Not on an island's shore.
+				continue;
 			}
 			float size = Random.Range(4.5f, 8f);
 			GameObject go = SeaPicture(prefab, size, out _);
@@ -593,7 +623,7 @@ internal sealed partial class SurfGame
 		float water = SeaHeight(f.P.x, f.P.y);
 		float bob = f.Kind == "rock" ? 0f : Mathf.Sin(m_seaClock * 1.7f + f.Bob) * 0.15f;
 		f.Go.transform.localPosition = new Vector3(f.P.x, (f.Kind == "rock" ? SeaY : water) + f.Y + bob, f.P.y);
-		Quaternion turn = Quaternion.Euler(0f, f.Facing, 0f);
+		Quaternion turn = Quaternion.Euler(0f, f.Facing + SerpentSwing(f), 0f);
 		if (f.Dead && (f.Kind == "serpent" || f.Kind == "boss" || f.Kind == "drake" || f.Kind == "squito"))
 		{
 			// Rolled over, going under.
@@ -697,9 +727,10 @@ internal sealed partial class SurfGame
 	// A creature's blow on the ship: blocks and parries as on land. 0 hurt, 1 blocked, 2 parried.
 	private int SeaHit(SeaFoe? foe, bool heavy, string why)
 	{
-		bool parry = m_hurtTime <= 0f && m_blocking && m_runTime - m_blockPressed <= Plugin.ParryWindow.Value;
+		bool parry = m_hurtTime <= 0f && m_hullGrace <= 0f && m_blocking && m_runTime - m_blockPressed <= Plugin.ParryWindow.Value;
 		int lives = m_lives;
 		float hurt = m_hurtTime;
+		float hull = m_hull;
 		Hit(new Thing { Label = foe?.Label ?? "it", Heavy = heavy }, why);
 		if (parry)
 		{
@@ -709,7 +740,7 @@ internal sealed partial class SurfGame
 			}
 			return 2;
 		}
-		bool unharmed = m_lives == lives && m_state == State.Running && Mathf.Approximately(m_hurtTime, hurt) && !Plugin.Invincible.Value;
+		bool unharmed = m_lives == lives && Mathf.Approximately(m_hull, hull) && m_state == State.Running && Mathf.Approximately(m_hurtTime, hurt) && !Plugin.Invincible.Value;
 		// The blow (or the guard taking it) rocks the ship.
 		m_lurchV += (Random.value < 0.5f ? -1f : 1f) * (unharmed ? 35f : 80f);
 		m_shake = Mathf.Max(m_shake, unharmed ? 0.2f : 0.4f);
@@ -719,12 +750,9 @@ internal sealed partial class SurfGame
 	private void PickLoot(SeaFoe f)
 	{
 		f.Dead = true;
-		if (f.Kind == "wood" && m_lives < Plugin.Lives.Value)
+		if (f.Kind == "wood" && MendWithDriftwood())
 		{
-			// Driftwood to mend the hull: a life back.
-			m_lives++;
-			Flash(new Color(0.4f, 1f, 0.5f), 0.45f);
-			m_audio.Play("sfx_build_hammer_wood|sfx_wood_hit", 0.9f, 1.1f);
+			// Driftwood mends the hull (SurfHull.cs).
 		}
 		else
 		{
@@ -777,12 +805,16 @@ internal sealed partial class SurfGame
 		{
 			case 0:
 			{
-				// Swimming under, to a spot beside the ship.
-				Vector2 spot = ship + new Vector2(f.Side * 12f, 6f) + shipVel * 0.8f;
+				// Swimming under, to a spot beside the ship (for a lunge), or well ahead of it
+				// (to stop and breathe).
+				Vector2 spot = f.Move == "breath" ? BreathSpot(f, 30f) : ship + new Vector2(f.Side * 12f, 6f) + shipVel * 0.8f;
 				Vector2 to = spot - f.P;
 				float speed = m_boatSpeed + 8f;
 				f.Dir = to.normalized * speed;
-				f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(to), 160f * dt);
+				// 1.16.3 (Sam: "it should squiggle along, not straight-line it"): it weaves as it
+				// swims, straightening out as it gets there.
+				float weave = Mathf.Sin(f.T * 2.4f + f.Bob) * 35f * Mathf.Clamp01((to.magnitude - 3f) / 12f);
+				f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(to) + weave, 160f * dt);
 				f.P += Dir2(f.Facing) * (speed * dt);
 				f.Y = Mathf.MoveTowards(f.Y, -2.4f, dt * 2f);
 				if (Random.value < dt * 10f)
@@ -790,7 +822,11 @@ internal sealed partial class SurfGame
 					AddFoam(f.P - Dir2(f.Facing) * 2f, Random.Range(0.6f, 1.1f), 1.2f, 0.45f, 1.8f);
 				}
 				f.Wait -= dt;
-				if (to.magnitude < 3f && f.Wait <= 0f)
+				if (to.magnitude < 3f && f.Wait <= 0f && f.Move == "breath")
+				{
+					StartBreath(f);
+				}
+				else if (to.magnitude < 3f && f.Wait <= 0f)
 				{
 					f.Phase = 1;
 					f.T = 0f;
@@ -858,6 +894,17 @@ internal sealed partial class SurfGame
 				}
 				break;
 			}
+			case 4:
+			{
+				int breath = UpdateBreath(f, dt, $"The {f.Label}'s breath hit the ship!");
+				if (breath != 0)
+				{
+					// Up on the surface where it stopped (reeling, when parried).
+					f.Phase = 3;
+					f.T = breath == 2 ? -1.5f : 0f;
+				}
+				break;
+			}
 			case 3:
 				// On the surface: shoot it now.
 				f.P += shipVel * dt * 0.6f;
@@ -868,6 +915,7 @@ internal sealed partial class SurfGame
 					f.T = 0f;
 					f.Side = -f.Side;
 					f.Wait = 1.2f;
+					f.Move = f.Move == "breath" ? "lunge" : "breath";
 					SpawnSplash(f.P, 0.8f);
 					if (f.Attacks >= 2)
 					{
@@ -908,12 +956,14 @@ internal sealed partial class SurfGame
 			{
 				// Circling the ship, a dark shape and a wake.
 				f.Y = Mathf.MoveTowards(f.Y, -2.8f, dt * 2f);
+				// 1.16.3: weaving in and out as it goes round, not on a ruled circle.
 				float angle = Angle2(f.P - ship) + f.Side * 40f * dt;
-				Vector2 want = ship + Dir2(angle) * 20f + shipVel * 0.5f;
+				Vector2 want = ship + Dir2(angle) * (20f + 4f * Mathf.Sin(f.T * 1.9f + f.Bob)) + shipVel * 0.5f;
 				Vector2 to = want - f.P;
 				float speed = m_boatSpeed + 10f;
-				f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(to), 180f * dt);
+				f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(to) + Mathf.Sin(f.T * 2.2f + f.Bob) * 25f, 180f * dt);
 				f.P += to.normalized * Mathf.Min(speed * dt, to.magnitude);
+				f.Dir = to.normalized * speed;
 				if (Random.value < dt * 14f)
 				{
 					AddFoam(f.P - Dir2(f.Facing) * 3f, Random.Range(1f, 1.8f), 1.5f, 0.5f, 2f);
@@ -923,17 +973,24 @@ internal sealed partial class SurfGame
 				{
 					float hurt = 1f - (float)f.Hp / f.MaxHp;
 					float r = Random.value;
-					f.Move = hurt > 0.4f && r < 0.25f ? "under" : r < 0.6f ? "lunge" : "slam";
+					f.Move = hurt > 0.4f && r < 0.25f ? "under" : r < 0.5f ? "lunge" : r < 0.75f ? "breath" : "slam";
 					f.T = 0f;
 					if (f.Move == "under")
 					{
 						f.Phase = 5;
 						m_audio.Play("sfx_serpent_idle|sfx_serpent_alerted", 0.8f, 0.7f);
 					}
+					else if (f.Move == "breath")
+					{
+						// Up well ahead of the ship, stopped, to breathe down at it.
+						f.P = Vector2.Lerp(f.P, BreathSpot(f, 32f), 0.85f);
+						StartBreath(f);
+					}
 					else
 					{
 						// Up at a spot ahead of the ship, where it can be seen.
 						f.Phase = 1;
+						f.Dir = Vector2.zero;
 						Vector2 up = ship + new Vector2(f.Side * Random.Range(10f, 16f), Random.Range(10f, 18f));
 						f.P = Vector2.Lerp(f.P, up, 0.7f);
 						f.Aim = ship + shipVel * (windup + 0.3f);
@@ -981,6 +1038,16 @@ internal sealed partial class SurfGame
 					m_shake = Mathf.Max(m_shake, 0.35f);
 					f.Phase = 3;
 					f.T = 0f;
+				}
+				break;
+			}
+			case 4:
+			{
+				int breath = UpdateBreath(f, dt, $"The {f.Label} of the deep's breath hit the ship!");
+				if (breath != 0)
+				{
+					f.Phase = 3;
+					f.T = breath == 2 ? -2f : 0f;
 				}
 				break;
 			}

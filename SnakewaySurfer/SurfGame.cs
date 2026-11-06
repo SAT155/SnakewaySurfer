@@ -135,6 +135,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public bool Threat;
 		public bool Dodged;
 		public float RippleTimer;
+		// 1.16.3: a swimmer's body swinging as it goes (SurfRipples.cs).
+		public float WiggleYaw;
+		public float LastX = float.NaN;
+		public Quaternion WiggleBase;
+		public bool WiggleSet;
 		// Shoots from beside the track (1.16.1: the swamp's draugr archers, surtlings).
 		public bool Sideline;
 		// > 0: its shots fly this fast (surtlings' slow fireballs).
@@ -1839,6 +1844,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
+		// 1.16.3: at sea the ship takes it (SurfHull.cs).
+		if (HullTakes(t, why))
+		{
+			return;
+		}
 		// The game's red damage flash and your character's hurt sound.
 		Flash(new Color(0.85f, 0.05f, 0.02f), 0.9f);
 		PlayHurt();
@@ -1885,6 +1895,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					UpdateCreature(t, dt);
 				}
 				CreatureRipples(t, dt);
+				SwimWiggle(t, dt);
 			}
 			if (m_state == State.Running && t.ChargeIn > 0f)
 			{
@@ -2097,6 +2108,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Color32 ca = Heightmap.GetBiomeColor(SpawnTables.s_order[Mathf.Min(a, SpawnTables.s_order.Length - 1)]);
 			Color32 cb = Heightmap.GetBiomeColor(SpawnTables.s_order[Mathf.Min(b, SpawnTables.s_order.Length - 1)]);
 			colors[i] = Color32.Lerp(ca, cb, blend);
+			if (m_islands.Count > 0)
+			{
+				// The sea's islands are green (Meadows ground) above their sand.
+				float isl = IslandWeight(verts[i].x, centerZ + verts[i].z);
+				if (isl > 0f)
+				{
+					colors[i] = Color32.Lerp(colors[i], Heightmap.GetBiomeColor(Heightmap.Biome.Meadows), isl);
+				}
+			}
 		}
 		return colors;
 	}

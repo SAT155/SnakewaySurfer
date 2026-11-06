@@ -85,6 +85,42 @@ internal sealed partial class SurfGame
 		AddRipple(p.x + Random.Range(-0.3f, 0.3f), RoadY(t.Z) + WaterDepth, p.z + Random.Range(-0.3f, 0.3f), moving ? 0.6f : 0.35f);
 	}
 
+	// 1.16.3 (Sam: the serpent "should squiggle along, not straight-line it like the leech"):
+	// a leech's body swings from side to side as it swims and turns into the way it's going
+	// when it changes lanes, instead of sliding over sideways. The swing is on the creature
+	// inside its wrapper, so whatever else turns the wrapper still does.
+	private void SwimWiggle(Thing t, float dt)
+	{
+		if (t.Go == null || t.Go.transform.childCount == 0 || !t.Go.name.StartsWith("Leech") || dt <= 0f)
+		{
+			return;
+		}
+		Transform body = t.Go.transform.GetChild(0);
+		if (!t.WiggleSet)
+		{
+			t.WiggleSet = true;
+			t.WiggleBase = body.localRotation;
+			t.LastX = t.X;
+			if (t.Seed == 0f)
+			{
+				t.Seed = Random.value * 20f;
+			}
+		}
+		float vx = float.IsNaN(t.LastX) ? 0f : (t.X - t.LastX) / dt;
+		t.LastX = t.X;
+		bool moving = Mathf.Abs(vx) > 0.05f || t.Speed != 0f || t.Chaser;
+		// Which way it faces down the track decides which way a turn to the right is.
+		float facing = Mathf.Sign((t.Go.transform.localRotation * t.WiggleBase * Vector3.forward).z);
+		if (facing == 0f)
+		{
+			facing = 1f;
+		}
+		float turn = Mathf.Clamp(vx * 9f, -32f, 32f) * facing;
+		float swing = Mathf.Sin(m_runTime * (moving ? 5.5f : 2f) + t.Seed) * (moving ? 14f : 5f);
+		t.WiggleYaw = Mathf.MoveTowards(t.WiggleYaw, turn, 120f * dt);
+		body.localRotation = t.WiggleBase * Quaternion.Euler(0f, t.WiggleYaw + swing, 0f);
+	}
+
 	private void AddRipple(float x, float surface, float z, float strength)
 	{
 		if (m_rippleMaterial == null)

@@ -124,7 +124,7 @@ internal sealed partial class SurfGame
 		{
 			w = 1f - Mathf.Clamp01((z - s.Start) / ramp);
 		}
-		if (s.End != float.MaxValue && s.End - z < ShoreRamp && SegAt(s.End + 0.01f).Sea)
+		if (s.End != float.MaxValue && s.End - z < ramp && SegAt(s.End + 0.01f).Sea)
 		{
 			w = Mathf.Max(w, 1f - Mathf.Clamp01((s.End - z) / ramp));
 		}
@@ -135,23 +135,34 @@ internal sealed partial class SurfGame
 
 	// The land near a shore sinks toward the sea floor: a sandy bay where the track runs down,
 	// the land beside it holding up longer and dropping steeply, like headlands either side.
+	// 1.16.3 (Sam: open water around the beached ship): the land beside the track goes under
+	// sooner than the track, so the beach runs out as a spit with the sea on both sides of the
+	// ship (it used to hold up longer, like headlands). At sea the islands rise from the floor.
 	private float ShoreLand(float y, float x, float z, ref float veg)
 	{
-		if (ShoreWeight(z) <= 0f)
+		if (ShoreT(z, SideReach) <= 0f)
 		{
 			return y;
 		}
-		float side = Mathf.Clamp01((Mathf.Abs(x) - TrackHalf - 6f) / 50f);
-		float reach = Mathf.Lerp(1f, 0.45f, side) * (0.9f + 0.2f * Mathf.PerlinNoise(x * 0.04f + 3.7f, 0.5f));
-		float w = ShoreT(z, Mathf.Min(1f, reach));
-		if (w <= 0f)
+		float side = Mathf.Clamp01((Mathf.Abs(x) - TrackHalf - 4f) / 30f);
+		float reach = Mathf.Lerp(1f, SideReach, side) * (0.92f + 0.08f * Mathf.PerlinNoise(x * 0.04f + 3.7f, 0.5f));
+		float w = ShoreT(z, reach);
+		float sunk = y;
+		if (w > 0f)
 		{
-			return y;
+			float floor = SeaY - 2.2f - 0.05f * Mathf.Max(0f, Mathf.Abs(x) - TrackHalf) - 2.5f * w * w;
+			veg *= Mathf.Clamp01(1f - w * 1.6f);
+			sunk = Mathf.Lerp(y, Mathf.Min(y, floor), w);
 		}
-		float floor = SeaY - 2.2f - 0.05f * Mathf.Max(0f, Mathf.Abs(x) - TrackHalf) - 2.5f * w * w;
-		veg *= Mathf.Clamp01(1f - w * 1.6f);
-		return Mathf.Lerp(y, Mathf.Min(y, floor), w);
+		if (m_islands.Count > 0 && m_segments.Count > 0 && SegAt(z).Sea)
+		{
+			sunk = IslandLand(x, z, sunk, ref veg);
+		}
+		return sunk;
 	}
+
+	// How much further inland the land beside the track starts going under.
+	private const float SideReach = 1.7f;
 
 	// The track down the beach: kept above the water until the slope starts, so the shore is
 	// one clean waterline, then down under the sea.
@@ -167,18 +178,18 @@ internal sealed partial class SurfGame
 	}
 
 	// Is this spot under the sea (or its shallows)? Nothing grows or stands there.
-	private bool UnderSea(float x, float z) => ShoreWeight(z) > 0f && HillHeight(x, z) < SeaY + 0.4f;
+	private bool UnderSea(float x, float z) => ShoreT(z, SideReach) > 0f && HillHeight(x, z) < SeaY + 0.4f;
 
 	// The arena before a crossing ends where the sea begins: the ground already laid out on its
 	// last slope is built again sinking into the sea, and what stood there goes.
 	private void ReshapeShore(float end)
 	{
-		float from = Mathf.Floor((end - ShoreRamp) / GroundTile) * GroundTile;
+		float from = Mathf.Floor((end - ShoreRamp * SideReach) / GroundTile) * GroundTile;
 		for (int i = m_things.Count - 1; i >= 0; i--)
 		{
 			Thing t = m_things[i];
 			bool redo = t.Kind == Kind.Ground ? t.Z + GroundTile * 0.5f > from + 0.01f
-				: (t.Kind == Kind.Scenery || t.Kind == Kind.Coin) && t.Z > end - ShoreRamp;
+				: (t.Kind == Kind.Scenery || t.Kind == Kind.Coin) && t.Z > end - ShoreRamp * SideReach;
 			if (redo)
 			{
 				DestroyThing(t);
@@ -186,7 +197,7 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_nextGroundZ = Mathf.Min(m_nextGroundZ, from);
-		m_nextSceneryZ = Mathf.Min(m_nextSceneryZ, end - ShoreRamp);
+		m_nextSceneryZ = Mathf.Min(m_nextSceneryZ, end - ShoreRamp * SideReach);
 	}
 
 	// The start of a crossing coming up within `ahead` metres, if any.
@@ -217,6 +228,8 @@ internal sealed partial class SurfGame
 	private void MakeShip(Segment sea)
 	{
 		DestroyShip();
+		// The crossing's islands, before any of its land is laid out (SurfHull.cs).
+		MakeIslands(sea);
 		GameObject? prefab = Pictures.Prefab("VikingShip") ?? Pictures.Prefab("Karve");
 		GameObject go;
 		Ship? ship = prefab != null ? prefab.GetComponent<Ship>() : null;
@@ -350,8 +363,9 @@ internal sealed partial class SurfGame
 		m_lurchV += (-m_lurch * 30f - m_lurchV * 4f) * dt;
 		m_lurch += m_lurchV * dt;
 		float lean = -m_turnRate * 0.06f;
-		Quaternion rot = Quaternion.Euler(m_pitch, m_heading, m_roll + lean + m_lurch);
-		Vector3 centre = new Vector3(c.x, m_boatY - 0.9f - m_keelLocalY, c.y);
+		// A damaged hull sits lower and lists (SurfHull.cs).
+		Quaternion rot = Quaternion.Euler(m_pitch, m_heading, m_roll + lean + m_lurch + HullList);
+		Vector3 centre = new Vector3(c.x, m_boatY - 0.9f - m_keelLocalY - HullSink, c.y);
 		m_ship.transform.localRotation = rot;
 		m_ship.transform.localPosition = centre - rot * new Vector3(0f, 0f, m_centerLocalZ);
 		ApplySail(dt, snap);
@@ -463,6 +477,7 @@ internal sealed partial class SurfGame
 		m_slide = 0f;
 		m_y = 0f;
 		m_vy = 0f;
+		ResetHull();
 		// A fair wind to start with, from astern or abeam.
 		m_windAngle = m_windTarget = (Random.value < 0.5f ? -1f : 1f) * Random.Range(20f, 100f);
 		m_windStrength = m_windStrengthTarget = Random.Range(0.6f, 0.85f);
@@ -580,6 +595,11 @@ internal sealed partial class SurfGame
 			float sail = Plugin.SailSpeed.Value * WindAngleFactor() * gust * (m_sail == Sail.Full ? 1f : 0.62f);
 			target = m_sail == Sail.Oars ? 6f : Mathf.Max(3.5f, sail);
 			target *= moves;
+			if (m_moored != null && m_hull < HullMax)
+			{
+				// Moored at an island's workbench while the hull is mended.
+				target = 0f;
+			}
 			if (m_surf > 0f)
 			{
 				target *= 1.35f;
@@ -701,6 +721,7 @@ internal sealed partial class SurfGame
 		UpdateSafeLine();
 		if (m_seaPhase == 2)
 		{
+			UpdateHarbours(dt);
 			UpdateRollersHit();
 			UpdateSeaStory(dt);
 		}
@@ -854,9 +875,11 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Vector2 c = ShipCenter();
-		float height = 20f + 1.15f * m_shipLength;
-		Vector3 focus = new Vector3(m_x * 0.8f, SeaY, c.y + 9f);
-		Vector3 cam = focus + new Vector3(0f, height, -height * 0.45f);
+		// 1.16.3 (Sam: a shallower, lower camera, so the rolling waves read): about 42 degrees
+		// down instead of 66, and closer, looking a little further ahead of the bow.
+		float height = 13f + 0.75f * m_shipLength;
+		Vector3 focus = new Vector3(m_x * 0.8f, SeaY, c.y + 13f);
+		Vector3 cam = focus + new Vector3(0f, height, -height * 1.1f);
 		Vector3 seaPos = m_stage.TransformPoint(cam);
 		Quaternion seaRot = Quaternion.LookRotation(m_stage.TransformPoint(focus) - seaPos);
 		float b = Mathf.SmoothStep(0f, 1f, m_seaBlend);
@@ -1056,6 +1079,8 @@ internal sealed partial class SurfGame
 		DestroyShip();
 		ClearSeaFoes();
 		ClearOcean();
+		ClearIslands();
+		ResetHull();
 	}
 
 	// ---------------------------------------------------------------- HUD
@@ -1091,6 +1116,7 @@ internal sealed partial class SurfGame
 		m_hudFull = Of(hud.m_fullSail);
 		m_hudHalf = Of(hud.m_halfSail);
 		m_hudOars = Of(hud.m_rudderSlow);
+		LogShipHud(hud);
 	}
 
 	private static void DrawRotated(Rect r, Sprite? sprite, float degrees, Color tint)
@@ -1115,32 +1141,8 @@ internal sealed partial class SurfGame
 		}
 		float size = 150f * k;
 		Rect rose = new Rect(w - size - 40f * k, h - size - 40f * k, size, size);
-		if (m_hudCompass != null)
-		{
-			DrawSprite(rose, m_hudCompass, new Color(1f, 1f, 1f, 0.85f));
-		}
-		else
-		{
-			Fill(new Rect(rose.x + size * 0.15f, rose.y + size * 0.15f, size * 0.7f, size * 0.7f), new Color(0f, 0f, 0f, 0.35f));
-		}
-		float factor = WindAngleFactor();
-		float pulse = 1f + 0.25f * m_windShift * Mathf.Abs(Mathf.Sin(Time.time * 10f));
-		Color windTint = Color.Lerp(new Color(0.25f, 0.25f, 0.25f), Color.white, factor);
-		float ws = size * 0.6f * pulse;
-		Rect windRect = new Rect(rose.center.x - ws * 0.5f, rose.center.y - ws * 0.5f, ws, ws);
-		if (m_hudWind != null)
-		{
-			// The game's icon points the way the wind blows when unturned.
-			DrawRotated(windRect, m_hudWind, m_windAngle, windTint);
-		}
-		else
-		{
-			Matrix4x4 m = GUI.matrix;
-			GUIUtility.RotateAroundPivot(m_windAngle, rose.center);
-			Fill(new Rect(rose.center.x - 4f * k, rose.center.y - ws * 0.45f, 8f * k, ws * 0.9f), windTint);
-			Star(new Vector2(rose.center.x, rose.center.y - ws * 0.45f), 18f * k, windTint);
-			GUI.matrix = m;
-		}
+		// 1.16.3: the ring with the no-go arc and the wind on it (SurfWindGauge.cs).
+		WindGauge(rose, k);
 		if (m_hudShip != null)
 		{
 			float ss = size * 0.34f;
@@ -1171,6 +1173,8 @@ internal sealed partial class SurfGame
 		{
 			Bar(new Rect(rose.x - 70f * k, rose.yMax - 4f * k, 56f * k, 6f * k), 1f - m_reload / BallistaReload, new Color(0.9f, 0.85f, 0.7f));
 		}
+		// The hull's planks over the gauge (SurfHull.cs).
+		HullHud(k, rose);
 		// The keys, small above the rose like the game's key hints, for the first moments aboard.
 		float hint = Mathf.Clamp01((16f - m_seaTime) / 3f);
 		if (hint > 0f && m_small != null)
@@ -1180,7 +1184,7 @@ internal sealed partial class SurfGame
 			m_small.alignment = TextAnchor.LowerRight;
 			Color old = GUI.color;
 			GUI.color = new Color(1f, 1f, 1f, hint);
-			Shadowed(new Rect(w - 760f * k, rose.y - 110f * k, 720f * k, 100f * k),
+			Shadowed(new Rect(w - 760f * k, rose.y - 150f * k, 720f * k, 100f * k),
 				$"A / D: steer     W / S: sail\n{KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
 			GUI.color = old;
 			m_small.alignment = anchor;
