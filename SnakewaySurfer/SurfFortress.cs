@@ -87,7 +87,7 @@ internal sealed partial class SurfGame
 		lava.transform.localPosition = new Vector3(0f, y + 0.02f, z);
 		lava.transform.localScale = new Vector3(CryptHalf * 2f, 0.05f, width);
 		Renderer r = lava.GetComponent<Renderer>();
-		r.sharedMaterial = SolidTint(new Color(1f, 0.38f, 0.06f));
+		r.sharedMaterial = LavaMaterial();
 		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 		foreach (int side in new[] { -1, 1 })
 		{

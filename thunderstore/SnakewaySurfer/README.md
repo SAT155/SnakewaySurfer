@@ -71,6 +71,10 @@ standing stones, tar pits and fuling camps in the Plains; giant skeletons, dverg
 swords in stone in the Mistlands; charred ruins and morgen holes in the Ashlands. Some have one
 of their own waiting in the lane by them. Places in the config turns them off.
 
+In the open Ashlands some rows are **lava** instead: a glowing channel across the track to jump,
+or a pool along one or two lanes to keep out of (jumping in only lands you in it), with glowing
+cracks running through the ash beside the track. Lava in the config turns it off.
+
 ## Bosses and checkpoints
 
 Each biome ends with its boss, but only bosses you've already beaten in this world: a new
@@ -285,6 +289,8 @@ and for players without the mod.
   draugr huts, graves, drake nests, standing stones, tar pits, fuling camps, giant skeletons,
   dvergr towers, swords in stone, charred ruins and morgen holes, some with one of their own
   waiting in the lane.
+  1.16.12: lava in the open Ashlands: channels across the track to jump, pools along a lane or
+  two to keep out of, glowing cracks beside the track; the fortresses' lava glows the same way.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

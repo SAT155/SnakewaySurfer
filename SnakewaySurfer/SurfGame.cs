@@ -1669,6 +1669,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		SpawnAhead();
 		UpdateCrypt(dt);
 		UpdateTraders(dt);
+		UpdateLava();
 		UpdateHints();
 		UpdateShore(dt);
 	}
@@ -2397,6 +2398,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		// The lanes clear around a trader.
 		if (NearTrader(z, TraderClear))
+		{
+			return;
+		}
+		// 1.16.12: in the open Ashlands, some rows are lava instead.
+		if (MaybeLavaRow(z, crypt))
 		{
 			return;
 		}

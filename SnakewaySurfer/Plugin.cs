@@ -115,6 +115,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> Dungeons = null!;
 	internal static ConfigEntry<bool> Traders = null!;
 	internal static ConfigEntry<bool> Places = null!;
+	internal static ConfigEntry<bool> Lava = null!;
 
 	private void Awake()
 	{
@@ -419,6 +420,8 @@ public class Plugin : BaseUnityPlugin
 			"Now and then one of the game's traders stands by the track in front of their camp: Haldor in the Black Forest, the Bog Witch in the Swamp, and Hildir in the Meadows from the 1-star lap on. Coins and a gold mark lead along the lane on their side; run past them in that lane and they give you your lives back, or one extra if you have them all. Off: no traders.");
 		Places = Config.Bind("1 - Run", "Places", true,
 			"Each biome's own places stand beside the track now and then, as in the world: abandoned houses, stone circles and ruined towers in the Meadows, tower ruins and greydwarf camps in the Black Forest, draugr huts and sunken ruins in the Swamp, graves, drake nests and towers in the Mountains, standing stones, tar pits and fuling camps in the Plains, giant skeletons, dvergr towers and swords in stone in the Mistlands, charred ruins and morgen holes in the Ashlands. Some have one of their own waiting in the lane by them. Off: only the Swamp's crypt entrances and fire spouts.");
+		Lava = Config.Bind("1 - Run", "Lava", true,
+			"In the open Ashlands some rows are lava instead: a glowing channel across the track (jump it) or a pool along one or two lanes (keep out of it), with glowing cracks in the ash beside the track. Off: none (the charred fortresses keep theirs).");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 	}
