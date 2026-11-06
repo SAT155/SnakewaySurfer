@@ -425,4 +425,129 @@ internal static class Progress
 		}
 		return string.Join(", ", names);
 	}
+
+	// ---------------------------------------------------------------- testing (surfprogress)
+
+	// 1.16.16: set once the first run (its dream) has been.
+	public const string FirstRunKey = "SnakewaySurfer.FirstRun";
+
+	private static int Lap() => Plugin.LoopBiomes.Value <= 0 ? Biomes.Defaults.Length : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, Biomes.Defaults.Length);
+
+	// 1.16.16 (Sam): "surfprogress": see, erase or set this character's progress.
+	public static string Command(Player player, string[] args)
+	{
+		string verb = args.Length > 1 ? args[1].Trim().ToLowerInvariant() : "";
+		if (verb == "wipe" || verb == "erase" || verb == "reset")
+		{
+			List<string> keys = new();
+			foreach (string key in player.m_customData.Keys)
+			{
+				if (key.StartsWith("SnakewaySurfer", StringComparison.Ordinal))
+				{
+					keys.Add(key);
+				}
+			}
+			foreach (string key in keys)
+			{
+				player.m_customData.Remove(key);
+			}
+			return $"surfprogress: erased {keys.Count} SnakewaySurfer record(s) from this character (checkpoints and crossings in every world, golden shoes, the food timer, the first-run dream). Next surfsup is a first run again.";
+		}
+		if (verb == "dream")
+		{
+			player.m_customData.Remove(FirstRunKey);
+			return "surfprogress: the next surfsup is a first run again (the dream, no menu).";
+		}
+		if (verb == "set")
+		{
+			int lap = Lap();
+			List<string> words = new();
+			for (int i = 2; i < args.Length; i++)
+			{
+				if (!string.IsNullOrWhiteSpace(args[i]))
+				{
+					words.Add(args[i].Trim());
+				}
+			}
+			int stars = 0;
+			if (words.Count > 1 && int.TryParse(words[words.Count - 1], NumberStyles.Integer, CultureInfo.InvariantCulture, out int st))
+			{
+				stars = Mathf.Clamp(st, 0, 3);
+				words.RemoveAt(words.Count - 1);
+			}
+			string named = string.Join("", words).ToLowerInvariant();
+			bool sea = named == "ocean" || named == "sea" || named == "crossing";
+			int biome = ParseBiome(named);
+			if (biome < 0 || biome >= lap)
+			{
+				return "surfprogress: name a biome (or its number, 1 = Meadows) and optionally stars, e.g. \"surfprogress set swamp\" or \"surfprogress set plains 1\".";
+			}
+			if (Plugin.LoopBiomes.Value <= 0)
+			{
+				stars = 0;
+			}
+			// Every checkpoint up to it: all of the earlier laps, and this lap up to the biome.
+			List<string> parts = new();
+			for (int s = 0; s <= stars; s++)
+			{
+				for (int b = 0; b < lap && (s < stars || b <= biome); b++)
+				{
+					if (b != 0 || s != 0)
+					{
+						parts.Add(b.ToString(CultureInfo.InvariantCulture) + ":" + s.ToString(CultureInfo.InvariantCulture));
+					}
+				}
+			}
+			player.m_customData.Remove(LandedKey());
+			if (parts.Count > 0)
+			{
+				player.m_customData[Key()] = string.Join(",", parts);
+			}
+			else
+			{
+				player.m_customData.Remove(Key());
+			}
+			if (biome > SeaBiome || (biome == SeaBiome && !sea))
+			{
+				// Set to the Plains or beyond: the crossing on this lap is made too.
+				SaveLanded(player, stars);
+			}
+			player.m_customData[FirstRunKey] = "1";
+			int allowed = AllowedBiomes(lap);
+			string gate = biome >= allowed ? $" (this world only lets runs reach the {Biomes.Defaults[allowed - 1].Name} until its bosses are beaten; Ignore Boss Gate opens the rest)" : "";
+			return $"surfprogress: checkpoints in this world now run up to {Describe(biome, stars, sea)}{gate}.";
+		}
+		if (verb.Length > 0)
+		{
+			return "surfprogress: use \"surfprogress\", \"surfprogress wipe\", \"surfprogress set <biome> [stars]\" or \"surfprogress dream\".";
+		}
+		int all = AllowedBiomes(Lap());
+		string first = player.m_customData.ContainsKey(FirstRunKey) ? "done" : "still to come";
+		return $"surfprogress: checkpoints in this world: {ListCheckpoints(player, Lap())}. Runs here reach the {Biomes.Defaults[all - 1].Name}. First-run dream: {first}.";
+	}
+
+	// The Plains (its ocean crossing comes before it).
+	private const int SeaBiome = 4;
+
+	private static int ParseBiome(string text)
+	{
+		string what = text.Replace(" ", "").Replace("_", "").Replace("-", "").ToLowerInvariant();
+		if (int.TryParse(what, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n))
+		{
+			return n - 1;
+		}
+		if (what == "ocean" || what == "sea" || what == "crossing")
+		{
+			return SeaBiome;
+		}
+		for (int i = 0; i < Biomes.Defaults.Length; i++)
+		{
+			string name = Biomes.Defaults[i].Name.Replace(" ", "").ToLowerInvariant();
+			if (what.Length >= 3 && name.StartsWith(what))
+			{
+				return i;
+			}
+		}
+		return -1;
+	}
 }

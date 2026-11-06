@@ -446,10 +446,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		PlayerHooks.RefreshHelmet(player);
 		ResetRun();
-		if (!m_explicitStart && MenuWorthIt())
+		// 1.16.16 (Sam): the very first run goes straight in (after a dream), no menu.
+		if (FirstRun())
+		{
+			StartDream();
+		}
+		else if (!m_explicitStart && MenuWorthIt())
 		{
 			EnterMenu();
 		}
+		CoverNow();
 		Plugin.Log.LogInfo($"Surf's up: stage at {origin}, layer {m_layer}.");
 	}
 
@@ -460,6 +466,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Active = null;
 		}
 		RemoveRaven();
+		EndLoadScreen();
 		if (m_paused)
 		{
 			AudioListener.pause = false;
@@ -1337,7 +1344,20 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
 		{
+			// 1.16.16: the start menu fades away first.
+			if (m_state == State.Menu && !Loading && m_menuClose < 0f)
+			{
+				CloseMenu(Quit);
+				return;
+			}
 			Quit();
+			return;
+		}
+
+		// 1.16.16 (Sam): the game's portal loading screen while a run is set up.
+		if (UpdateLoad(canInput))
+		{
+			PlaceCamera(0f);
 			return;
 		}
 
@@ -1418,7 +1438,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			case State.Crashed:
 				if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
 				{
-					ResetRun();
+					BeginLoad(ResetRun);
 				}
 				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.R))
 				{
@@ -1507,6 +1527,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		UpdateCryptFrames();
 		PlaceRaven();
+		ApplyLoadScreen();
 		DrawGrass();
 		// The game may switch its HUD back on (Hud.Update); keep it hidden while we're up.
 		if (m_hudRoot != null && m_hudRoot.activeSelf)
@@ -3706,7 +3727,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private GUIStyle? m_small;
 	private GUIStyle? m_smallRich;
 
-	private void OnGUI()
+	// SurfDream.cs's OnGUI draws this, under the loading screen as it fades.
+	private void DrawGui()
 	{
 		float k = Screen.height / 1080f;
 		if (m_big == null)
@@ -3798,9 +3820,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private static void ShadowedRich(Rect r, string plain, string rich, GUIStyle style)
 	{
 		Color old = style.normal.textColor;
-		style.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
+		style.normal.textColor = new Color(0f, 0f, 0f, 0.8f * s_guiAlpha);
 		GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), plain, style);
-		style.normal.textColor = Color.white;
+		style.normal.textColor = new Color(1f, 1f, 1f, s_guiAlpha);
 		GUI.Label(r, rich, style);
 		style.normal.textColor = old;
 	}
@@ -3808,9 +3830,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private static void Shadowed(Rect r, string text, GUIStyle style)
 	{
 		Color old = style.normal.textColor;
-		style.normal.textColor = new Color(0f, 0f, 0f, 0.8f);
+		style.normal.textColor = new Color(0f, 0f, 0f, 0.8f * s_guiAlpha);
 		GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, style);
-		style.normal.textColor = Color.white;
+		style.normal.textColor = new Color(1f, 1f, 1f, s_guiAlpha);
 		GUI.Label(r, text, style);
 		style.normal.textColor = old;
 	}

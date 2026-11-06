@@ -256,7 +256,7 @@ internal sealed partial class SurfGame
 		Rect tr = sprite.textureRect;
 		Rect uv = new Rect(tr.x / tex.width, tr.y / tex.height, tr.width / tex.width, tr.height / tex.height);
 		Color old = GUI.color;
-		GUI.color = tint;
+		GUI.color = new Color(tint.r, tint.g, tint.b, tint.a * s_guiAlpha);
 		GUI.DrawTextureWithTexCoords(r, tex, uv, true);
 		GUI.color = old;
 	}
@@ -264,9 +264,9 @@ internal sealed partial class SurfGame
 	private static void Bar(Rect r, float fill, Color color)
 	{
 		Color old = GUI.color;
-		GUI.color = new Color(0f, 0f, 0f, 0.55f);
+		GUI.color = new Color(0f, 0f, 0f, 0.55f * s_guiAlpha);
 		GUI.DrawTexture(new Rect(r.x - 2, r.y - 2, r.width + 4, r.height + 4), Texture2D.whiteTexture);
-		GUI.color = color;
+		GUI.color = new Color(color.r, color.g, color.b, color.a * s_guiAlpha);
 		GUI.DrawTexture(new Rect(r.x, r.y, r.width * Mathf.Clamp01(fill), r.height), Texture2D.whiteTexture);
 		GUI.color = old;
 	}
@@ -285,7 +285,7 @@ internal sealed partial class SurfGame
 		if (m_flash2 > 0.001f)
 		{
 			Color old = GUI.color;
-			GUI.color = new Color(m_flashColor.r, m_flashColor.g, m_flashColor.b, Mathf.Clamp01(m_flash2));
+			GUI.color = new Color(m_flashColor.r, m_flashColor.g, m_flashColor.b, Mathf.Clamp01(m_flash2) * s_guiAlpha);
 			GUI.DrawTexture(new Rect(0, 0, w, h), Vignette(), ScaleMode.StretchToFill, true);
 			GUI.color = old;
 		}

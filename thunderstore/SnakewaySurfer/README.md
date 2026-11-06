@@ -218,6 +218,14 @@ world, the game stops straight away (health lost because food is wearing off doe
 The minigame has its own sounds (countdown, footsteps, jumps, slides, coins, new biomes,
 crashes), borrowed from the game and heard only by you.
 
+Runs load behind the game's own portal loading screen. Your very first run starts with a
+short dream on the dark, in the game's own dream text (Space wakes you early), and goes straight
+in. After that, `surfsup` opens the start menu once you have more than one checkpoint.
+
+For testing, `surfprogress` shows your checkpoints, `surfprogress wipe` erases all of this
+character's SnakewaySurfer progress, `surfprogress set <biome> [stars]` sets the checkpoints
+reached (e.g. `surfprogress set plains 1`), and `surfprogress dream` sees the dream again.
+
 ## Rewards
 
 At the end of each run:
@@ -307,6 +315,11 @@ and for players without the mod.
   1.16.15 (Sam): the run's messages come from Hugin, the tutorial raven: he flies in at the top
   right of the screen with the game's own animation, says it in the game's own speech popup, and
   flies off once it's said. Hugin's Messages in the config turns him off.
+  1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
+  starts with a short dream in the game's own dream text instead of the start menu. The start
+  menu drifts in like a dream (floating buttons, a glow on the one you're on, the others
+  drifting apart when you pick). `surfprogress` shows, erases (`wipe`) or sets (`set plains 1`)
+  your progress for testing.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

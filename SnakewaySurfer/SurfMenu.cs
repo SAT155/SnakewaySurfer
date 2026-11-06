@@ -17,6 +17,20 @@ internal sealed partial class SurfGame
 	// 1.16: the Ocean's column (the crossing before the Plains), or -1.
 	private int m_menuSeaCol = -1;
 	private static Texture2D? s_white;
+	// Every IMGUI colour is multiplied by this (menu fades, the loading screen fading out).
+	private static float s_guiAlpha = 1f;
+
+	// 1.16.16 (Sam): the menu comes and goes like a dream. It drifts in out of a slow swirl, its
+	// buttons float and sway, the one you're on swells with a soft glow, and when you pick one it
+	// brightens while the others drift apart and fade.
+	private float m_menuOpen;
+	private float m_menuClose = -1f;
+	private bool m_menuLeaving;
+	private (int c, int r) m_menuPicked = (-1, -1);
+	private System.Action? m_menuAfter;
+	private readonly Dictionary<(int, int), float> m_menuHover = new();
+	private const float MenuOpenTime = 1.1f;
+	private const float MenuCloseTime = 0.85f;
 
 	private void EnterMenu()
 	{
@@ -61,6 +75,13 @@ internal sealed partial class SurfGame
 		}
 		m_state = State.Menu;
 		m_stateTime = 0f;
+		m_menuOpen = 0f;
+		m_menuClose = -1f;
+		m_menuLeaving = false;
+		m_menuPicked = (-1, -1);
+		m_menuAfter = null;
+		m_menuHover.Clear();
+		m_audio.Play("sfx_demister_start|sfx_runestone_interact", 0.45f, 0.85f);
 	}
 
 	// Only worth showing when there's more than one place to start.
@@ -81,6 +102,28 @@ internal sealed partial class SurfGame
 
 	private void UpdateMenu(bool canInput)
 	{
+		float udt = Mathf.Min(Time.unscaledDeltaTime, 0.1f);
+		m_menuOpen += udt;
+		for (int r = 0; r < m_menuRows; r++)
+		{
+			for (int c = 0; c < m_menuCols; c++)
+			{
+				bool on = m_menuPicked == (c, r) || (m_menuClose < 0f && m_menuCol == c && m_menuRow == r);
+				float h = m_menuHover.TryGetValue((c, r), out float v) ? v : 0f;
+				m_menuHover[(c, r)] = Mathf.MoveTowards(h, on ? 1f : 0f, udt * (on ? 6f : 3f));
+			}
+		}
+		if (m_menuClose >= 0f)
+		{
+			m_menuClose += udt;
+			if (m_menuClose >= MenuCloseTime && m_menuAfter != null)
+			{
+				System.Action after = m_menuAfter;
+				m_menuAfter = null;
+				after();
+			}
+			return;
+		}
 		if (!canInput)
 		{
 			return;
@@ -100,15 +143,39 @@ internal sealed partial class SurfGame
 				{
 					m_menuCol = c;
 					m_menuRow = r;
-					m_audio.Play(Sfx.Lane, 0.5f, 1.2f);
+					MenuHoverSound();
 					break;
 				}
 			}
 		}
-		if (m_stateTime > 0.3f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
+		if (m_menuOpen > 0.4f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
 		{
-			StartColumn(m_menuCol, m_menuRow);
+			PickMenu(m_menuCol, m_menuRow);
 		}
+	}
+
+	private void MenuHoverSound() => m_audio.Play("sfx_gui_select|sfx_gui_button", 0.3f, Random.Range(0.92f, 1.08f));
+
+	// The one chosen swells and brightens while the rest drift apart, then the run loads.
+	private void PickMenu(int c, int r)
+	{
+		if (m_menuClose >= 0f)
+		{
+			return;
+		}
+		m_menuPicked = (c, r);
+		m_menuClose = 0f;
+		m_menuAfter = () => StartColumn(c, r);
+		m_audio.Play("sfx_runestone_activate|sfx_gui_select", 0.55f);
+	}
+
+	// Leaving: everything drifts apart and fades.
+	private void CloseMenu(System.Action after)
+	{
+		m_menuLeaving = true;
+		m_menuClose = 0f;
+		m_menuAfter = after;
+		m_audio.Play("sfx_gui_inventory_close|sfx_gui_button", 0.5f);
 	}
 
 	// The menu's column for a biome (past the Ocean's column, one further along).
@@ -131,8 +198,11 @@ internal sealed partial class SurfGame
 		m_startSea = sea;
 		// "Run again" keeps this start.
 		m_explicitStart = true;
-		m_audio.Play(Sfx.Go);
-		ResetRun();
+		if (!Plugin.LoadingScreen.Value)
+		{
+			m_audio.Play(Sfx.Go);
+		}
+		BeginLoad(ResetRun);
 	}
 
 	// Where you fell: that biome (a boss arena counts as its biome) and lap, or the crossing
@@ -159,7 +229,7 @@ internal sealed partial class SurfGame
 	private static void Fill(Rect r, Color c)
 	{
 		Color old = GUI.color;
-		GUI.color = c;
+		GUI.color = new Color(c.r, c.g, c.b, c.a * s_guiAlpha);
 		GUI.DrawTexture(r, White());
 		GUI.color = old;
 	}
@@ -176,12 +246,42 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	private static float Smooth(float x)
+	{
+		x = Mathf.Clamp01(x);
+		return x * x * (3f - 2f * x);
+	}
+
+	private static float Hash(float x) => Mathf.Repeat(Mathf.Sin(x * 12.9898f) * 43758.547f, 1f);
+
+	private static Vector2 Rotate(Vector2 v, float degrees)
+	{
+		float a = degrees * Mathf.Deg2Rad;
+		float cos = Mathf.Cos(a);
+		float sin = Mathf.Sin(a);
+		return new Vector2(v.x * cos - v.y * sin, v.x * sin + v.y * cos);
+	}
+
 	private void MenuGui(float k, float w, float h)
 	{
 		Cursor.lockState = CursorLockMode.None;
 		Cursor.visible = true;
-		Fill(new Rect(0, 0, w, h), new Color(0f, 0f, 0f, 0.45f));
-		Shadowed(new Rect(0, h * 0.06f, w, 90 * k), "Where to?", m_big!);
+		float t = Time.unscaledTime;
+		float baseAlpha = s_guiAlpha;
+		float open = Smooth(m_menuOpen / MenuOpenTime);
+		float close = m_menuClose < 0f ? 0f : Smooth(m_menuClose / MenuCloseTime);
+		float shown = open * (1f - close);
+
+		// The world sinks into a deep violet dusk (deeper still as a run is picked).
+		float veil = m_menuLeaving ? 0.55f * open * (1f - close) : Mathf.Lerp(0.55f * open, 0.92f, close);
+		Fill(new Rect(0, 0, w, h), new Color(0.05f, 0.02f, 0.1f, veil));
+		DreamMotes(w, h, k, t, shown);
+
+		// The title surfaces slowly and breathes.
+		float ta = Smooth((m_menuOpen - 0.15f) / 0.9f) * (1f - close);
+		s_guiAlpha = baseAlpha * ta * (0.85f + 0.15f * Mathf.Sin(t * 1.7f));
+		Shadowed(new Rect(0, h * 0.06f - (1f - ta) * 24f * k + Mathf.Sin(t * 0.9f) * 4f * k, w, 90 * k), "Where to?", m_big!);
+		s_guiAlpha = baseAlpha;
 
 		float gap = 14f * k;
 		float bw = Mathf.Min(220f * k, (w * 0.9f - gap * (m_menuCols - 1)) / Mathf.Max(1, m_menuCols));
@@ -190,34 +290,127 @@ internal sealed partial class SurfGame
 		float gridH = m_menuRows * bh + (m_menuRows - 1) * gap;
 		float x0 = (w - gridW) * 0.5f;
 		float y0 = Mathf.Max(h * 0.2f, (h - gridH) * 0.5f);
+		Vector2 centre = new Vector2(w * 0.5f, y0 + gridH * 0.5f);
+		bool interactive = m_menuClose < 0f && m_menuOpen > 0.35f;
 		Event e = Event.current;
 		for (int r = 0; r < m_menuRows; r++)
 		{
 			for (int c = 0; c < m_menuCols; c++)
 			{
 				Rect rect = new Rect(x0 + c * (bw + gap), y0 + r * (bh + gap), bw, bh);
-				bool open = m_unlocked.Contains((c, r));
-				bool hover = open && rect.Contains(e.mousePosition);
+				bool unlocked = m_unlocked.Contains((c, r));
+				bool hover = interactive && unlocked && rect.Contains(e.mousePosition);
 				if (hover && e.type == EventType.MouseMove && (m_menuCol != c || m_menuRow != r))
 				{
 					m_menuCol = c;
 					m_menuRow = r;
+					MenuHoverSound();
 				}
 				if (hover && e.type == EventType.MouseDown && e.button == 0)
 				{
 					e.Use();
-					StartColumn(c, r);
-					return;
+					PickMenu(c, r);
 				}
 				if (e.type == EventType.Repaint)
 				{
-					(int biome, bool sea) = MenuColumn(c);
-					MenuButton(rect, biome, r, open, open && m_menuCol == c && m_menuRow == r, k, sea);
+					MenuCell(rect, c, r, unlocked, centre, t, k, close, baseAlpha);
 				}
 			}
 		}
+		s_guiAlpha = baseAlpha * shown;
 		Shadowed(new Rect(0, Mathf.Min(h - 70 * k, y0 + gridH + 30 * k), w, 50 * k),
 			$"Arrows or mouse to pick, Space or click to run     {Plugin.ExitKey.Value}: back", m_small!);
+		s_guiAlpha = baseAlpha;
+	}
+
+	// One button, where the dream has it now.
+	private void MenuCell(Rect rect, int c, int r, bool unlocked, Vector2 centre, float t, float k, float close, float baseAlpha)
+	{
+		float seed = c * 1.37f + r * 2.71f;
+		float jitter = Hash(seed + 0.5f);
+		float turn = jitter < 0.5f ? 1f : -1f;
+		// In one by one, out of a slow swirl near the middle.
+		float a = Smooth((m_menuOpen - 0.06f * c - 0.09f * r - 0.15f * jitter) / 0.75f);
+		float hv = m_menuHover.TryGetValue((c, r), out float v) ? v : 0f;
+		bool picked = !m_menuLeaving && m_menuPicked == (c, r);
+		float swirl = (1f - a) * (45f + 35f * jitter) * turn;
+		float spread = Mathf.Lerp(0.4f, 1f, a);
+		float scale = Mathf.Lerp(0.55f, 1f, a);
+		float alpha = a;
+		if (close > 0f)
+		{
+			if (picked)
+			{
+				scale *= 1f + 0.3f * close;
+				alpha *= 1f - Smooth((close - 0.45f) / 0.55f);
+			}
+			else
+			{
+				spread *= 1f + 0.6f * close;
+				swirl -= 30f * close * turn;
+				scale *= 1f - 0.25f * close;
+				alpha *= 1f - Mathf.Clamp01(close * 1.6f);
+			}
+		}
+		if (alpha <= 0.01f)
+		{
+			return;
+		}
+		Vector2 pos = centre + Rotate((rect.center - centre) * spread, swirl);
+		// Afloat: each bobs and sways in its own time.
+		pos.y += Mathf.Sin(t * 1.25f + seed * 2f) * 3.5f * k * a;
+		pos.x += Mathf.Sin(t * 0.7f + seed) * 2f * k * a;
+		float tilt = Mathf.Sin(t * 0.8f + seed * 1.3f) * 1.4f * a + swirl * 0.3f;
+		// The one you're on swells and rises.
+		scale *= 1f + 0.08f * hv;
+		pos.y -= 5f * k * hv;
+
+		Matrix4x4 m = GUI.matrix;
+		GUIUtility.RotateAroundPivot(tilt, pos);
+		GUIUtility.ScaleAroundPivot(new Vector2(scale, scale), pos);
+		Rect at = new Rect(pos.x - rect.width * 0.5f, pos.y - rect.height * 0.5f, rect.width, rect.height);
+		if (hv > 0.01f && unlocked)
+		{
+			// A soft, breathing glow around it.
+			s_guiAlpha = baseAlpha * alpha;
+			for (int i = 1; i <= 3; i++)
+			{
+				float grow = (3f + i * 6f + Mathf.Sin(t * 2.6f + i) * 2.5f) * k;
+				Fill(new Rect(at.x - grow, at.y - grow, at.width + grow * 2f, at.height + grow * 2f), new Color(0.78f, 0.68f, 1f, 0.13f * hv / i));
+			}
+		}
+		s_guiAlpha = baseAlpha * alpha * (unlocked ? Mathf.Lerp(0.8f, 1f, hv) : 1f);
+		(int biome, bool sea) = MenuColumn(c);
+		MenuButton(at, biome, r, unlocked, unlocked && m_menuCol == c && m_menuRow == r, k, sea);
+		if (picked && close > 0f)
+		{
+			s_guiAlpha = baseAlpha * alpha;
+			Fill(at, new Color(1f, 0.97f, 0.9f, 0.55f * Mathf.Sin(Mathf.Clamp01(close) * Mathf.PI)));
+		}
+		s_guiAlpha = baseAlpha;
+		GUI.matrix = m;
+	}
+
+	// Faint motes of light drifting up through the dusk.
+	private static void DreamMotes(float w, float h, float k, float t, float alpha)
+	{
+		if (alpha <= 0.01f)
+		{
+			return;
+		}
+		for (int i = 0; i < 28; i++)
+		{
+			float s1 = Hash(i * 3.1f);
+			float s2 = Hash(i * 7.7f + 1f);
+			float s3 = Hash(i * 1.3f + 5f);
+			float y = 1f - Mathf.Repeat(s1 + t * (0.012f + 0.02f * s2), 1f);
+			float x = s3 + Mathf.Sin(t * 0.3f + i) * 0.03f;
+			float size = (5f + 9f * s2) * k;
+			float twinkle = 0.5f + 0.5f * Mathf.Sin(t * (0.8f + s1) + i);
+			Color col = s3 < 0.6f ? new Color(0.8f, 0.74f, 1f) : new Color(1f, 0.88f, 0.62f);
+			col.a = alpha * (0.12f + 0.25f * twinkle) * Mathf.Sin(y * Mathf.PI);
+			Star(new Vector2(x * w, y * h), size, col);
+		}
 	}
 
 	// One button: the biome's sky over its ground, its name, its boss's summoning item, and a

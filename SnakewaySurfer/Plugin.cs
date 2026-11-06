@@ -117,6 +117,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> Places = null!;
 	internal static ConfigEntry<bool> Lava = null!;
 	internal static ConfigEntry<bool> Raven = null!;
+	internal static ConfigEntry<bool> LoadingScreen = null!;
+	internal static ConfigEntry<bool> DreamIntro = null!;
 
 	private void Awake()
 	{
@@ -361,6 +363,10 @@ public class Plugin : BaseUnityPlugin
 			"Show text pop-ups during the run (\"Entering ...\", boss messages, JUMP!/SLIDE!). Off: the run speaks through sounds, flashes and the HUD instead.");
 		Raven = Config.Bind("3 - Look", "Hugin's Messages", true,
 			"The run's messages (entering a biome, a boss's items, lives left, a boss beaten) come from Hugin, the tutorial raven: he flies in at the top right of the screen, says it in the game's own speech popup, and flies off. Off: no messages, unless Popup Text is on.");
+		LoadingScreen = Config.Bind("3 - Look", "Portal Loading Screen", true,
+			"Runs load behind the game's own portal loading screen (the swirl you see when you teleport), fading in when the run is ready. Off: the run just starts.");
+		DreamIntro = Config.Bind("3 - Look", "First-Run Dream", true,
+			"The very first run (per character) starts with a short dream, in the game's own dream text, instead of the start menu. Space wakes you early. \"surfprogress dream\" sees it again.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",
 			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
 		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",
@@ -464,6 +470,21 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				SurfGame.Begin(player, args.Context, args.Args);
+			});
+			new Terminal.ConsoleCommand("surfprogress", "surfprogress [wipe | set <biome> [stars] | dream] - testing: show this character's SnakewaySurfer progress, erase all of it, set the checkpoints reached (e.g. \"surfprogress set plains 1\"), or see the first-run dream again", args =>
+			{
+				Player player = Player.m_localPlayer;
+				if (player == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				if (SurfGame.Active != null)
+				{
+					args.Context.AddString("Stop the run first.");
+					return;
+				}
+				args.Context.AddString(Progress.Command(player, args.Args));
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{
