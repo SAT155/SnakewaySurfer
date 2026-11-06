@@ -459,6 +459,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			Active = null;
 		}
+		RemoveRaven();
 		if (m_paused)
 		{
 			AudioListener.pause = false;
@@ -1370,6 +1371,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			m_bannerKeep = false;
 		}
+		UpdateRaven(dt);
 		m_iconPulse = Mathf.MoveTowards(m_iconPulse, 0f, dt * 2f);
 		m_flash2 = Mathf.MoveTowards(m_flash2, 0f, dt * 1.6f);
 
@@ -1504,6 +1506,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void LateUpdate()
 	{
 		UpdateCryptFrames();
+		PlaceRaven();
 		DrawGrass();
 		// The game may switch its HUD back on (Hud.Update); keep it hidden while we're up.
 		if (m_hudRoot != null && m_hudRoot.activeSelf)
@@ -3764,9 +3767,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					AimGui(k, w, h);
 				}
-				else if (m_bannerTime > 0f && (m_paused || m_bannerKeep || Plugin.PopupText.Value))
+				else if (m_bannerTime > 0f && (m_paused || (!RavenTalks && (m_bannerKeep || Plugin.PopupText.Value))))
 				{
 					Shadowed(new Rect(0, h * 0.2f, w, 120 * k), m_banner, m_big);
+				}
+				if (m_aimTime <= 0f && !m_paused)
+				{
+					RavenGui(k, w, h);
 				}
 				if (m_aimTime <= 0f && m_hint.Length > 0 && Plugin.PopupText.Value)
 				{

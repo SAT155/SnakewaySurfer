@@ -116,6 +116,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> Traders = null!;
 	internal static ConfigEntry<bool> Places = null!;
 	internal static ConfigEntry<bool> Lava = null!;
+	internal static ConfigEntry<bool> Raven = null!;
 
 	private void Awake()
 	{
@@ -358,6 +359,8 @@ public class Plugin : BaseUnityPlugin
 			"surfsup (with nothing after it) opens a grid of the biomes and star laps you've reached, to pick where to start. Off: it starts at your latest checkpoint.");
 		PopupText = Config.Bind("3 - Look", "Popup Text", false,
 			"Show text pop-ups during the run (\"Entering ...\", boss messages, JUMP!/SLIDE!). Off: the run speaks through sounds, flashes and the HUD instead.");
+		Raven = Config.Bind("3 - Look", "Hugin's Messages", true,
+			"The run's messages (entering a biome, a boss's items, lives left, a boss beaten) come from Hugin, the tutorial raven: he flies in at the top right of the screen, says it in the game's own speech popup, and flies off. Off: no messages, unless Popup Text is on.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",
 			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
 		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",

@@ -207,7 +207,10 @@ The marks on the lanes tell you what to do without any text: **red**, get out of
 at the top, and in a fight the boss's health bar takes its place. Getting hurt flashes the
 screen red with your character's own hurt sound, blocks and parries ring with your shield's
 sounds, and bats in the Swamp come in swarms that slow you and take some stamina but no life.
-(Popup Text in the config brings back the old messages.)
+The few messages there are (a new biome, a boss's items, lives left, a boss beaten) come from
+**Hugin**, the tutorial raven: he flies in at the top right of the screen, says it in the game's
+own speech popup, and flies off. (Popup Text in the config brings back the old big messages
+instead.)
 
 Your character can't move or use hotkeys while you play. If something hurts you in the real
 world, the game stops straight away (health lost because food is wearing off doesn't count).
@@ -301,6 +304,9 @@ and for players without the mod.
   to strike him. The golden shoes still need only the usual six bosses.
   1.16.14: the places' own creatures turn up even where the biome's spawns don't have them:
   growths at the Plains' tar pits, draugr at the Mountains' graves.
+  1.16.15 (Sam): the run's messages come from Hugin, the tutorial raven: he flies in at the top
+  right of the screen with the game's own animation, says it in the game's own speech popup, and
+  flies off once it's said. Hugin's Messages in the config turns him off.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own
