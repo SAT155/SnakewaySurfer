@@ -4,17 +4,19 @@ using UnityEngine.UI;
 
 namespace SnakewaySurfer;
 
-// 1.16.3 (Sam: a wind gauge like the game's): a ring round the ship's wheel, with a dark arc at
-// the bow where the wind is too far ahead to sail by (Ship.GetWindAngleFactor gives no drive
-// once the wind comes from within about 37 to 41 degrees of the bow; WindAngleFactor here is
-// the same), and the wind's icon riding the ring on the side it blows from, turned the way it
-// blows and dimmer the less it fills the sail. The icon in the dark arc: the sail does nothing,
-// so turn off the wind or take to the oars.
+// 1.16.3 (Sam: a wind gauge like the game's): a ring round the ship's wheel with a dark arc on
+// the side the wind comes from: the no-go zone, the headings a sail can't drive on
+// (Ship.GetWindAngleFactor gives no drive once the bow is within about 37 to 41 degrees of the
+// wind; WindAngleFactor here is the same). The wind's icon rides the ring in the middle of it,
+// turned the way the wind blows and dimmer the less it fills the sail, and a pale tick on the
+// ring marks the bow. The tick in the dark arc: the sail does nothing, so turn off the wind or
+// take to the oars.
 internal sealed partial class SurfGame
 {
 	private static Texture2D? s_gaugeRing;
 	private static Texture2D? s_gaugeArc;
 	private static Texture2D? s_gaugeDisc;
+	private static Texture2D? s_gaugeTick;
 
 	// A band round a square picture from `inner` to `outer` (fractions of its half width), only
 	// within `arc` degrees either side of the top when arc > 0, fading out over `fade` more.
@@ -52,16 +54,22 @@ internal sealed partial class SurfGame
 		s_gaugeRing ??= GaugeTexture(0.8f, 0.97f, 0f, 0f);
 		s_gaugeArc ??= GaugeTexture(0.77f, 1f, 37f, 4f);
 		s_gaugeDisc ??= GaugeTexture(-1f, 0.8f, 0f, 0f);
+		s_gaugeTick ??= GaugeTexture(0.7f, 1f, 3f, 2f);
 		Color old = GUI.color;
 		GUI.color = new Color(0f, 0f, 0f, 0.35f);
 		GUI.DrawTexture(rose, s_gaugeDisc);
 		GUI.color = new Color(0.95f, 0.9f, 0.78f, 0.7f);
 		GUI.DrawTexture(rose, s_gaugeRing);
-		// The no-go arc turns with the bow (ahead is up on screen).
+		// The no-go arc, centred on where the wind comes from (ahead is up on screen).
 		Matrix4x4 m = GUI.matrix;
-		GUIUtility.RotateAroundPivot(m_heading, rose.center);
+		GUIUtility.RotateAroundPivot(m_windAngle + 180f, rose.center);
 		GUI.color = new Color(0.07f, 0.06f, 0.06f, 0.92f);
 		GUI.DrawTexture(rose, s_gaugeArc);
+		GUI.matrix = m;
+		// The bow's tick: red while it's in the arc.
+		GUIUtility.RotateAroundPivot(m_heading, rose.center);
+		GUI.color = Color.Lerp(new Color(1f, 0.35f, 0.25f, 1f), new Color(1f, 0.97f, 0.88f, 1f), WindAngleFactor() > 0.05f ? 1f : 0f);
+		GUI.DrawTexture(rose, s_gaugeTick);
 		GUI.matrix = m;
 
 		// The wind on the ring, on the side it comes from.

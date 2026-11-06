@@ -67,10 +67,11 @@ ahead always up the screen. Steer with the rudder (A / D) and set the
 sail with W / S, as in the game: oars (slow but steady, and the tightest turns), half sail or
 full sail. The wind never stops, and now and then it turns (a gust, and the wind's icon swings
 round the gauge by the stamina bar). The gauge is a ring round the ship's wheel, as in the game:
-the wind's icon rides the ring on the side the wind comes from, and the dark arc at the bow is
-where a sail does nothing. As in the game, a sail is fastest with the wind from the side, a
-little slower with it behind, and useless heading into it: keep the icon out of the dark arc
-and tack across a headwind. The icon is bright when the wind fills your sail and dark when it
+the wind's icon rides the ring on the side the wind comes from, in a dark arc that marks the
+headings a sail can't drive on, and a pale tick on the ring marks your bow. As in the game, a
+sail is fastest with the wind from the side, a little slower with it behind, and useless
+heading into it: keep the bow's tick out of the dark arc (it turns red there) and tack across
+a headwind. The icon is bright when the wind fills your sail and dark when it
 doesn't. Holding sprint puts the crew to the oars as well.
 
 At sea the blows land on the **ship**, not on you: the planks over the gauge are her hull. A
@@ -201,7 +202,8 @@ and for players without the mod.
   first third, and the storm gathers past the second island. Serpents weave as they swim, and
   stop to breathe freezing spray down a wide red streak; leeches swing their bodies as they
   swim. The sea camera sits lower so the swell reads, the wind gauge is a ring round the wheel
-  with the no-go arc at the bow, and there's open water either side of the beached ship.
+  with the wind's no-go arc and a tick for the bow, and there's open water either side of the
+  beached ship.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own
