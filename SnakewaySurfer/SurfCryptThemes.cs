@@ -84,6 +84,10 @@ internal sealed partial class SurfGame
 		public string FallText = "An icicle fell in your way in a frost cave! (Jump the spikes, or get out from under them.)";
 		public string CrackFx = "vfx_ice_hit|vfx_ice_destroyed|vfx_RockHit";
 		public string ShatterFx = "vfx_ice_destroyed|vfx_icecube_destroyed|vfx_RockHit";
+		// 1.16.9, a charred fortress (SurfFortress.cs): channels of lava across its halls, and
+		// what its dropping gates are made of.
+		public float LavaChance;
+		public string GateBars = "iron_grate|dungeon_sunkencrypt_irongate|iron_wall_2x2";
 	}
 
 	private static readonly CryptTheme s_burialChamber = new CryptTheme
@@ -246,6 +250,7 @@ internal sealed partial class SurfGame
 		: biome == s_sunkenCrypt.Biome ? s_sunkenCrypt
 		: biome == s_frostCave.Biome ? s_frostCave
 		: biome == s_infestedMine.Biome ? s_infestedMine
+		: biome == s_charredFortress.Biome ? s_charredFortress
 		: null;
 
 	private float WallH => m_crypt != null ? m_crypt.Theme.WallHeight : 2.4f;
@@ -486,7 +491,7 @@ internal sealed partial class SurfGame
 		for (int i = 0; i < n; i++)
 		{
 			bool made = false;
-			foreach (string name in "iron_grate|dungeon_sunkencrypt_irongate|iron_wall_2x2".Split('|'))
+			foreach (string name in m_crypt!.Theme.GateBars.Split('|'))
 			{
 				GameObject? template = CryptTemplate(name);
 				if (template == null)
@@ -529,7 +534,7 @@ internal sealed partial class SurfGame
 				Z = gate.Z,
 				HalfLength = 0.3f,
 				Collidable = false,
-				CrashText = "An iron gate came down on you in a sunken crypt! (Roll under them as they drop.)",
+				CrashText = $"A gate came down on you in a {m_crypt!.Theme.Name}! (Roll under them as they drop.)",
 			};
 			m_things.Add(t);
 			gate.Lanes.Add(t);

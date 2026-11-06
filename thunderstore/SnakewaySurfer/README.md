@@ -47,7 +47,14 @@ The Black Forest's burial chambers take turns with **troll caves**: shorter, of 
 lit only by blue cave mushrooms and your torch, with greydwarfs about and one troll waiting in
 the dark of the longest hall. As you come round into that hall it roars, the cave shakes and
 rocks come down over your lane (get out from under them or jump what lands); then it comes for
-you. Dungeons in the config turns them all off.
+you.
+
+Once in each stretch of the Ashlands it runs into a **charred fortress**: grausten halls lit by
+lava lanterns, held by charred warriors, their archers and mages, and twitchers. Spawners raise
+more of them as you come, spiked beams hang across the lanes to slide under, flametal gates drop
+as you come (roll under them), and channels of glowing lava run across some halls: jump them.
+(The Ashlands come after the Mistlands, so set Loop Biomes to 7 or more to reach them.)
+Dungeons in the config turns them all off.
 
 ## Bosses and checkpoints
 
@@ -253,6 +260,9 @@ and for players without the mod.
   lanterns, seekers, egg sacs that burst, crates and beams, and ticks dropping from the roof.
   1.16.8: troll caves in the Black Forest, taking turns with the burial chambers: mossy rock,
   blue cave mushrooms, greydwarfs, one troll in the longest hall, and rocks falling from the roof.
+  1.16.9: charred fortresses in the Ashlands, the last of the dungeons: grausten halls, lava
+  lanterns, charred warriors, archers, mages and twitchers, spawners, spiked beams, flametal
+  gates to roll under, and lava channels across the halls to jump.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

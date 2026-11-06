@@ -58,7 +58,7 @@ internal static class Schemas
 		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; Fenring_Cultist: fire waiter; StoneGolem: ambush smash; Hatchling: flyshooter; " +
 		"Goblin: swarm shooter charger line; GoblinArcher: shooter waiter; GoblinBrute: slams stomper waiter; GoblinShaman: fire waiter; " +
 		"Lox: herd stomper charger; Deathsquito: behind; BlobTar: shooter tar hurdle waiter; Unbjorn: charger sweep gas2; " +
-		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; " +
+		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; Charred_Archer: shooter waiter sideline; Charred_Mage: fire waiter; " +
 		"Dverger*: helper talk";
 
 	// 1.16.1 (Sam's test): entries changed since earlier releases, swapped in where a settings
@@ -100,6 +100,8 @@ internal static class Schemas
 	private static readonly string[] s_added =
 	{
 		"Fenring_Cultist: fire waiter",
+		"Charred_Archer: shooter waiter sideline",
+		"Charred_Mage: fire waiter",
 	};
 
 	private static string s_parsedFrom = "\u0001";

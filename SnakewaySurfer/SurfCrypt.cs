@@ -65,6 +65,8 @@ internal sealed partial class SurfGame
 		public readonly List<CryptPile> Piles = new();
 		public readonly List<(Light light, float z)> Glows = new();
 		public readonly List<CryptIronGate> Gates = new();
+		// 1.16.9: where lava runs across a charred fortress's halls (SurfFortress.cs).
+		public readonly List<float> Lava = new();
 		public float NextSound = 3f;
 		// 1.16.8: the one big creature waiting in a troll cave (SurfTrollCave.cs).
 		public float LurkerZ = float.NaN;
@@ -161,6 +163,13 @@ internal sealed partial class SurfGame
 		if (!float.IsNaN(m_crypt.LurkerZ) && Mathf.Abs(z - m_crypt.LurkerZ) < 9f)
 		{
 			return true;
+		}
+		foreach (float lz in m_crypt.Lava)
+		{
+			if (Mathf.Abs(z - lz) < 6f)
+			{
+				return true;
+			}
 		}
 		// The lanes clear by an iron gate.
 		foreach (CryptIronGate g in m_crypt.Gates)
@@ -331,6 +340,8 @@ internal sealed partial class SurfGame
 				c.Gates.Add(new CryptIronGate { Z = Random.Range(from, to) });
 			}
 		}
+		// Lava first, so nothing is raised standing in it.
+		PlanLava(c);
 		// A pile of bones (or a draugr's grave mound) in some of the longer hallways, which raises
 		// the dead as you come.
 		foreach (CryptLeg leg in c.Legs)
@@ -707,6 +718,13 @@ internal sealed partial class SurfGame
 			if (!gate.Built && gate.Z >= leg.A && gate.Z < leg.B)
 			{
 				BuildIronGate(gate, root, y);
+			}
+		}
+		foreach (float lz in c.Lava)
+		{
+			if (lz >= leg.A && lz < leg.B)
+			{
+				BuildLava(root, lz, y);
 			}
 		}
 
