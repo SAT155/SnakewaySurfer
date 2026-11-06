@@ -46,6 +46,7 @@ internal sealed partial class SurfGame
 		public float Z;
 		public int Side;
 		public bool Woken;
+		public GameObject? Go;
 	}
 
 	private sealed class CryptRun
@@ -400,8 +401,26 @@ internal sealed partial class SurfGame
 		{
 			rt.Logs.AddRange(outside.Logs);
 		}
-		GameObject? beam = CryptTemplate("stone_pillar");
+		GameObject? beam = null;
+		foreach (string name in theme.High.Split('|'))
+		{
+			beam = CryptTemplate(name);
+			if (beam != null)
+			{
+				break;
+			}
+		}
 		m_cryptHigh[theme.Name] = beam != null ? new List<GameObject> { beam } : rt.Logs;
+		List<SpawnEntry> droppers = new();
+		if (theme.Droppers.Length > 0)
+		{
+			foreach (SpawnEntry e in SpawnTables.Parse(theme.Droppers, missing))
+			{
+				e.Flying = false;
+				droppers.Add(e);
+			}
+		}
+		m_cryptDroppers[theme.Name] = droppers;
 		if (missing.Count > 0)
 		{
 			Plugin.Log.LogInfo($"The {theme.Name}: not in this game version: " + string.Join(", ", missing));
@@ -627,7 +646,7 @@ internal sealed partial class SurfGame
 			WallAcross(root, leg.B + CryptHalf + CryptWall * 0.5f, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, y);
 			// A taller pillar on the inside of the corner, and a torch on the wall ahead to say
 			// "turn here".
-			CryptPiece(root, theme.Rocky ? theme.Pillars : "stone_pillar_high|" + theme.Pillars, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
+			CryptPiece(root, theme.TallPillar, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
 			Sconce(root, new Vector3(turn * 1.6f, y + 1.7f, leg.B + CryptHalf), 180f, 9f);
 		}
 
@@ -659,7 +678,7 @@ internal sealed partial class SurfGame
 		{
 			if (pile.Z >= leg.A && pile.Z < leg.B)
 			{
-				CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.9f, 1.4f, 1.9f),
+				pile.Go = CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.9f, 1.4f, 1.9f),
 					new Vector3(pile.Side * (CryptHalf - 0.95f), y, pile.Z), true, 2f);
 			}
 		}
@@ -714,7 +733,7 @@ internal sealed partial class SurfGame
 			float x0 = side < 0 ? -(CryptHalf + 13f) : wallX - CryptWall * 0.5f;
 			float x1 = side < 0 ? -(wallX - CryptWall * 0.5f) : CryptHalf + 13f;
 			WallAcross(root, fz, x0, x1, y, 2, 0f, outward);
-			CryptPiece(root, m_crypt!.Theme.Rocky ? m_crypt.Theme.Pillars : "stone_pillar_high|stone_pillar", Quaternion.identity, new Vector3(1f, WallH * 2f + 0.6f, 1f), new Vector3(side * (wallX + 0.2f), y, fz + outward * 0.3f));
+			CryptPiece(root, m_crypt!.Theme.TallPillar, Quaternion.identity, new Vector3(1f, WallH * 2f + 0.6f, 1f), new Vector3(side * (wallX + 0.2f), y, fz + outward * 0.3f));
 			GameObject? torch = CryptPiece(root, m_crypt!.Theme.GateTorch, Quaternion.identity, new Vector3(0.6f, 1.8f, 0.6f),
 				new Vector3(side * (CryptHalf - 0.2f), y, z + outward * 1.6f), true, 1.5f);
 			if (torch != null)
@@ -761,6 +780,7 @@ internal sealed partial class SurfGame
 		}
 		UpdateIronGates(dt);
 		UpdateIcicles(dt);
+		UpdateDrops(dt);
 		for (int i = c.Glows.Count - 1; i >= 0; i--)
 		{
 			(Light light, float z) = c.Glows[i];
@@ -791,11 +811,12 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			time += dt;
-			float k = Mathf.Clamp01(time / 0.9f);
-			t.BaseY = Mathf.Lerp(-1.9f, 0f, Mathf.SmoothStep(0f, 1f, k));
+			float depth = c.Theme.RiseDepth;
+			float k = Mathf.Clamp01(time / (0.4f + 0.26f * depth));
+			t.BaseY = Mathf.Lerp(-depth, 0f, Mathf.SmoothStep(0f, 1f, k));
 			Vector3 p = t.Go.transform.localPosition;
 			t.Go.transform.localPosition = new Vector3(p.x, RoadY(t.Z) + t.BaseY, t.Z);
-			if (time > 0.55f)
+			if (k > 0.6f)
 			{
 				t.Collidable = true;
 			}
@@ -867,7 +888,7 @@ internal sealed partial class SurfGame
 			float z = pile.Z + (i >= 2 ? 6f : Random.Range(-1f, 1f));
 			SpawnEntry e = SpawnTables.Pick(raised)!;
 			Thing t = SpawnCreature(e, lane, z, Kind.Block, 0f, BiomeAt(z), "waiter");
-			t.BaseY = -1.9f;
+			t.BaseY = -theme.RiseDepth;
 			t.Collidable = false;
 			t.Cooldown = Mathf.Max(t.Cooldown, 1.1f);
 			Vector3 p = t.Go.transform.localPosition;
@@ -881,6 +902,18 @@ internal sealed partial class SurfGame
 		}
 		m_audio.Play(theme.RiseSound, 0.9f);
 		m_shake = Mathf.Max(m_shake, 0.06f);
+		if (theme.PileBurst && pile.Go != null)
+		{
+			// An egg sac splits open as its brood comes out.
+			GameObject? burst = FindFx(theme.BurstFx);
+			if (burst != null)
+			{
+				PlayFx(burst, new Vector3(pile.Side * (CryptHalf - 0.95f), RoadY(pile.Z) + 0.6f, pile.Z), Quaternion.identity, 3f);
+			}
+			m_audio.Play(theme.BurstSound, 0.9f);
+			Destroy(pile.Go);
+			pile.Go = null;
+		}
 	}
 
 	private void HoldTorch(bool hold)
@@ -1231,6 +1264,7 @@ internal sealed partial class SurfGame
 		m_crypt = null;
 		m_rising.Clear();
 		m_icicles.Clear();
+		ClearDrops();
 		m_cryptOver = 0f;
 		m_cryptBonk = -1f;
 		m_cryptLagPos = Vector3.zero;

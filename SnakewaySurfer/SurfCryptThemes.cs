@@ -58,6 +58,22 @@ internal sealed partial class SurfGame
 		public string CrackSound = "";
 		public string ShatterSound = "";
 		public bool HighFlyersOnly;
+		// 1.16.7, an infested mine (SurfMine.cs): what lies across the lanes to slide under, what
+		// drops from the roof, egg sacs that burst as their brood comes out, and how far down the
+		// raised come up from.
+		public string High = "stone_pillar";
+		public string Droppers = "";
+		public float DropChance;
+		public string DropSound = "";
+		public string DropLandSound = "";
+		public bool PileBurst;
+		public string BurstFx = "";
+		public string BurstSound = "";
+		public float RiseDepth = 1.9f;
+		// The tall pillar on the inside of a corner and at the gates, and the size of a light
+		// standing at the foot of a wall.
+		public string TallPillar = "stone_pillar_high|stone_pillar";
+		public Vector3 SconceSize = new Vector3(0.9f, 1.15f, 0.9f);
 	}
 
 	private static readonly CryptTheme s_burialChamber = new CryptTheme
@@ -137,6 +153,7 @@ internal sealed partial class SurfGame
 		Walls = "caverock_rockbun|caverock_curvedrock|caverock_cornerwall|caverock_flowstone|rock1_mountain|rock2_mountain|rock3_mountain",
 		Floors = "caverock_floorbig|caverock_floorsmall|Ice_floor|rock1_mountain",
 		Pillars = "caverock_ice_stalagmite|caverock_stalagmite|Stalagmite",
+		TallPillar = "caverock_ice_stalagmite|caverock_stalagmite|Stalagmite",
 		WallHeight = 3f,
 		Monsters = "Ulv:2.5:3, Fenring:1.2, Fenring_Cultist:1.2",
 		Flyers = "Bat:2",
@@ -167,10 +184,58 @@ internal sealed partial class SurfGame
 		HighFlyersOnly = true,
 	};
 
+	// 1.16.7: the Mistlands' infested mine (SurfMine.cs): black marble and dvergr timber, lit by
+	// their lanterns, overrun by seekers.
+	private static readonly CryptTheme s_infestedMine = new CryptTheme
+	{
+		Name = "infested mine",
+		Biome = "Mistlands",
+		Rooms = Room.Theme.DvergerTown,
+		Walls = "blackmarble_tile_wall_2x2|blackmarble_2x2x2|dvergrtown_wall_large|stone_wall_4x2",
+		Floors = "blackmarble_tile_floor_2x2|blackmarble_floor|blackmarble_floor_large|stone_floor_2x2",
+		Pillars = "blackmarble_column_1|blackmarble_column_2|stone_pillar",
+		TallPillar = "blackmarble_column_3|blackmarble_column_2|stone_pillar_high",
+		WallHeight = 3.2f,
+		Monsters = "Seeker:3:2, SeekerBrute:0.7, Tick:1.5:3",
+		Raised = "Seeker:2, Tick:1",
+		Pile = "SeekerEgg|SeekerEgg_alwayshatch|SeekerAspic",
+		PileBurst = true,
+		BurstFx = "vfx_seekeregg_destroyed|vfx_egg_destroyed|vfx_RockHit",
+		BurstSound = "sfx_seekeregg_destroyed|sfx_tick_hurt|sfx_seeker_hurt",
+		RiseDepth = 0.6f,
+		RiseSound = "sfx_seeker_alerted|sfx_tick_alerted",
+		RiseFx = "vfx_seekerbrute_groundslam|vfx_RockHit",
+		Chest = "TreasureChest_dvergrtown|TreasureChest_dvergr_loose_stone",
+		Low = "dvergrprops_crate|dvergrcrate|dvergrprops_barrel",
+		LowUpright = true,
+		High = "dvergrprops_wood_beam|dvergrtown_wood_beam|stone_pillar",
+		Decor = new[]
+		{
+			"dvergrprops_barrel", "dvergrprops_crate", "dvergrprops_pickaxe", "dvergrprops_hooknchain", "Pickable_DvergrMineTreasure",
+			"Pickable_RoyalJelly", "blackmarble_pile", "dvergrprops_stool", "dvergrprops_crate_long",
+		},
+		GateTorch = "dvergrprops_lantern_standing|piece_groundtorch_wood",
+		GateLight = new Color(1f, 0.82f, 0.55f),
+		Ambient = new Color(0.08f, 0.07f, 0.1f),
+		Fog = new Color(0.02f, 0.012f, 0.03f),
+		Idle = "sfx_seeker_idle|sfx_tick_idle",
+		IdleRare = "sfx_seeker_brute_idle|sfx_seeker_brute_mandible",
+		SconceGap = 12f,
+		Crystals = true,
+		Sconce = "dvergrprops_lantern_standing|Pickable_DvergrLantern|dvergrprops_lantern",
+		SconceColor = new Color(1f, 0.82f, 0.55f),
+		SconceSize = new Vector3(0.8f, 1.9f, 0.8f),
+		Droppers = "Tick:1",
+		DropChance = 0.25f,
+		DropSound = "sfx_gjall_tick_drop|sfx_tick_alerted",
+		DropLandSound = "sfx_tick_attack_land|sfx_seeker_land",
+	};
+
 	private static CryptTheme? ThemeFor(string biome) =>
 		biome == s_burialChamber.Biome ? s_burialChamber
 		: biome == s_sunkenCrypt.Biome ? s_sunkenCrypt
 		: biome == s_frostCave.Biome ? s_frostCave
+		: biome == s_infestedMine.Biome ? s_infestedMine
 		: null;
 
 	private float WallH => m_crypt != null ? m_crypt.Theme.WallHeight : 2.4f;

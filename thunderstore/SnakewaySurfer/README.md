@@ -35,7 +35,14 @@ game's own frost caves, lit by crystals glowing cold blue where the crypts have 
 blue fire at the cave mouth. Ulvs hunt in packs, fenrings leap, cultists breathe fire down the
 lanes and bats flit under the roof (slide under them). As you come, icicles crack loose over the
 lane you're in and fall, with a mark on the floor: get out from under them or jump the spike
-they leave. Dungeons in the config turns all three off.
+they leave.
+
+Once in each stretch of the Mistlands it runs into an **infested mine**: the dvergr's black
+marble halls, lit by their standing lanterns and overrun. Seekers and their soldiers fill the
+halls, egg sacs split open as you come and seekers crawl out, crates lie in the lanes to jump
+and old timber beams to slide under. Ticks wait in the roof: as one lets go a red mark shows on
+your lane, so get out from under it or jump it when it lands. Dungeons in the config turns all
+four off.
 
 ## Bosses and checkpoints
 
@@ -237,6 +244,8 @@ and for players without the mod.
   called Dungeons.
   1.16.6: frost caves in the Mountains, the third dungeon: rough rock walls lit by glowing
   crystals, ulvs, fenrings, fire-breathing cultists, bats, and icicles that fall over your lane.
+  1.16.7: infested mines in the Mistlands, the fourth dungeon: black marble halls, dvergr
+  lanterns, seekers, egg sacs that burst, crates and beams, and ticks dropping from the roof.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

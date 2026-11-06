@@ -55,7 +55,7 @@ internal sealed partial class SurfGame
 		CryptTheme theme = m_crypt!.Theme;
 		Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
 		Vector3 foot = new Vector3(at.x, m_crypt.Floor, at.z) + facing * 0.45f;
-		GameObject? go = CryptPiece(root, theme.Sconce, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(0.9f, 1.15f, 0.9f), foot, true, 2.2f);
+		GameObject? go = CryptPiece(root, theme.Sconce, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), theme.SconceSize, foot, true, 2.2f);
 		if (go != null)
 		{
 			LightUp(go);
@@ -67,7 +67,7 @@ internal sealed partial class SurfGame
 		Light glow = new GameObject("CryptGlow").AddComponent<Light>();
 		glow.gameObject.layer = m_layer;
 		glow.transform.SetParent(root, false);
-		glow.transform.localPosition = foot + facing * 0.4f + Vector3.up * 0.8f;
+		glow.transform.localPosition = foot + facing * 0.4f + Vector3.up * (theme.SconceSize.y * 0.7f);
 		glow.type = LightType.Point;
 		glow.range = range;
 		glow.intensity = 1.25f;

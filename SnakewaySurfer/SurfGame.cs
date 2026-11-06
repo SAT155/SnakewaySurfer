@@ -2450,6 +2450,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				case Kind.Block:
 				{
+					// In an infested mine, ticks waiting in the roof to drop (SurfMine.cs).
+					if (crypt && m_crypt!.Theme.DropChance > 0f && Random.value < m_crypt.Theme.DropChance && PlanDrop(lane, z))
+					{
+						break;
+					}
 					// (Leeches in a sunken crypt's flooded halls.)
 					SpawnEntry e = crypt ? CryptPick(z, b) : SpawnTables.Pick(b.Monsters)!;
 					if (!crypt)
