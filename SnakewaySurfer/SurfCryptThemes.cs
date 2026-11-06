@@ -47,6 +47,17 @@ internal sealed partial class SurfGame
 		public float SconceGap = 13f;
 		public float Flooded;
 		public bool IronGates;
+		// 1.16.6, a frost cave (SurfCave.cs): walls of rough rock, crystals glowing where the
+		// crypts have torches, icicles falling from the roof, only flyers to slide under.
+		public bool Rocky;
+		public bool Crystals;
+		public string Sconce = "piece_walltorch";
+		public Color SconceColor = new Color(1f, 0.6f, 0.28f);
+		public bool Icicles;
+		public string Icicle = "";
+		public string CrackSound = "";
+		public string ShatterSound = "";
+		public bool HighFlyersOnly;
 	}
 
 	private static readonly CryptTheme s_burialChamber = new CryptTheme
@@ -115,8 +126,52 @@ internal sealed partial class SurfGame
 		IronGates = true,
 	};
 
+	// 1.16.6: the Mountains' frost cave (SurfCave.cs). Its walls and floors are the frost cave
+	// rooms' own rock (caverock_*), with mountain rocks to fall back on.
+	private static readonly CryptTheme s_frostCave = new CryptTheme
+	{
+		Name = "frost cave",
+		Biome = "Mountains",
+		Rooms = Room.Theme.Cave,
+		Rocky = true,
+		Walls = "caverock_rockbun|caverock_curvedrock|caverock_cornerwall|caverock_flowstone|rock1_mountain|rock2_mountain|rock3_mountain",
+		Floors = "caverock_floorbig|caverock_floorsmall|Ice_floor|rock1_mountain",
+		Pillars = "caverock_ice_stalagmite|caverock_stalagmite|Stalagmite",
+		WallHeight = 3f,
+		Monsters = "Ulv:2.5:3, Fenring:1.2, Fenring_Cultist:1.2",
+		Flyers = "Bat:2",
+		Raised = "",
+		Pile = "",
+		Chest = "TreasureChest_mountaincave|TreasureChest_mountains",
+		Low = "caverock_rockbun|ice_rock1|rock1_mountain",
+		LowUpright = true,
+		Decor = new[]
+		{
+			"Pickable_MountainCaveObsidian", "Pickable_MountainCaveRandom", "caverock_ice_stalagmite|Stalagmite", "caverock_stalagmite|Stalagmite",
+			"ice_rock1", "crystal1|crystal_wall_1x1", "crystal3|crystal_wall_1x1",
+		},
+		GateTorch = "piece_groundtorch_blue|piece_groundtorch_wood",
+		GateLight = new Color(0.55f, 0.75f, 1f),
+		Ambient = new Color(0.07f, 0.09f, 0.13f),
+		Fog = new Color(0.012f, 0.02f, 0.035f),
+		Idle = "sfx_fenring_idle|sfx_bat_idle",
+		IdleRare = "sfx_fenring_howl|sfx_bat_alerted",
+		SconceGap = 10f,
+		Crystals = true,
+		Sconce = "Pickable_MountainCaveCrystal|crystal_wall_1x1|crystal1",
+		SconceColor = new Color(0.45f, 0.75f, 1f),
+		Icicles = true,
+		Icicle = "caverock_ice_stalagtite_falling|caverock_ice_stalagtite|Stalagtite_falling|Stalagtite",
+		CrackSound = "sfx_ice_hit|sfx_rock_destroyed",
+		ShatterSound = "sfx_ice_destroyed|sfx_rock_hit",
+		HighFlyersOnly = true,
+	};
+
 	private static CryptTheme? ThemeFor(string biome) =>
-		biome == s_burialChamber.Biome ? s_burialChamber : biome == s_sunkenCrypt.Biome ? s_sunkenCrypt : null;
+		biome == s_burialChamber.Biome ? s_burialChamber
+		: biome == s_sunkenCrypt.Biome ? s_sunkenCrypt
+		: biome == s_frostCave.Biome ? s_frostCave
+		: null;
 
 	private float WallH => m_crypt != null ? m_crypt.Theme.WallHeight : 2.4f;
 

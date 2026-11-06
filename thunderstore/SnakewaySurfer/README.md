@@ -28,7 +28,14 @@ game's own sunken crypt walls and floors, with green fire burning at its gate. D
 fill its halls, grave mounds raise draugr as you come, and mud piles lie in the lanes to jump.
 Some of its halls are flooded: slower going, and leeches swim in the water. Iron gates hang
 over some halls and crash down as you come, with blue marks on the floor under them: roll
-under. Dungeons in the config turns both off.
+under.
+
+Once in each stretch of the Mountains it runs into a **frost cave**: rough rock walls from the
+game's own frost caves, lit by crystals glowing cold blue where the crypts have torches, with
+blue fire at the cave mouth. Ulvs hunt in packs, fenrings leap, cultists breathe fire down the
+lanes and bats flit under the roof (slide under them). As you come, icicles crack loose over the
+lane you're in and fall, with a mark on the floor: get out from under them or jump the spike
+they leave. Dungeons in the config turns all three off.
 
 ## Bosses and checkpoints
 
@@ -228,6 +235,8 @@ and for players without the mod.
   draugr and blobs, grave mounds that raise draugr, mud piles to jump, flooded halls with
   leeches, and iron gates that crash down as you come (roll under). The config switch is now
   called Dungeons.
+  1.16.6: frost caves in the Mountains, the third dungeon: rough rock walls lit by glowing
+  crystals, ulvs, fenrings, fire-breathing cultists, bats, and icicles that fall over your lane.
 
 - **1.15.2**: Eikthyr's blows come down as real lightning bolts from the sky that light up the
   whole track; his antlers glow and spark while a blow winds up, and his shots carry their own

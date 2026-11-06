@@ -370,6 +370,12 @@ public class Plugin : BaseUnityPlugin
 			CreatureSchemas.Value = Schemas.Upgrade(CreatureSchemas.Value);
 			balance.Value = 6;
 		}
+		if (balance.Value < 7)
+		{
+			// 1.16.6: the frost cave's cultists breathe fire down the lanes.
+			CreatureSchemas.Value = Schemas.Upgrade(CreatureSchemas.Value);
+			balance.Value = 7;
+		}
 		LoopBiomes = Config.Bind("1 - Run", "Loop Biomes", 6,
 			new ConfigDescription("How many biomes one lap of the run has (6 = Meadows to the Mistlands). After the last one the run goes back to the Meadows with 1-star creatures, then 2, then 3. 0: no loop, the run goes through every biome and stays in the last.", new AcceptableValueRange<int>(0, 8)));
 		BossFights = Config.Bind("1 - Run", "Boss Fights", true,
@@ -400,7 +406,7 @@ public class Plugin : BaseUnityPlugin
 			"A sea serpent rises in the storm and must be beaten with the ballista to reach the far shore. Off: the storm just passes.");
 
 		Dungeons = Config.Bind("1 - Run", "Dungeons", true,
-			"Once in each stretch of the Black Forest the track runs into a burial chamber, and once in each stretch of the Swamp into a sunken crypt: dark halls seen from above, lit by the torch you carry. The halls turn 90 degrees: press A or D toward the opening as you reach a corner (a torch burns on the wall ahead and the camera starts to swing round), or run into the wall. Burial chambers: skeletons, bone piles that raise more as you come, ghosts drifting in through the walls. Sunken crypts: draugr and blobs, flooded halls with leeches (slower going), mud piles to jump, grave mounds that raise draugr, and iron gates that crash down as you come (roll under them). Old chests are worth ten coins. Off: the forest and the swamp run on as before.");
+			"Once in each stretch of the Black Forest the track runs into a burial chamber, once in each stretch of the Swamp into a sunken crypt, and once in each stretch of the Mountains into a frost cave: dark halls seen from above, lit by the torch you carry. The halls turn 90 degrees: press A or D toward the opening as you reach a corner (a torch burns on the wall ahead and the camera starts to swing round), or run into the wall. Burial chambers: skeletons, bone piles that raise more as you come, ghosts drifting in through the walls. Sunken crypts: draugr and blobs, flooded halls with leeches (slower going), mud piles to jump, grave mounds that raise draugr, and iron gates that crash down as you come (roll under them). Frost caves: rough rock lit by glowing crystals, ulvs, fenrings, cultists breathing fire, bats, and icicles that crack loose over your lane as you come (jump the spike or move). Old chests are worth ten coins. Off: the forest, swamp and mountains run on as before.");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 	}

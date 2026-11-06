@@ -2488,6 +2488,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				case Kind.Low:
 				{
+					// In a frost cave, an icicle that falls as you come (SurfCave.cs).
+					if (crypt && m_crypt!.Theme.Icicles && Random.value < 0.45f && SpawnIcicle(lane, z))
+					{
+						break;
+					}
 					GameObject log = b.Logs[Random.Range(0, b.Logs.Count)];
 					// A sunken crypt's mud piles stand as they are (any way round); logs and pillars lie across.
 					GameObject go = crypt && m_crypt!.Theme.LowUpright
@@ -2506,7 +2511,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				case Kind.High:
 				{
-					if (b.Flyers.Count > 0 && (b.Logs.Count == 0 || Random.value < 0.5f))
+					// (A frost cave's roof is its bats.)
+					if (b.Flyers.Count > 0 && (b.Logs.Count == 0 || Random.value < 0.5f || (crypt && m_crypt!.Theme.HighFlyersOnly)))
 					{
 						SpawnEntry fe = SpawnTables.Pick(b.Flyers)!;
 						if (IsBat(fe.Prefab))

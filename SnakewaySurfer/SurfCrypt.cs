@@ -321,7 +321,7 @@ internal sealed partial class SurfGame
 		// the dead as you come.
 		foreach (CryptLeg leg in c.Legs)
 		{
-			if (leg.B - leg.A < 28f || Random.value > 0.65f)
+			if (theme.Pile.Length == 0 || leg.B - leg.A < 28f || Random.value > 0.65f)
 			{
 				continue;
 			}
@@ -450,6 +450,12 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
+		if (m_crypt!.Theme.Rocky)
+		{
+			// A cave's walls are rough rock (SurfCave.cs).
+			RockLine(root, new Vector3(x, y, z0), new Vector3(x, y, z1), new Vector3(Mathf.Sign(x), 0f, 0f), rows);
+			return;
+		}
 		int n = Mathf.Max(1, Mathf.RoundToInt(length / 4f));
 		float piece = length / n;
 		for (int r = 0; r < rows; r++)
@@ -463,11 +469,16 @@ internal sealed partial class SurfGame
 	}
 
 	// A stone wall across the hall (z fixed) from x0 to x1.
-	private void WallAcross(Transform root, float z, float x0, float x1, float y, int rows = 1, float lift = 0f)
+	private void WallAcross(Transform root, float z, float x0, float x1, float y, int rows = 1, float lift = 0f, int away = 1)
 	{
 		float length = x1 - x0;
 		if (length < 0.2f)
 		{
+			return;
+		}
+		if (m_crypt!.Theme.Rocky)
+		{
+			RockLine(root, new Vector3(x0, y + lift, z), new Vector3(x1, y + lift, z), new Vector3(0f, 0f, away), rows, lift > 0f);
 			return;
 		}
 		int n = Mathf.Max(1, Mathf.RoundToInt(length / 4f));
@@ -515,6 +526,12 @@ internal sealed partial class SurfGame
 	// near you.
 	private void Sconce(Transform root, Vector3 at, float yaw, float range = 8f)
 	{
+		if (m_crypt!.Theme.Crystals)
+		{
+			// A cave has no torches on its walls: crystals glow at their foot (SurfCave.cs).
+			GlowCrystal(root, at, yaw, range);
+			return;
+		}
 		GameObject? prefab = Pictures.Prefab("piece_walltorch");
 		GameObject? go = null;
 		if (prefab != null)
@@ -570,11 +587,14 @@ internal sealed partial class SurfGame
 		float tileZ = (z1 - z0) / along;
 		float tileX = CryptHalf * 2f / 3f;
 		bool floored = false;
+		// (A cave's rock overlaps, each piece turned any way.)
+		float overlap = theme.Rocky ? 0.6f : 0.03f;
 		for (int i = 0; i < along; i++)
 		{
 			for (int j = 0; j < 3; j++)
 			{
-				floored |= CryptPiece(root, theme.Floors, Quaternion.identity, new Vector3(tileX + 0.03f, 0.25f, tileZ + 0.03f),
+				Quaternion turned = theme.Rocky ? Quaternion.Euler(0f, 90f * Random.Range(0, 4), 0f) : Quaternion.identity;
+				floored |= CryptPiece(root, theme.Floors, turned, new Vector3(tileX + overlap, 0.25f, tileZ + overlap),
 					new Vector3(-CryptHalf + tileX * (j + 0.5f), y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
 			}
 		}
@@ -607,7 +627,7 @@ internal sealed partial class SurfGame
 			WallAcross(root, leg.B + CryptHalf + CryptWall * 0.5f, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, y);
 			// A taller pillar on the inside of the corner, and a torch on the wall ahead to say
 			// "turn here".
-			CryptPiece(root, "stone_pillar_high|" + theme.Pillars, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
+			CryptPiece(root, theme.Rocky ? theme.Pillars : "stone_pillar_high|" + theme.Pillars, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
 			Sconce(root, new Vector3(turn * 1.6f, y + 1.7f, leg.B + CryptHalf), 180f, 9f);
 		}
 
@@ -693,8 +713,8 @@ internal sealed partial class SurfGame
 		{
 			float x0 = side < 0 ? -(CryptHalf + 13f) : wallX - CryptWall * 0.5f;
 			float x1 = side < 0 ? -(wallX - CryptWall * 0.5f) : CryptHalf + 13f;
-			WallAcross(root, fz, x0, x1, y, 2);
-			CryptPiece(root, "stone_pillar_high|stone_pillar", Quaternion.identity, new Vector3(1f, WallH * 2f + 0.6f, 1f), new Vector3(side * (wallX + 0.2f), y, fz + outward * 0.3f));
+			WallAcross(root, fz, x0, x1, y, 2, 0f, outward);
+			CryptPiece(root, m_crypt!.Theme.Rocky ? m_crypt.Theme.Pillars : "stone_pillar_high|stone_pillar", Quaternion.identity, new Vector3(1f, WallH * 2f + 0.6f, 1f), new Vector3(side * (wallX + 0.2f), y, fz + outward * 0.3f));
 			GameObject? torch = CryptPiece(root, m_crypt!.Theme.GateTorch, Quaternion.identity, new Vector3(0.6f, 1.8f, 0.6f),
 				new Vector3(side * (CryptHalf - 0.2f), y, z + outward * 1.6f), true, 1.5f);
 			if (torch != null)
@@ -712,8 +732,8 @@ internal sealed partial class SurfGame
 			glow.shadows = LightShadows.None;
 			glow.cullingMask = 1 << m_layer;
 		}
-		// The beam over the way through.
-		WallAcross(root, fz, -wallX, wallX, y, 1, WallH);
+		// The beam (or rock) over the way through.
+		WallAcross(root, fz, -wallX, wallX, y, 1, WallH, outward);
 	}
 
 	// ---------------------------------------------------------------- each frame
@@ -740,6 +760,7 @@ internal sealed partial class SurfGame
 			}
 		}
 		UpdateIronGates(dt);
+		UpdateIcicles(dt);
 		for (int i = c.Glows.Count - 1; i >= 0; i--)
 		{
 			(Light light, float z) = c.Glows[i];
@@ -1209,6 +1230,7 @@ internal sealed partial class SurfGame
 		m_cryptPinned.Clear();
 		m_crypt = null;
 		m_rising.Clear();
+		m_icicles.Clear();
 		m_cryptOver = 0f;
 		m_cryptBonk = -1f;
 		m_cryptLagPos = Vector3.zero;

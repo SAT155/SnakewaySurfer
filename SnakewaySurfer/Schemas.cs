@@ -55,7 +55,7 @@ internal static class Schemas
 		"Draugr: shooter waiter charger sideline; Draugr_Elite: waiter charger; Draugr_Ranged: shooter waiter sideline; " +
 		"Blob: hurdle gas3 waiter; BlobElite: hurdle gas3 waiter; Leech: hurdle swarm switcher behind; " +
 		"Abomination: ambush smash sweep; Wraith: chaser; " +
-		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; StoneGolem: ambush smash; Hatchling: flyshooter; " +
+		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; Fenring_Cultist: fire waiter; StoneGolem: ambush smash; Hatchling: flyshooter; " +
 		"Goblin: swarm shooter charger line; GoblinArcher: shooter waiter; GoblinBrute: slams stomper waiter; GoblinShaman: fire waiter; " +
 		"Lox: herd stomper charger; Deathsquito: behind; BlobTar: shooter tar hurdle waiter; Unbjorn: charger sweep gas2; " +
 		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; " +
@@ -85,8 +85,22 @@ internal static class Schemas
 				}
 			}
 		}
+		// 1.16.6: creatures added since, appended to a settings file that doesn't name them.
+		foreach (string added in s_added)
+		{
+			string key = added.Substring(0, added.IndexOf(':')).Trim();
+			if (!parts.Exists(p => p.IndexOf(':') > 0 && string.Equals(p.Substring(0, p.IndexOf(':')).Trim(), key, StringComparison.OrdinalIgnoreCase)))
+			{
+				parts.Add(" " + added);
+			}
+		}
 		return string.Join(";", parts);
 	}
+
+	private static readonly string[] s_added =
+	{
+		"Fenring_Cultist: fire waiter",
+	};
 
 	private static string s_parsedFrom = "\u0001";
 	private static readonly List<(string key, bool prefix, Schema schema)> s_rules = new();
