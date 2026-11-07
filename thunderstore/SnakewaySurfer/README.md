@@ -324,6 +324,9 @@ and for players without the mod.
   1.16.20 (Sam hit a wall pressing D at a corner): the turn can be pressed about 1.6 s before a
   dungeon corner (was under a second), a press just before that still counts, and running in
   the lane on the opening's side takes the turn by itself.
+  1.16.21 (Sam): boss landmarks are extra large: further off and towering over the skyline, the
+  air clearing a little more as you near the arena. Boss Landmark Size in the config (1 to 3,
+  default 2; 1 is the old size).
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others

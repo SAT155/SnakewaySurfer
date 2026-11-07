@@ -155,7 +155,7 @@ internal sealed partial class SurfGame
 		}
 		// Far enough to read as scenery and stay behind the boss, near enough to show through
 		// the fog.
-		float wanted = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f * ViewScale);
+		float wanted = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f * ViewScale) * MonumentFar;
 		wanted = Mathf.Max(wanted, m_backdropDef.Mode == "stand" ? m_backdropDef.Distance + 22f : m_backdropDef.Distance + 14f);
 		m_backdropDist = Mathf.Lerp(m_backdropDist, wanted, dt <= 0f ? 1f : 1f - Mathf.Exp(-1f * dt));
 		float z = m_z + m_backdropDist;
@@ -164,6 +164,11 @@ internal sealed partial class SurfGame
 		m_backdrop.transform.localPosition = new Vector3(0f, y, z);
 		m_backdrop.SetActive(k > 0.001f);
 	}
+
+	// Boss Landmark Size: further off (a little), and taller against the sky (more).
+	private static float MonumentSize => Mathf.Clamp(Plugin.MonumentSize.Value, 1f, 3f);
+	private static float MonumentFar => 1f + (MonumentSize - 1f) * 0.5f;
+	private static float MonumentTall => 1f + (MonumentSize - 1f) * 0.6f;
 
 	private void BuildBackdrop(BossDef def)
 	{
@@ -211,7 +216,9 @@ internal sealed partial class SurfGame
 		}
 		// Fit it to about a third of its distance high (a big shape, but the road and the boss
 		// stay clear), standing a little sunk into the ground.
-		float dist = Mathf.Max(32f, m_backdropDist);
+		// Sized for where it will stand (not where the last one stood).
+		float dist = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f * ViewScale) * MonumentFar;
+		m_backdropDist = dist;
 		float scale = 1f;
 		float bottom = 0f;
 		float height = 10f;
@@ -219,7 +226,9 @@ internal sealed partial class SurfGame
 		if (Pictures.MeshBounds(go, out Bounds bounds) && bounds.size.y > 0.1f)
 		{
 			float wide = Mathf.Max(bounds.size.x, bounds.size.z, 0.1f);
-			scale = Mathf.Clamp(Mathf.Min(dist * (location ? 0.34f : 0.4f) / bounds.size.y, dist * 1.3f / wide), 0.3f, location ? 8f : 12f) * def.BackdropSize;
+			// 1.16.21 (Sam): extra large, towering over the skyline (Boss Landmark Size).
+			float tall = Mathf.Min(0.75f, (location ? 0.34f : 0.4f) * MonumentTall);
+			scale = Mathf.Clamp(Mathf.Min(dist * tall / bounds.size.y, dist * 1.3f * MonumentTall / wide), 0.3f, (location ? 8f : 12f) * MonumentFar * MonumentTall) * def.BackdropSize;
 			bottom = bounds.min.y - m_stage.position.y;
 			height = bounds.size.y * scale;
 		}

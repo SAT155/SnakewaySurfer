@@ -3674,7 +3674,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		// Thicker without landmarks; with them the air clears a little so the boss's place
 		// shows on the horizon.
-		float arenaFog = Plugin.BossLandmarks.Value ? 1f - 0.25f * arena : 1f + 0.5f * arena;
+		float arenaFog = Plugin.BossLandmarks.Value ? 1f - (0.25f + 0.1f * (MonumentSize - 1f)) * arena : 1f + 0.5f * arena;
 		Color sky = Color.Lerp(b.Sky, b.Sky * 0.55f + tint * 0.2f, arena);
 		// 1.16.19 (Sam): the air clears to match the View Distance, so the far end of the track
 		// still fades into the fog (the fogs were made for 150 m).
