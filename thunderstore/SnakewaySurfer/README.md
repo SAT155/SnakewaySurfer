@@ -284,8 +284,10 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.80** (alpha, from Sam's playtests):
-  1.16.80: you harpoon the serpent of the deep (the Abyssal Harpoon, roped to the ship) and tow
+- **1.16.56 to 1.16.82** (alpha, from Sam's playtests):
+  1.16.82: Hugin sits lower on the right, clear of the buff icons, and has his own light so he
+  shows at night.
+  1.16.81: you harpoon the serpent of the deep (the Abyssal Harpoon, roped to the ship) and tow
   its body to the Plains. After every boss you make camp: a fire, food and mead, a bigger camp
   each star, your lives back and the boss's crafting drop. Then keep dreaming, or open your eyes.
   The wind icon circles outside the wind ring.

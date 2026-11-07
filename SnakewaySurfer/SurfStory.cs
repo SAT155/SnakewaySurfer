@@ -745,7 +745,9 @@ internal sealed class SurfStory : MonoBehaviour
 	{
 		float half = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth;
 		float aspect = cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
-		Vector3 local = new Vector3((b.Munin ? 0.42f : 0.72f) * half * aspect, (b.Munin ? 0.46f : 0.5f) * half, Depth);
+		// 1.16.82 (Sam: his words sat over the buff icons at the top right): lower down the
+		// right side, so the speech above him clears the HUD.
+		Vector3 local = new Vector3((b.Munin ? 0.5f : 0.76f) * half * aspect, (b.Munin ? 0.12f : 0.16f) * half, Depth);
 		Transform ct = cam.transform;
 		Vector3 at = ct.position + ct.rotation * local;
 		Vector3 back = ct.position - at;
@@ -783,10 +785,22 @@ internal sealed class SurfStory : MonoBehaviour
 		lightGo.transform.rotation = Quaternion.Euler(40f, -30f, 0f);
 		m_birdLight = lightGo.AddComponent<Light>();
 		m_birdLight.type = LightType.Directional;
-		m_birdLight.intensity = 0.9f;
+		m_birdLight.intensity = 1.3f;
 		m_birdLight.color = new Color(1f, 0.96f, 0.88f);
 		m_birdLight.cullingMask = 1 << Plugin.RenderLayer.Value;
 		m_birdLight.shadows = LightShadows.None;
+		// 1.16.82 (Sam: Hugin couldn't be seen at night): a black bird on a night sky needs his
+		// own light: a cool rim from behind, and the world's dark and fog left out of his camera.
+		GameObject rimGo = new GameObject("StoryRavenRim");
+		rimGo.transform.SetParent(lightGo.transform, false);
+		rimGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+		Light rim = rimGo.AddComponent<Light>();
+		rim.type = LightType.Directional;
+		rim.intensity = 1.1f;
+		rim.color = new Color(0.7f, 0.82f, 1f);
+		rim.cullingMask = 1 << Plugin.RenderLayer.Value;
+		rim.shadows = LightShadows.None;
+		go.AddComponent<StoryBirdLighting>();
 	}
 
 	private void RemoveBird(Bird b)
@@ -878,5 +892,31 @@ internal sealed class SurfStory : MonoBehaviour
 				return $"Story stage {Stage(p)}, {DaysAwake(p):0.00} days awake, episode {GetInt(p, EpisodeKey)} burst {GetInt(p, BurstKey)}. "
 					+ "surfstory [reset | portal | hugin [days awake] | munin [episode] | next]";
 		}
+	}
+}
+
+// The ravens' own camera draws them in a light of their own: no world fog, and a soft flat
+// ambient so the black feathers read on a night sky. The world's settings go back after.
+internal sealed class StoryBirdLighting : MonoBehaviour
+{
+	private bool m_fog;
+	private UnityEngine.Rendering.AmbientMode m_mode;
+	private Color m_ambient;
+
+	private void OnPreRender()
+	{
+		m_fog = RenderSettings.fog;
+		m_mode = RenderSettings.ambientMode;
+		m_ambient = RenderSettings.ambientLight;
+		RenderSettings.fog = false;
+		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+		RenderSettings.ambientLight = new Color(0.55f, 0.55f, 0.6f);
+	}
+
+	private void OnPostRender()
+	{
+		RenderSettings.fog = m_fog;
+		RenderSettings.ambientMode = m_mode;
+		RenderSettings.ambientLight = m_ambient;
 	}
 }
