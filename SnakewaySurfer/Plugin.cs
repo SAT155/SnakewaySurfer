@@ -86,6 +86,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> IgnoreBossGate = null!;
 	internal static ConfigEntry<bool> BossLandmarks = null!;
 	internal static ConfigEntry<float> MonumentSize = null!;
+	internal static ConfigEntry<bool> MonumentSky = null!;
 	internal static ConfigEntry<bool> BossChase = null!;
 	internal static ConfigEntry<bool> BossWeather = null!;
 	internal static ConfigEntry<bool> BossSummon = null!;
@@ -408,6 +409,8 @@ public class Plugin : BaseUnityPlugin
 			"Boss arenas show the boss's own place from the game (Eikthyr's altar, the Elder's stones, Moder's peak...) looming far ahead, with the land rising beside a flatter path and torches lining it. Off: arenas only take on the boss's colour.");
 		MonumentSize = Config.Bind("1 - Run", "Boss Landmark Size", 2f,
 			"How big the boss's place looms on the skyline ahead of its arena, 1 to 3. 1: as before 1.16.21. 2 (default): extra large, further off and towering over the land, with the air clearing a little more so it shows.");
+		MonumentSky = Config.Bind("1 - Run", "Boss Landmark On Sky", true,
+			"The boss's place is drawn once into a flat picture that stands far off on the skyline like part of the sky (it can't reach into the track). Off: the place itself as a 3D model, nearer.");
 		BossChase = Config.Bind("1 - Run", "Boss Chase", true,
 			"Eikthyr chases you from behind: the camera swings round to face him, and his attacks come up the lanes behind you (red lanes mark where they will land). Left and right follow the screen while it faces back. The other bosses wait ahead. Off: Eikthyr stays ahead too.");
 		BossWeather = Config.Bind("3 - Look", "Boss Weather", true,

@@ -22,6 +22,13 @@ internal sealed partial class SurfGame
 	// 1.16.26 (Sam: the big monument clipped into the track): from its middle to its near side,
 	// so its nearest part keeps the distance, not its middle.
 	private float m_backdropNear;
+	// 1.16.27 (Sam: "flattened and warped, then reprojected ... to be a good skybox"): the place
+	// is drawn once into a picture, and that picture stands far off on the skyline, upright and
+	// facing you, free of the fog like the sky.
+	private bool m_backdropSky;
+	private Texture2D? m_backdropTexture;
+	private Material? m_backdropMaterial;
+	private float SkyDistance => Mathf.Min(m_camera.farClipPlane * 0.85f, 420f);
 	private float m_nextTorchZ;
 	private int m_torchCount;
 	// Location prefabs are soft references the game loads on demand: ours stay loaded (our
@@ -160,12 +167,26 @@ internal sealed partial class SurfGame
 		// the fog.
 		float wanted = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f * ViewScale) * MonumentFar;
 		wanted = Mathf.Max(wanted, m_backdropDef.Mode == "stand" ? m_backdropDef.Distance + 22f : m_backdropDef.Distance + 14f);
+		if (m_backdropSky)
+		{
+			wanted = SkyDistance;
+		}
 		m_backdropDist = Mathf.Lerp(m_backdropDist, wanted, dt <= 0f ? 1f : 1f - Mathf.Exp(-1f * dt));
 		float z = m_z + m_backdropDist + m_backdropNear;
 		float k = Mathf.SmoothStep(0f, 1f, m_backdropShow);
 		float y = RoadY(z) + m_backdropLift - (1f - k) * (m_backdropHeight + 2f);
 		m_backdrop.transform.localPosition = new Vector3(0f, y, z);
 		m_backdrop.SetActive(k > 0.001f);
+		if (m_backdropSky)
+		{
+			// Upright, turned to face you.
+			Vector3 look = m_backdrop.transform.position - m_camFinal;
+			look.y = 0f;
+			if (look.sqrMagnitude > 1f)
+			{
+				m_backdrop.transform.rotation = Quaternion.LookRotation(look);
+			}
+		}
 	}
 
 	// Boss Landmark Size: further off (a little), and taller against the sky (more).
@@ -238,6 +259,11 @@ internal sealed partial class SurfGame
 			height = bounds.size.y * scale;
 		}
 		wrapper.transform.localScale = Vector3.one * scale;
+		m_backdropSky = false;
+		if (Plugin.MonumentSky.Value && SkyBackdrop(wrapper, go, def, location))
+		{
+			return;
+		}
 		// Sunk well into the ground (1.16.1): with its foot out of sight it reads as something on
 		// the skyline, not a thing sliding along the path ahead.
 		m_backdropLift = -bottom * scale - Mathf.Max(1.5f, height * 0.14f);
@@ -255,6 +281,149 @@ internal sealed partial class SurfGame
 		}
 		m_backdrop = null;
 		m_backdropDef = null;
+		m_backdropSky = false;
+		if (m_backdropTexture != null)
+		{
+			Destroy(m_backdropTexture);
+			m_backdropTexture = null;
+		}
+		if (m_backdropMaterial != null)
+		{
+			Destroy(m_backdropMaterial);
+			m_backdropMaterial = null;
+		}
+	}
+
+	private static Color32[] Bake(Camera cam, RenderTexture rt, Color background)
+	{
+		cam.backgroundColor = new Color(background.r, background.g, background.b, 1f);
+		cam.Render();
+		RenderTexture old = RenderTexture.active;
+		RenderTexture.active = rt;
+		Texture2D read = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+		read.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0, false);
+		read.Apply(false);
+		RenderTexture.active = old;
+		Color32[] px = read.GetPixels32();
+		Destroy(read);
+		return px;
+	}
+
+	// Draws the place (already in `wrapper`, scaled) into a picture from in front, then swaps it
+	// for a flat, upright picture sized for the skyline. False: keep it as it is.
+	private bool SkyBackdrop(GameObject wrapper, GameObject go, BossDef def, bool location)
+	{
+		Shader? shader = Shader.Find("Sprites/Default");
+		if (shader == null)
+		{
+			return false;
+		}
+		Camera? cam = null;
+		bool fog = RenderSettings.fog;
+		try
+		{
+			// Far below everything else, alone in view.
+			wrapper.transform.position = m_stage.position + Vector3.down * 3000f;
+			if (!Pictures.MeshBounds(go, out Bounds b) || b.size.y < 0.1f)
+			{
+				return false;
+			}
+			float aspect = Mathf.Clamp(b.size.x / b.size.y, 0.4f, 3f);
+			int hpx = 1024;
+			int wpx = Mathf.Clamp(Mathf.RoundToInt(hpx * aspect), 256, 2048);
+			RenderTexture rt = new RenderTexture(wpx, hpx, 24, RenderTextureFormat.ARGB32) { name = "SurfSkyLandmark" };
+			rt.Create();
+			cam = new GameObject("SurfSkyBake").AddComponent<Camera>();
+			cam.enabled = false;
+			cam.cullingMask = 1 << m_layer;
+			cam.clearFlags = CameraClearFlags.SolidColor;
+			cam.backgroundColor = new Color(0f, 0f, 0f, 0f);
+			cam.orthographic = true;
+			cam.orthographicSize = b.extents.y * 1.04f;
+			cam.aspect = wpx / (float)hpx;
+			cam.nearClipPlane = 1f;
+			cam.farClipPlane = b.size.z + 200f;
+			cam.allowHDR = false;
+			cam.allowMSAA = true;
+			cam.transform.position = b.center + Vector3.back * (b.extents.z + 60f);
+			cam.transform.rotation = Quaternion.identity;
+			cam.renderingPath = RenderingPath.Forward;
+			cam.targetTexture = rt;
+			RenderSettings.fog = false;
+			// Drawn on black and on white: what differs is see-through (the game's shaders don't
+			// all write a usable alpha).
+			Color32[] onBlack = Bake(cam, rt, Color.black);
+			Color32[] onWhite = Bake(cam, rt, Color.white);
+			RenderSettings.fog = fog;
+			cam.targetTexture = null;
+			rt.Release();
+			Destroy(rt);
+			Color32[] px = new Color32[onBlack.Length];
+			for (int i = 0; i < px.Length; i++)
+			{
+				Color32 k0 = onBlack[i];
+				Color32 k1 = onWhite[i];
+				int seen = 255 - ((k1.r - k0.r) + (k1.g - k0.g) + (k1.b - k0.b)) / 3;
+				seen = Mathf.Clamp(seen, 0, 255);
+				if (seen < 3)
+				{
+					px[i] = new Color32(0, 0, 0, 0);
+					continue;
+				}
+				float un = 255f / seen;
+				px[i] = new Color32((byte)Mathf.Min(255, k0.r * un), (byte)Mathf.Min(255, k0.g * un), (byte)Mathf.Min(255, k0.b * un), (byte)seen);
+			}
+			Texture2D tex = new Texture2D(wpx, hpx, TextureFormat.RGBA32, true) { name = "SurfSkyLandmark", wrapMode = TextureWrapMode.Clamp };
+			tex.SetPixels32(px);
+			tex.Apply(true, false);
+
+			// The picture, as tall against the sky as the place would have stood.
+			float tall = Mathf.Min(0.75f, (location ? 0.34f : 0.4f) * MonumentTall) * def.BackdropSize;
+			float d = SkyDistance;
+			float height = d * tall;
+			float width = height * (wpx / (float)hpx);
+			Destroy(go);
+			wrapper.transform.localScale = Vector3.one;
+			wrapper.transform.localPosition = Vector3.zero;
+			GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+			Destroy(quad.GetComponent<Collider>());
+			quad.name = "SkyLandmark";
+			quad.layer = m_layer;
+			quad.transform.SetParent(wrapper.transform, false);
+			quad.transform.localScale = new Vector3(width, height, 1f);
+			m_backdropMaterial = new Material(shader) { name = "SurfSkyLandmark", mainTexture = tex, color = Color.Lerp(Color.white, def.Tint, 0.12f) };
+			// Behind everything else that's see-through.
+			m_backdropMaterial.renderQueue = 2900;
+			Renderer r = quad.GetComponent<Renderer>();
+			r.sharedMaterial = m_backdropMaterial;
+			r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+			r.receiveShadows = false;
+			m_backdropTexture = tex;
+			m_backdropSky = true;
+			m_backdropNear = 0f;
+			m_backdropDist = d;
+			// Its foot a little below the land.
+			m_backdropLift = height * 0.5f - height * 0.08f;
+			m_backdropHeight = height;
+			m_backdrop = wrapper;
+			m_backdrop.SetActive(false);
+			Plugin.Log.LogInfo($"Arena backdrop for {def.Name} on the sky: {(location ? def.Location : def.Prefab + " (shadow)")}, {wpx}x{hpx}, {height:0} m high at {d:0} m.");
+			return true;
+		}
+		catch (Exception e)
+		{
+			Plugin.Log.LogWarning($"Couldn't draw the boss's place onto the sky: {e.Message}");
+			RenderSettings.fog = fog;
+			wrapper.transform.position = m_stage.position;
+			return false;
+		}
+		finally
+		{
+			if (cam != null)
+			{
+				Destroy(cam.gameObject);
+			}
+		}
 	}
 
 	// A lifeless copy of a ZoneSystem location prefab (null if this game has no such location

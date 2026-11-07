@@ -340,6 +340,9 @@ and for players without the mod.
   gusts grow; once you turn the cloud is squeezed against the wall and left behind.
   1.16.26 (Sam): the big boss landmarks keep their nearest side at the distance, so they no
   longer reach back over the track.
+  1.16.27 (Sam's idea): the boss's place is drawn once into a flat picture that stands far off on
+  the skyline like part of the sky, so it can't reach into the track. Boss Landmark On Sky in the
+  config (off: the 3D place, nearer, as before).
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others
