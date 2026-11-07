@@ -92,12 +92,97 @@ internal sealed partial class SurfGame
 	}
 
 	// How much lower she sits, and her list, as the hull fails.
-	private float HullSink => m_atSea ? (1f - m_hull / HullMax) * 0.45f : 0f;
+	private float HullSink => m_atSea ? (1f - m_hull / HullMax) * 0.45f + WreckSink : 0f;
 
-	private float HullList => m_atSea ? (1f - m_hull / HullMax) * 5f : 0f;
+	private float HullList => m_atSea ? (1f - m_hull / HullMax) * 5f + (m_wreck >= 0f ? 28f * Mathf.SmoothStep(0f, 1f, m_wreck / 3.5f) : 0f) : 0f;
+
+	// 1.16.78 (Sam: "When your ship dies, it should sink and a couple of those weird crates
+	// float up"): wrecked, she lists and goes down by the bow, and the game's cargo crates (what
+	// a broken ship or cart leaves) bob up where she went.
+	private float m_wreck = -1f;
+	private readonly List<(GameObject go, Vector2 p, float at, float spin)> m_wreckCrates = new();
+
+	private float WreckSink => m_wreck >= 0f ? 7f * Mathf.SmoothStep(0f, 1f, (m_wreck - 0.4f) / 4.5f) : 0f;
+
+	private void StartWreck()
+	{
+		m_wreck = 0f;
+		m_audio.Play("sfx_ship_destroyed|sfx_ship_impact|sfx_wood_destroyed", 1f, 0.85f);
+		m_audio.Play("sfx_wood_break|sfx_wood_destroyed", 0.8f, 0.8f);
+		SpawnSplash(ShipCenter(), 2.2f);
+		m_shake = Mathf.Max(m_shake, 0.45f);
+		GameObject? prefab = Pictures.Prefab("CargoCrate");
+		if (prefab == null)
+		{
+			return;
+		}
+		Vector2 f = HeadingVector();
+		Vector2 r = new Vector2(f.y, -f.x);
+		int n = Random.Range(2, 4);
+		for (int i = 0; i < n; i++)
+		{
+			GameObject go = SeaPicture(prefab, 1.3f, out _);
+			Vector2 p = ShipCenter() + f * Random.Range(-0.4f, 0.4f) * m_shipLength + r * Random.Range(-1.5f, 1.5f) * m_shipBeam;
+			go.transform.localPosition = new Vector3(p.x, SeaY - 4f, p.y);
+			m_wreckCrates.Add((go, p, 1.3f + i * 0.7f + Random.Range(0f, 0.4f), Random.Range(0f, 360f)));
+		}
+	}
+
+	// While wrecked (crashed at sea): bubbles over her, and the crates rising and bobbing.
+	private void UpdateWreck(float dt)
+	{
+		if (m_wreck < 0f)
+		{
+			return;
+		}
+		m_wreck += dt;
+		Vector2 c = ShipCenter();
+		if (m_wreck < 5f && Random.value < dt * 14f)
+		{
+			AddFoam(c + Random.insideUnitCircle * (m_shipBeam * 1.5f), Random.Range(0.6f, 1.3f), Random.Range(0.8f, 1.4f), 0.7f, 1.8f);
+		}
+		foreach ((GameObject go, Vector2 p, float at, float spin) in m_wreckCrates)
+		{
+			if (go == null)
+			{
+				continue;
+			}
+			float u = m_wreck - at;
+			float water = SeaHeight(p.x, p.y);
+			float y = u < 0f ? SeaY - 4f : Mathf.Lerp(SeaY - 4f, water - 0.15f, Mathf.SmoothStep(0f, 1f, u / 1.2f));
+			if (u > 1.2f)
+			{
+				y += Mathf.Sin(m_wreck * 2.1f + spin) * 0.12f;
+			}
+			if (u >= 0f && u - dt < 0f)
+			{
+				m_audio.Play("sfx_water_splash|sfx_land_water", 0.5f, Random.Range(0.9f, 1.1f));
+			}
+			if (u > 1f && u - dt <= 1f)
+			{
+				SpawnSplash(p, 0.6f);
+			}
+			go.transform.localPosition = new Vector3(p.x, y, p.y);
+			go.transform.localRotation = Quaternion.Euler(Mathf.Sin(m_wreck * 1.3f + spin) * 8f, spin + m_wreck * 6f, Mathf.Cos(m_wreck * 1.1f + spin) * 8f);
+		}
+	}
+
+	private void ClearWreck()
+	{
+		foreach (var w in m_wreckCrates)
+		{
+			if (w.go != null)
+			{
+				Destroy(w.go);
+			}
+		}
+		m_wreckCrates.Clear();
+		m_wreck = -1f;
+	}
 
 	private void ResetHull()
 	{
+		ClearWreck();
 		m_hull = HullMax;
 		m_hullGrace = 0f;
 		m_hullFlash = 0f;

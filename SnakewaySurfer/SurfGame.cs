@@ -1296,6 +1296,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_state = State.Crashed;
 		m_stateTime = 0f;
 		m_crashText = why;
+		if (m_atSea && m_seaPhase == 2)
+		{
+			StartWreck();
+		}
 		SetTrigger("stagger");
 		// Run XP for the running: time at sea is sailing.
 		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
@@ -1481,6 +1485,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_turnRate = Mathf.MoveTowards(m_turnRate, 0f, 120f * dt);
 			PlaceShip(dt, m_x, m_z);
 			UpdateSeaLoops(dt);
+			UpdateWreck(dt);
 		}
 		UpdateOcean(dt);
 		UpdateRipples(dt);

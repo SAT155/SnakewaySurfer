@@ -361,9 +361,13 @@ internal sealed partial class SurfGame
 		pos.y += Mathf.Sin(t * 1.25f + seed * 2f) * 3.5f * k * a;
 		pos.x += Mathf.Sin(t * 0.7f + seed) * 2f * k * a;
 		float tilt = Mathf.Sin(t * 0.8f + seed * 1.3f) * 1.4f * a + swirl * 0.3f;
-		// The one you're on swells and rises.
-		scale *= 1f + 0.08f * hv;
-		pos.y -= 5f * k * hv;
+		// The one you're on swells and rises, then keeps breathing and swaying gently
+		// (1.16.78, Sam: the hover should be animated too), with a little overshoot as it comes.
+		float ease = Smooth(hv);
+		float pop = Mathf.Sin(hv * Mathf.PI) * 0.04f;
+		scale *= 1f + 0.08f * ease + pop + 0.025f * ease * Mathf.Sin(t * 3.2f + seed);
+		pos.y -= (5f + 2.5f * Mathf.Sin(t * 2.2f + seed)) * k * ease;
+		tilt += ease * Mathf.Sin(t * 1.9f + seed) * 2.2f;
 
 		Matrix4x4 m = GUI.matrix;
 		GUIUtility.RotateAroundPivot(tilt, pos);
@@ -377,6 +381,20 @@ internal sealed partial class SurfGame
 			{
 				float grow = (3f + i * 6f + Mathf.Sin(t * 2.6f + i) * 2.5f) * k;
 				Fill(new Rect(at.x - grow, at.y - grow, at.width + grow * 2f, at.height + grow * 2f), new Color(0.78f, 0.68f, 1f, 0.13f * hv / i));
+			}
+		}
+		if (hv > 0.01f && unlocked)
+		{
+			// Motes of light circling it, like fireflies drawn to the choice.
+			s_guiAlpha = baseAlpha * alpha * ease;
+			for (int i = 0; i < 7; i++)
+			{
+				float ang = t * (0.9f + 0.15f * i) + i * (Mathf.PI * 2f / 7f);
+				float rx = at.width * 0.5f + (8f + 4f * Mathf.Sin(t * 2f + i)) * k;
+				float ry = at.height * 0.5f + (8f + 4f * Mathf.Cos(t * 1.7f + i)) * k;
+				Vector2 p = at.center + new Vector2(Mathf.Cos(ang) * rx, Mathf.Sin(ang) * ry);
+				float sz = (3f + 2f * Mathf.Sin(t * 4f + i * 1.7f)) * k;
+				Fill(new Rect(p.x - sz, p.y - sz, sz * 2f, sz * 2f), new Color(1f, 0.92f, 0.7f, 0.55f));
 			}
 		}
 		s_guiAlpha = baseAlpha * alpha * (unlocked ? Mathf.Lerp(0.8f, 1f, hv) : 1f);
