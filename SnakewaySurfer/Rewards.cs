@@ -101,9 +101,9 @@ internal static class Rewards
 			return null;
 		}
 		GameObject? prefab = null;
-		foreach (string key in Pictures.SplitList(items))
+		foreach (string entry in Pictures.SplitList(items))
 		{
-			prefab = Pictures.Item(key);
+			prefab = Pictures.Item(entry);
 			if (prefab != null)
 			{
 				break;
