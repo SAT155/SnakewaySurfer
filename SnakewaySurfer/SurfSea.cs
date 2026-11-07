@@ -24,7 +24,8 @@ internal sealed partial class SurfGame
 
 	// The biome the crossing leads to.
 	private const int SeaTo = 4;
-	private const float SeaHalfWidth = 24f;
+	// 1.16.79 (Sam: "The ocean play area should be much bigger"): twice as wide (was 24).
+	private const float SeaHalfWidth = 48f;
 	private const float ShoreRamp = 70f;
 	private const float MaxHeading = 75f;
 
@@ -504,6 +505,7 @@ internal sealed partial class SurfGame
 		if (m_shipSeg != null)
 		{
 			Progress.SaveLanded(m_player, m_shipSeg.Stars);
+			ClearResumePoint();
 		}
 	}
 
@@ -566,6 +568,7 @@ internal sealed partial class SurfGame
 				FireSeaBallista();
 			}
 		}
+		UpdateSeaAim(canInput, steering);
 
 		// The rudder: A/D as seen on screen (ahead is always up).
 		float steer = 0f;
@@ -593,7 +596,8 @@ internal sealed partial class SurfGame
 		{
 			float gust = Mathf.Lerp(0.25f, 1f, m_windStrength) * (1f + 0.4f * m_storm);
 			float sail = Plugin.SailSpeed.Value * WindAngleFactor() * gust * (m_sail == Sail.Full ? 1f : 0.62f);
-			target = m_sail == Sail.Oars ? 6f : Mathf.Max(3.5f, sail);
+			// 1.16.79 (Sam: "Paddle boat speed can be much slower"): 3 under oars (was 6).
+			target = m_sail == Sail.Oars ? 3f : Mathf.Max(3.5f, sail);
 			target *= moves;
 			if (m_moored != null && m_hull < HullMax)
 			{
@@ -736,6 +740,7 @@ internal sealed partial class SurfGame
 
 	private void EndSailing()
 	{
+		m_seaSkip = 0f;
 		m_seaPhase = 0;
 		m_atSea = false;
 		m_lane = 1;
@@ -878,7 +883,7 @@ internal sealed partial class SurfGame
 		// 1.16.3 (Sam: a shallower, lower camera, so the rolling waves read): about 42 degrees
 		// down instead of 66, and closer, looking a little further ahead of the bow.
 		float height = 13f + 0.75f * m_shipLength;
-		Vector3 focus = new Vector3(m_x * 0.8f, SeaY, c.y + 13f);
+		Vector3 focus = new Vector3(m_x * 0.9f, SeaY, c.y + 13f);
 		Vector3 cam = focus + new Vector3(0f, height, -height * 1.1f);
 		Vector3 seaPos = m_stage.TransformPoint(cam);
 		Quaternion seaRot = Quaternion.LookRotation(m_stage.TransformPoint(focus) - seaPos);
@@ -902,7 +907,7 @@ internal sealed partial class SurfGame
 		Color seaSky = Color.Lerp(new Color(0.62f, 0.76f, 0.9f), new Color(0.3f, 0.34f, 0.4f), m_storm);
 		sky = Color.Lerp(sky, seaSky, w * (1f - 0.5f * m_storm));
 		fogColor = Color.Lerp(fogColor, seaSky, w * 0.7f);
-		fog = Mathf.Lerp(fog, Mathf.Min(fog, 0.006f + 0.004f * m_storm), w);
+		fog = Mathf.Lerp(fog, Mathf.Min(fog, 0.0025f + 0.003f * m_storm), w);
 		ambient = Color.Lerp(ambient, ambient * (1f - 0.35f * m_storm), w);
 	}
 
@@ -1189,7 +1194,7 @@ internal sealed partial class SurfGame
 			Color old = GUI.color;
 			GUI.color = new Color(1f, 1f, 1f, hint);
 			Shadowed(new Rect(w - 760f * k, rose.y - 150f * k, 720f * k, 100f * k),
-				$"A / D: steer     W / S: sail\n{KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
+				$"A / D: steer     W / S: sail\nMouse: aim     {KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
 			GUI.color = old;
 			m_small.alignment = anchor;
 			m_small.normal.textColor = text;

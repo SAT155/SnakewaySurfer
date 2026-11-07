@@ -58,16 +58,19 @@ internal sealed partial class SurfGame
 	// in the arena of a boss whose roots split the path.
 	private float ExtraFlat(float z)
 	{
-		if (!Plugin.BossChase.Value || !Plugin.BossFights.Value || m_segments.Count == 0)
+		if (!Plugin.BossFights.Value || m_segments.Count == 0)
 		{
 			return 0f;
 		}
+		// 1.16.79 (Sam: the battle area "should be much bigger to accommodate the extra lanes"):
+		// every boss whose roots split the path gets the room, not only the ones that chase
+		// (the Elder stands, so his extra lanes ran over the hills), with a lane's margin past them.
 		Segment s = SegAt(z);
 		float ramp = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((z - s.Start) / 30f));
-		bool here = s.Boss && Progress.BossOf(s.Biome) is BossDef cur && HasBranches(cur) && Chases(cur);
-		bool before = s.PrevBoss && Progress.BossOf(s.PrevBiome) is BossDef prev && HasBranches(prev) && Chases(prev);
+		bool here = s.Boss && Progress.BossOf(s.Biome) is BossDef cur && HasBranches(cur);
+		bool before = s.PrevBoss && Progress.BossOf(s.PrevBiome) is BossDef prev && HasBranches(prev);
 		float w = here ? (before ? 1f : ramp) : before ? 1f - ramp : 0f;
-		return w * (LaneWidth + 0.6f);
+		return w * (LaneWidth * 2f + 1f);
 	}
 
 	// ---------------------------------------------------------------- strikes

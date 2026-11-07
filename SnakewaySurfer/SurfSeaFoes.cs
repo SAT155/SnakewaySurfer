@@ -104,8 +104,13 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		float along = m_z - sea.Start;
+		// (From an island's checkpoint the voyage picks up that far out: SurfCheckpoint.cs.)
+		float along = m_z - sea.Start + m_seaSkip;
 		float len = Mathf.Max(200f, Plugin.OceanLength.Value);
+		if (m_seaBossBeaten && sea.End == float.MaxValue && m_seaPhase == 2)
+		{
+			SeaBossDone();
+		}
 		bool fight = m_seaBoss != null && !m_seaBoss.Dead;
 		// 1.16.3 (Sam: the storm and the serpent came way too early): a calm first stretch, then
 		// serpents, and the storm gathers from 60% of the way (past the second island) to full at
@@ -398,8 +403,8 @@ internal sealed partial class SurfGame
 			return;
 		}
 		// A few stacks, always leaving a way through.
-		int count = Random.Range(1, 3 + Mathf.Min(1, SeaStars));
-		float gapX = Random.Range(-14f, 14f);
+		int count = Random.Range(2, 5 + Mathf.Min(1, SeaStars));
+		float gapX = Mathf.Clamp(m_x + Random.Range(-14f, 14f), -SeaHalfWidth + 8f, SeaHalfWidth - 8f);
 		for (int i = 0; i < count; i++)
 		{
 			float x = Random.Range(-SeaHalfWidth + 2f, SeaHalfWidth - 2f);
@@ -710,6 +715,11 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_ballistaBolts.Clear();
+		if (m_aimLine != null)
+		{
+			Destroy(m_aimLine.gameObject);
+			m_aimLine = null;
+		}
 		foreach (SeaStrike s in m_seaStrikes)
 		{
 			if (s.Marker != null)
@@ -1486,16 +1496,70 @@ internal sealed partial class SurfGame
 		return wrapper;
 	}
 
+	// 1.16.79 (Sam: "the player should be able to aim the boat's ranged attack with their
+	// mouse"): the mouse swings the bow ballista as it turns the camera in the game, across the
+	// bow up to 80 degrees either side, and a faint line on the water shows where it points
+	// (dim while it reloads).
+	private float m_aimWorld;
+	private LineRenderer? m_aimLine;
+	private const float AimArc = 80f;
+	private const float AimReach = 30f;
+
+	private void UpdateSeaAim(bool canInput, bool steering)
+	{
+		if (!steering || m_state != State.Running || m_ship == null)
+		{
+			if (m_aimLine != null)
+			{
+				m_aimLine.gameObject.SetActive(false);
+			}
+			m_aimWorld = m_heading;
+			return;
+		}
+		if (canInput)
+		{
+			m_aimWorld += MouseLook().x;
+		}
+		m_aimWorld = m_heading + Mathf.Clamp(Mathf.DeltaAngle(m_heading, m_aimWorld), -AimArc, AimArc);
+		if (m_aimLine == null)
+		{
+			GameObject go = new GameObject("BallistaAim") { layer = m_layer };
+			go.transform.SetParent(m_stage, false);
+			m_aimLine = go.AddComponent<LineRenderer>();
+			m_aimLine.useWorldSpace = false;
+			m_aimLine.sharedMaterial = BoltMaterial(false);
+			m_aimLine.positionCount = 14;
+			m_aimLine.startWidth = 0.09f;
+			m_aimLine.endWidth = 0.3f;
+			m_aimLine.numCapVertices = 2;
+			m_aimLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+			m_aimLine.receiveShadows = false;
+		}
+		m_aimLine.gameObject.SetActive(true);
+		Vector2 f = Dir2(m_aimWorld);
+		Vector2 bow = ShipCenter() + HeadingVector() * (m_shipLength * 0.5f);
+		float y = m_boatY + 1.3f;
+		for (int i = 0; i < 14; i++)
+		{
+			float t = i / 13f;
+			Vector2 p = bow + f * (2f + t * AimReach);
+			m_aimLine.SetPosition(i, new Vector3(p.x, y - t * 0.9f, p.y));
+		}
+		float a = m_reload <= 0f ? 0.75f : 0.25f;
+		m_aimLine.startColor = new Color(1f, 0.92f, 0.7f, a);
+		m_aimLine.endColor = new Color(1f, 0.6f, 0.3f, a * 0.35f);
+	}
+
 	private void FireSeaBallista()
 	{
 		m_reload = BallistaReload;
-		Vector2 f = HeadingVector();
-		Vector2 bow = ShipCenter() + f * (m_shipLength * 0.5f);
+		Vector2 f = Dir2(m_aimWorld);
+		Vector2 bow = ShipCenter() + HeadingVector() * (m_shipLength * 0.5f);
 		GameObject go = MakeBallistaBolt();
 		float y = m_boatY + 1.6f;
 		go.transform.localPosition = new Vector3(bow.x, y, bow.y);
 		go.transform.localRotation = Quaternion.LookRotation(new Vector3(f.x, 0f, f.y));
-		m_ballistaBolts.Add(new BallistaBolt { Go = go, P = bow, V = f * (SeaBoltSpeed + m_boatSpeed), Y = y, Life = 1.1f });
+		m_ballistaBolts.Add(new BallistaBolt { Go = go, P = bow, V = f * SeaBoltSpeed + HeadingVector() * m_boatSpeed, Y = y, Life = 1.1f });
 		GameObject? fx = FindFx("fx_turret_fire");
 		if (fx != null)
 		{

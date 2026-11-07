@@ -319,6 +319,44 @@ internal static class Progress
 		return Checkpoints(player).Exists(c => c.stars == stars && c.biome > plains);
 	}
 
+	// 1.16.79 (Sam): one ad hoc save in the middle of a biome (or at an island of the crossing),
+	// to start again from after a fall. Only ever one: each new one replaces the last, and beating
+	// a boss or making landfall clears it (those save real checkpoints). "biome,stars,sea,items,along".
+	private static string ResumeKey() => "SnakewaySurfer.Resume." + WorldId();
+
+	public static void SaveResume(Player player, int biome, int stars, bool sea, int items, float along)
+	{
+		player.m_customData[ResumeKey()] = string.Join(",",
+			biome.ToString(CultureInfo.InvariantCulture), stars.ToString(CultureInfo.InvariantCulture), sea ? "1" : "0",
+			items.ToString(CultureInfo.InvariantCulture), along.ToString("0.#", CultureInfo.InvariantCulture));
+	}
+
+	public static bool Resume(Player player, out int biome, out int stars, out bool sea, out int items, out float along)
+	{
+		biome = stars = items = 0;
+		sea = false;
+		along = 0f;
+		if (player == null || !player.m_customData.TryGetValue(ResumeKey(), out string value))
+		{
+			return false;
+		}
+		string[] bits = value.Split(',');
+		if (bits.Length != 5)
+		{
+			return false;
+		}
+		sea = bits[2] == "1";
+		return int.TryParse(bits[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out biome)
+			&& int.TryParse(bits[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out stars)
+			&& int.TryParse(bits[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out items)
+			&& float.TryParse(bits[4], NumberStyles.Float, CultureInfo.InvariantCulture, out along);
+	}
+
+	public static void ClearResume(Player player)
+	{
+		player?.m_customData.Remove(ResumeKey());
+	}
+
 	public static void SaveLanded(Player player, int stars)
 	{
 		if (player.m_customData.TryGetValue(LandedKey(), out string value))

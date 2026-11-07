@@ -23,6 +23,8 @@ internal sealed partial class SurfGame
 	private const float LoadFadeIn = 0.4f;
 	private const float LoadHold = 1.2f;
 	private const float LoadFadeOut = 0.8f;
+	private const float BlinkHold = 0.3f;
+	private const float BlinkOpen = 1.4f;
 
 	private string[]? m_dreamLines;
 	private int m_dreamLine;
@@ -55,19 +57,21 @@ internal sealed partial class SurfGame
 	private bool Loading => m_loadTime >= 0f;
 
 	// Black, then `action` once nothing shows, then the run fades in.
+	// 1.16.79 (Sam: "The loading screen should not be after the dream menu. Only before it. We
+	// need a different screen effect to transition from menu to ingame"): from the menu (or a
+	// retry) into the run the screen ripples like water into a warm haze and back (DrawWave).
+	// The portal's loading screen is only for coming in (CoverNow).
+	private bool m_loadBlink;
+
 	private void BeginLoad(System.Action action)
 	{
-		if (!Plugin.LoadingScreen.Value)
-		{
-			action();
-			return;
-		}
 		m_loadTime = 0f;
 		m_loadRan = false;
 		m_loadFrames = 0;
 		m_loadHeld = 0f;
 		m_loadAction = action;
-		m_audio.Play("sfx_OpenPortal|sfx_raven_teleport", 0.45f);
+		m_loadBlink = true;
+		m_audio.Play("sfx_demister_start|sfx_runestone_interact", 0.35f, 0.8f);
 	}
 
 	// Already covered (starting up: the run is set up behind it).
@@ -78,6 +82,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		m_loadTime = LoadFadeIn;
+		m_loadBlink = false;
 		m_loadAlpha = 1f;
 		m_loadRan = true;
 		m_loadHeld = 0f;
@@ -113,11 +118,11 @@ internal sealed partial class SurfGame
 			return true;
 		}
 		m_loadHeld += udt;
-		if (m_loadHeld < LoadHold)
+		if (m_loadHeld < (m_loadBlink ? BlinkHold : LoadHold))
 		{
 			return true;
 		}
-		m_loadAlpha -= udt / LoadFadeOut;
+		m_loadAlpha -= udt / (m_loadBlink ? BlinkOpen : LoadFadeOut);
 		if (m_loadAlpha <= 0f)
 		{
 			m_loadAlpha = 0f;
@@ -152,7 +157,7 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		if (!Loading)
+		if (!Loading || m_loadBlink)
 		{
 			if (m_loadShown)
 			{
@@ -163,6 +168,7 @@ internal sealed partial class SurfGame
 		m_loadShown = true;
 		hud.m_loadingScreen.gameObject.SetActive(true);
 		hud.m_loadingScreen.alpha = m_loadAlpha;
+		LoadBackdrop(hud, m_loadAlpha);
 		SetActive(hud.m_loadingProgress, false);
 		SetActive(hud.m_sleepingProgress, false);
 		// Dreaming: only the dark.
@@ -177,8 +183,42 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// 1.16.79 (Sam: "During the loading screen, the background flickers between the loaded world
+	// and a black screen"): the game's own screen lets the world through now and then, so a
+	// black sheet of our own sits just under it on a canvas of its own.
+	private GameObject? m_loadBack;
+	private Image? m_loadBackImage;
+
+	private void LoadBackdrop(Hud hud, float alpha)
+	{
+		if (m_loadBack == null)
+		{
+			Canvas? under = hud.m_loadingScreen.GetComponentInParent<Canvas>();
+			under = under != null ? under.rootCanvas : null;
+			m_loadBack = new GameObject("SurfLoadBack");
+			Canvas canvas = m_loadBack.AddComponent<Canvas>();
+			canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+			canvas.sortingOrder = under != null ? under.sortingOrder - 1 : -100;
+			GameObject dark = new GameObject("Dark", typeof(RectTransform));
+			dark.transform.SetParent(m_loadBack.transform, false);
+			m_loadBackImage = dark.AddComponent<Image>();
+			m_loadBackImage.raycastTarget = false;
+			Stretch((RectTransform)dark.transform, Vector2.zero, Vector2.one);
+		}
+		if (m_loadBackImage != null)
+		{
+			m_loadBackImage.color = new Color(0f, 0f, 0f, Mathf.Clamp01(alpha));
+		}
+	}
+
 	private void EndLoadScreen()
 	{
+		if (m_loadBack != null)
+		{
+			Destroy(m_loadBack);
+			m_loadBack = null;
+			m_loadBackImage = null;
+		}
 		RemoveDreamText();
 		if (!m_loadShown)
 		{
@@ -393,6 +433,21 @@ internal sealed partial class SurfGame
 	private void OnGUI()
 	{
 		float cover = Loading ? m_loadAlpha : 0f;
+		if (Loading && m_loadBlink)
+		{
+			if (Event.current.type == EventType.Repaint)
+			{
+				DrawWave(cover);
+			}
+			s_guiAlpha = 1f - cover;
+			DrawGui();
+			s_guiAlpha = 1f;
+			if (Event.current.type == EventType.Repaint)
+			{
+				DrawWaveHaze(cover);
+			}
+			return;
+		}
 		if (cover < 0.98f)
 		{
 			s_guiAlpha = 1f - cover;
@@ -415,6 +470,77 @@ internal sealed partial class SurfGame
 			m_dreamStyle.fontSize = Mathf.RoundToInt(36 * k);
 			m_dreamStyle.normal.textColor = new Color(0.85f, 0.83f, 0.78f, DreamAlpha());
 			GUI.Label(new Rect(Screen.width * 0.12f, Screen.height * 0.38f, Screen.width * 0.76f, Screen.height * 0.24f), m_dreamLines[m_dreamLine], m_dreamStyle);
+		}
+	}
+
+	// 1.16.79 (Sam: "Something dreamy that maybe distorts the entire screen in a wave-like
+	// manner"): the view is drawn again into a texture and laid back on the screen in thin rows,
+	// each pushed sideways by rolling waves, so the whole picture ripples like water while a warm
+	// haze rises over it; the run is set up behind the haze and ripples back in as it calms.
+	private RenderTexture? m_waveRt;
+
+	private bool DrawWave(float cover)
+	{
+		int w = Screen.width;
+		int h = Screen.height;
+		if (m_camera == null || !m_camera.isActiveAndEnabled || w < 8 || h < 8)
+		{
+			return false;
+		}
+		if (m_waveRt == null || m_waveRt.width != w || m_waveRt.height != h)
+		{
+			if (m_waveRt != null)
+			{
+				m_waveRt.Release();
+				Destroy(m_waveRt);
+			}
+			m_waveRt = new RenderTexture(w, h, 24);
+		}
+		RenderTexture old = m_camera.targetTexture;
+		try
+		{
+			m_camera.targetTexture = m_waveRt;
+			m_camera.Render();
+		}
+		catch (System.Exception e)
+		{
+			Plugin.Log.LogWarning("The dream ripple couldn't draw the view: " + e.Message);
+			m_camera.targetTexture = old;
+			return false;
+		}
+		m_camera.targetTexture = old;
+		float wave = Mathf.SmoothStep(0f, 1f, cover);
+		float amp = w * 0.05f * wave;
+		float t = Time.unscaledTime;
+		const int rows = 90;
+		float rowH = h / (float)rows;
+		Fill(new Rect(0, 0, w, h), new Color(0.12f, 0.1f, 0.14f, 1f));
+		Color oldColor = GUI.color;
+		GUI.color = Color.white;
+		for (int i = 0; i < rows; i++)
+		{
+			float y = i * rowH;
+			float off = amp * (Mathf.Sin(i * 0.31f + t * 4.2f) * 0.7f + Mathf.Sin(i * 0.087f - t * 2.3f) * 0.3f);
+			Rect uv = new Rect(0f, 1f - (y + rowH) / h, 1f, rowH / h);
+			GUI.DrawTextureWithTexCoords(new Rect(off - amp, y, w + 2f * amp, rowH + 1f), m_waveRt, uv);
+		}
+		GUI.color = oldColor;
+		return true;
+	}
+
+	// The haze over the ripple: warm, and all but white at the turn.
+	private void DrawWaveHaze(float cover)
+	{
+		Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1f, 0.92f, 0.76f, Mathf.Clamp01(cover * cover * 1.05f)));
+	}
+
+	private void OnDestroyWave()
+	{
+		if (m_waveRt != null)
+		{
+			m_waveRt.Release();
+			Destroy(m_waveRt);
+			m_waveRt = null;
 		}
 	}
 }

@@ -24,6 +24,11 @@ internal sealed partial class SurfGame
 
 	private sealed class Island
 	{
+		// 1.16.79: the sail was set again inside the ring (no furling it again till she's out).
+		public bool SetSail;
+		public bool Saved;
+		// How far into the crossing it lies (its checkpoint, SurfCheckpoint.cs).
+		public float Along;
 		public Vector2 C;
 		public float R;
 		public float Top;
@@ -222,13 +227,19 @@ internal sealed partial class SurfGame
 		float side = Random.value < 0.5f ? -1f : 1f;
 		foreach (float a in along)
 		{
+			if (a < m_seaSkip + 40f)
+			{
+				// Behind you, from an island's checkpoint (that one included).
+				continue;
+			}
 			float r = Random.Range(11f, 14f);
 			m_islands.Add(new Island
 			{
-				C = new Vector2(side * (SeaHalfWidth + r * 0.35f), sea.Start + a),
+				C = new Vector2(side * (SeaHalfWidth * 0.55f + r * 0.35f), sea.Start + a - m_seaSkip),
 				R = r,
 				Side = side,
 				Top = SeaY + Random.Range(1.3f, 1.9f),
+				Along = a,
 			});
 			side = -side;
 		}
@@ -358,6 +369,29 @@ internal sealed partial class SurfGame
 			{
 				near = i;
 			}
+		}
+		// 1.16.79 (Sam: "It isn't clear I need to stow my sails to repair at an island"): pulling
+		// into the golden ring with a damaged hull furls the sail by itself and she drifts in to
+		// moor. Setting sail again (W) takes her out; she won't furl again until she's left the ring.
+		foreach (Island i in m_islands)
+		{
+			if (i != near)
+			{
+				i.SetSail = false;
+			}
+		}
+		if (near != null && m_sail != Sail.Oars && m_moored != near && !near.SetSail && m_hull < HullMax)
+		{
+			m_sail = Sail.Oars;
+			SailSound();
+		}
+		if (near != null && m_moored == near && m_sail != Sail.Oars)
+		{
+			near.SetSail = true;
+		}
+		if (near != null && m_moored != near)
+		{
+			IslandCheckpoint(near);
 		}
 		if (near == null || m_sail != Sail.Oars)
 		{

@@ -88,6 +88,62 @@ internal static class Rewards
 		return string.Join("\n", lines);
 	}
 
+	// 1.16.79 (Sam: "Anytime the player does the draugr dungeon, they get an iron per star level
+	// to their inventory. Same for the other materials", with "that 30 minute timer just like the
+	// food items"): each dungeon cleared gives its own material, one more per star, at most once
+	// per Food Cooldown Minutes (one timer for all dungeons, saved on the character).
+	private const string LastLootKey = "SnakewaySurfer_LastLootUtc";
+
+	public static string? GiveDungeonLoot(Player player, string items, int amount)
+	{
+		if (player == null || amount <= 0 || Cooldown(player, LastLootKey) > TimeSpan.Zero)
+		{
+			return null;
+		}
+		GameObject? prefab = null;
+		foreach (string key in Pictures.SplitList(items))
+		{
+			prefab = Pictures.Item(key);
+			if (prefab != null)
+			{
+				break;
+			}
+		}
+		if (prefab == null || prefab.GetComponent<ItemDrop>() is not ItemDrop drop)
+		{
+			return null;
+		}
+		Inventory inventory = player.GetInventory();
+		for (int i = 0; i < amount; i++)
+		{
+			if (inventory.CanAddItem(prefab, 1))
+			{
+				inventory.AddItem(prefab, 1);
+			}
+			else
+			{
+				Object.Instantiate(prefab, player.transform.position + player.transform.forward + Vector3.up * (1f + 0.3f * i), Quaternion.identity);
+			}
+		}
+		player.m_customData[LastLootKey] = DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
+		string name = drop.m_itemData.m_shared.m_name;
+		return (Localization.instance != null ? Localization.instance.Localize(name) : name) + (amount > 1 ? $" x{amount}" : "");
+	}
+
+	public static TimeSpan LootCooldownLeft(Player player) => Cooldown(player, LastLootKey);
+
+	private static TimeSpan Cooldown(Player player, string key)
+	{
+		if (!player.m_customData.TryGetValue(key, out string value)
+			|| !long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out long ticks))
+		{
+			return TimeSpan.Zero;
+		}
+		DateTime last = new DateTime(ticks, DateTimeKind.Utc);
+		TimeSpan left = last.AddMinutes(Plugin.FoodCooldownMinutes.Value) - DateTime.UtcNow;
+		return left.TotalMinutes > Plugin.FoodCooldownMinutes.Value ? TimeSpan.Zero : left;
+	}
+
 	private static TimeSpan FoodCooldownLeft(Player player)
 	{
 		if (!player.m_customData.TryGetValue(LastFoodKey, out string value)

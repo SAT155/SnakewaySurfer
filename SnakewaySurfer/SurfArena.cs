@@ -78,7 +78,8 @@ internal sealed partial class SurfGame
 		{
 			return 0f;
 		}
-		return walls * Plugin.HillHeight.Value * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((out_ - 5f) / 25f));
+		// 1.16.79 (Sam: a much bigger battle area): the walls start 14 m out, not 5.
+		return walls * Plugin.HillHeight.Value * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((out_ - 14f) / 25f));
 	}
 
 	// ---------------------------------------------------------------- torches

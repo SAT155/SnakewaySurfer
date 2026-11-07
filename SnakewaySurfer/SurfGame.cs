@@ -481,6 +481,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		RemoveRaven();
 		EndLoadScreen();
+		OnDestroyWave();
 		if (m_paused)
 		{
 			AudioListener.pause = false;
@@ -1283,6 +1284,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_startSea = false;
 		}
 		ResetSegments();
+		ApplyResume();
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
@@ -1304,6 +1306,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// Run XP for the running: time at sea is sailing.
 		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
 			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f, m_runBiomes);
+		if (m_lootText.Length > 0)
+		{
+			m_rewardText = (m_rewardText.Length > 0 ? m_rewardText + "\n" : "") + "Dungeon spoils: " + m_lootText;
+			m_lootText = "";
+		}
 		m_blockXp = m_dodgeXp = 0f;
 		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
 	}
@@ -1467,6 +1474,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.M))
 				{
 					EnterMenu();
+				}
+				else if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.C) && CanResume(CrashPlace().biome, CrashPlace().stars, CrashPlace().sea))
+				{
+					ResumeFromCheckpoint();
 				}
 				break;
 			case State.Menu:
@@ -1716,6 +1727,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		UpdateStretch(dt);
+		UpdateCheckpoints(dt);
 		SpawnAhead();
 		UpdateCrypt(dt);
 		UpdateTraders(dt);
@@ -3750,6 +3762,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	public float ViewAhead => AheadDistance;
 
+	public float SeaView => m_seaBlend;
+
 	// Drawing through the game's camera: our fog in place for the whole frame, not only around
 	// our camera's render (the game puts its own back each Update).
 	private void ApplyFogNow()
@@ -3847,8 +3861,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 				Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
 					$"{m_z:0} m, {m_coins} coins, reached {m_biomes[m_highestBiome].Def.Name}\n\n{m_rewardText}", m_mid);
 				(int cb, int cs, bool csea) = CrashPlace();
+				string fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
 				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
-					$"Space: run again     R: retry {Progress.Describe(cb, cs, csea)}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+					$"Space: run again     R: retry {Progress.Describe(cb, cs, csea)}{fromCheckpoint}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
 				break;
 			case State.Menu:
 				MenuGui(k, w, h);
@@ -3935,6 +3950,12 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		// Whatever the mode, the far end of the track is mostly lost in it (the haze sheets,
 		// SurfHaze.cs, take the rest).
 		float ahead = game != null ? game.ViewAhead : 150f;
+		// 1.16.79 (Sam: "the fog is preventing the ocean from being seen easily"): from high over
+		// the ship the floor is lifted, so the sea stays clear.
+		if (game != null)
+		{
+			ahead *= 1f + 3f * game.SeaView;
+		}
 		bool any = density > 0f;
 		if (RenderSettings.fogMode == FogMode.Linear)
 		{

@@ -253,7 +253,7 @@ internal sealed partial class SurfGame
 		: biome == s_charredFortress.Biome ? s_charredFortress
 		: null;
 
-	private float WallH => m_crypt != null ? m_crypt.Theme.WallHeight : 2.4f;
+	private float WallH => (m_crypt != null ? m_crypt.Theme.WallHeight : 2.4f) * 1.6f;
 
 	// ---------------------------------------------------------------- the dungeon's own pieces
 

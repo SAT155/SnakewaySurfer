@@ -22,7 +22,9 @@ namespace SnakewaySurfer;
 // unchanged. After the exit the last frame becomes the stage again.
 internal sealed partial class SurfGame
 {
-	private const float CryptHalf = TrackHalf + 1.2f;
+	// 1.16.79 (Sam: "Dungeon hallways can be much much larger"): 5 m of floor beside the lanes
+	// (was 1.2), taller walls (WallH) and the camera higher to take it in.
+	private const float CryptHalf = TrackHalf + 5f;
 	private const float CryptWall = 0.6f;
 	// How far before a corner the turn can be pressed, and where you wait if you haven't.
 	// 1.16.20 (Sam pressed D at a corner and hit the wall): a press a little early was taken as a
@@ -78,6 +80,8 @@ internal sealed partial class SurfGame
 		// 1.16.9: where lava runs across a charred fortress's halls (SurfFortress.cs).
 		public readonly List<float> Lava = new();
 		public float NextSound = 3f;
+		// 1.16.79: its material given once you come out the far end.
+		public bool Looted;
 		// 1.16.8: the one big creature waiting in a troll cave (SurfTrollCave.cs).
 		public float LurkerZ = float.NaN;
 		public bool LurkerOut;
@@ -825,6 +829,11 @@ internal sealed partial class SurfGame
 				DestroyLegMeshes(leg);
 			}
 		}
+		if (!c.Looted && m_z > c.End + 2f && m_state == State.Running)
+		{
+			c.Looted = true;
+			DungeonLoot(c);
+		}
 		UpdateIronGates(dt);
 		UpdateIcicles(dt);
 		UpdateDrops(dt);
@@ -1190,7 +1199,7 @@ internal sealed partial class SurfGame
 		{
 			m_cryptFocus = Vector3.Lerp(m_cryptFocus, focus, 1f - Mathf.Exp(-6f * dt));
 		}
-		const float height = 14f;
+		const float height = 18f;
 		Quaternion turn = m_stage.rotation * Quaternion.Euler(0f, yaw, 0f);
 		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, height, -height * 0.6f);
 		Quaternion rot = Quaternion.LookRotation(m_cryptFocus - pos);
@@ -1399,4 +1408,39 @@ internal sealed partial class SurfGame
 
 	// A thing that came past you and round the corner behind (out of sight now).
 	private bool CryptGoneBehind(Thing t) => m_crypt != null && t.Speed > 0f && t.Z < m_z - 1f && CornerBetween(t.Z, m_z - 1f);
+
+	// Each dungeon's own spoils (1.16.79): the first that exists of each list.
+	private static string DungeonMaterial(CryptTheme theme) => theme.Name switch
+	{
+		"burial chamber" => "SurtlingCore",
+		"sunken crypt" => "IronScrap|Iron",
+		"frost cave" => "Crystal|Obsidian",
+		"infested mine" => "BlackCore|Softtissue",
+		"troll cave" => "TrollHide",
+		"charred fortress" => "FlametalOreNew|FlametalOre|Flametal",
+		_ => "",
+	};
+
+	private string m_lootText = "";
+
+	private void DungeonLoot(CryptRun c)
+	{
+		if (m_player == null)
+		{
+			return;
+		}
+		int amount = 1 + SegAt(c.Start).Stars;
+		string? got = Rewards.GiveDungeonLoot(m_player, DungeonMaterial(c.Theme), amount);
+		if (got == null)
+		{
+			return;
+		}
+		m_lootText = (m_lootText.Length > 0 ? m_lootText + ", " : "") + got;
+		m_audio.Play("sfx_coins_pile_destroyed|sfx_pickup", 0.8f, 1f);
+		m_iconPulse = 1f;
+		Flash(new Color(1f, 0.85f, 0.4f), 0.35f);
+		m_banner = $"The {c.Theme.Name}'s spoils: {got}";
+		m_bannerTime = 2.5f;
+		Plugin.Log.LogInfo($"Dungeon spoils: {got}.");
+	}
 }

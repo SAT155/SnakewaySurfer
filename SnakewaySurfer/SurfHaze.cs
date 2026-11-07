@@ -82,7 +82,7 @@ internal sealed partial class SurfGame
 	// After the camera has moved (LateUpdate).
 	private void UpdateHaze()
 	{
-		bool want = Plugin.DistanceHaze.Value && m_camera != null && !CryptCovers(m_z) && Plugin.FogStrength.Value > 0f;
+		bool want = Plugin.DistanceHaze.Value && m_camera != null && !CryptCovers(m_z) && Plugin.FogStrength.Value > 0f && m_seaBlend < 0.99f;
 		if (!want)
 		{
 			if (m_haze != null)
@@ -125,7 +125,7 @@ internal sealed partial class SurfGame
 			t.position = new Vector3(at.x, ground + d * 0.06f - height * 0.45f, at.z);
 			t.rotation = Quaternion.LookRotation(fwd);
 			t.localScale = new Vector3(2f * d * tanH * 1.5f + 40f, height, 1f);
-			m_hazeMats![i].color = new Color(c.r, c.g, c.b, Mathf.Clamp01(s_hazeAlpha[i] * thick));
+			m_hazeMats![i].color = new Color(c.r, c.g, c.b, Mathf.Clamp01(s_hazeAlpha[i] * thick) * (1f - m_seaBlend));
 		}
 	}
 }

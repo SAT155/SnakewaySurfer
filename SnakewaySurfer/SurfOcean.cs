@@ -172,7 +172,7 @@ internal sealed partial class SurfGame
 		// The grid snaps to its own spacing, so the waves don't crawl as it moves.
 		float end = sea.End == float.MaxValue ? float.MaxValue : sea.End - 40f;
 		float cz = Mathf.Clamp(m_z + 22f, sea.Start + 45f, Mathf.Max(sea.Start + 45f, end));
-		float cx = Mathf.Round(m_x * 0.6f / OceanStep) * OceanStep;
+		float cx = Mathf.Round(m_x * 0.9f / OceanStep) * OceanStep;
 		cz = Mathf.Round(cz / OceanStep) * OceanStep;
 		m_ocean.transform.localPosition = new Vector3(cx, 0f, cz);
 		// No sea inland of either coast: there it tucks away under the land.

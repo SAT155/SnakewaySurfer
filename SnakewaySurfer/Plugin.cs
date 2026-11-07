@@ -114,6 +114,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> HillHeight = null!;
 	internal static ConfigEntry<float> TrackBrightness = null!;
 	internal static ConfigEntry<bool> OceanCrossing = null!;
+	internal static ConfigEntry<bool> MidCheckpoints = null!;
 	internal static ConfigEntry<float> OceanLength = null!;
 	internal static ConfigEntry<float> SailSpeed = null!;
 	internal static ConfigEntry<bool> SeaSerpent = null!;
@@ -447,6 +448,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
 			"Use the game's own terrain textures for the land beside the track when they can be found (else a generated texture tinted per biome).");
+		MidCheckpoints = Config.Bind("1 - Run", "Mid-Biome Checkpoints", true,
+			"Halfway through each biome a ward stone lights up as you pass, and another once you hold all of the boss's summoning items; at sea, mooring at an island counts. Only the latest one is kept. After a fall there, C on the crash screen starts again from it. Off: only the checkpoints after bosses.");
 		OceanCrossing = Config.Bind("1 - Run", "Ocean Crossing", true,
 			"Between the Mountains and the Plains the run crosses the ocean: the track runs down a beach to a longship and the camera rises above it. A / D steer, W / S set the sail (oars, half, full), the Throw Key fires the bow ballista and the Block Key blocks and parries. The wind never stops and turns now and then: as in the game a sail is fastest with the wind from the side and useless heading into it (tack across it). In the middle a storm brings rolling waves (meet them bow or stern first, never side on), lightning and a sea serpent. Beating Moder saves a checkpoint at the crossing; making it opens the Plains in the start menu. Off: the Plains follow the Mountains as before.");
 		OceanLength = Config.Bind("1 - Run", "Ocean Length", 900f,
