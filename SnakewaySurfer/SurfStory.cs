@@ -54,6 +54,10 @@ internal sealed class SurfStory : MonoBehaviour
 		public Vector3 Centre;
 		public float Size = 1f;
 		public float Height = 1f;
+		// Turn that brings his face (head) round to the camera.
+		public float Yaw;
+		// A flying clip held mid-flap, so he hovers rather than perching.
+		public string? Fly;
 	}
 
 	private Bird? m_hugin;
@@ -706,7 +710,12 @@ internal sealed class SurfStory : MonoBehaviour
 			smr.updateWhenOffscreen = true;
 		}
 		Measure(b, main);
-		if (b.Anim != null && SurfGame.SetTrigger(b.Anim, "flyin") == null)
+		b.Fly = b.Anim != null ? FlyClip(b.Anim) : null;
+		if (b.Fly != null)
+		{
+			b.Anim!.Play(b.Fly, 0, 0.3f);
+		}
+		else if (b.Anim != null && SurfGame.SetTrigger(b.Anim, "flyin") == null)
 		{
 			SurfGame.SetTrigger(b.Anim, "teleportin");
 		}
@@ -724,6 +733,56 @@ internal sealed class SurfStory : MonoBehaviour
 		return b;
 	}
 
+	// 1.16.89 (Sam: "He should be in the top right corner, flying, facing the screen"): the
+	// raven's own flight, from its animations: a hover or flap loop if it has one, else its fly-in.
+	private static string? FlyClip(Animator anim)
+	{
+		RuntimeAnimatorController? rc = anim.runtimeAnimatorController;
+		if (rc == null)
+		{
+			return null;
+		}
+		string? best = null;
+		int bestScore = 0;
+		foreach (AnimationClip clip in rc.animationClips)
+		{
+			if (clip == null)
+			{
+				continue;
+			}
+			string n = clip.name.ToLowerInvariant();
+			int score = n.Contains("hover") ? 5 : n.Contains("flap") ? 4 : n.Contains("fly") && n.Contains("loop") ? 4
+				: n.Contains("flying") ? 3 : n.Contains("flyin") || n.Contains("fly_in") ? 2 : n.Contains("fly") && !n.Contains("away") ? 1 : 0;
+			if (score > bestScore && anim.HasState(0, Animator.StringToHash(clip.name)))
+			{
+				best = clip.name;
+				bestScore = score;
+			}
+		}
+		Plugin.Log.LogInfo("Raven flight: " + (best ?? "none") + " (clips: " + string.Join(", ", System.Array.ConvertAll(rc.animationClips, c => c != null ? c.name : "")) + ")");
+		return best;
+	}
+
+	// Each frame: keep the wings going by holding the flight's middle.
+	private static void KeepFlying(Bird b)
+	{
+		if (b.Fly == null || b.Anim == null || b.Leave >= 0f || b.Anim.IsInTransition(0))
+		{
+			return;
+		}
+		AnimatorStateInfo st = b.Anim.GetCurrentAnimatorStateInfo(0);
+		if (!st.IsName(b.Fly))
+		{
+			// Back from talking: into the air again.
+			b.Anim.CrossFade(b.Fly, 0.2f, 0, 0.3f);
+			return;
+		}
+		if (!st.loop && st.normalizedTime > 0.7f)
+		{
+			b.Anim.Play(b.Fly, 0, 0.3f);
+		}
+	}
+
 	private void Measure(Bird b, Camera cam)
 	{
 		Transform t = b.Go.transform;
@@ -736,6 +795,19 @@ internal sealed class SurfStory : MonoBehaviour
 		}
 		b.Centre = Quaternion.Inverse(t.rotation) * (bounds.center - t.position);
 		b.Height = bounds.size.y;
+		foreach (Transform bone in b.Go.GetComponentsInChildren<Transform>(true))
+		{
+			if (bone.name.ToLowerInvariant().Contains("head"))
+			{
+				Vector3 d = Quaternion.Inverse(t.rotation) * (bone.position - bounds.center);
+				d.y = 0f;
+				if (d.sqrMagnitude > 1e-6f)
+				{
+					b.Yaw = -Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+				}
+				break;
+			}
+		}
 		float half = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth;
 		float most = 1.3f * Depth / 5f * 0.4f;
 		b.Size = Mathf.Clamp(ScreenHeight * half / b.Height, most * 0.2f, most);
@@ -744,15 +816,23 @@ internal sealed class SurfStory : MonoBehaviour
 
 	private void Speak(Bird b, string text, float seconds)
 	{
-		if (b.Anim != null)
+		if (b.Anim != null && b.Fly == null)
 		{
 			SurfGame.SetTrigger(b.Anim, "talk");
 		}
 		m_audio.Play("sfx_raven_talk|sfx_raven_kaw", 0.35f, b.Munin ? 0.85f : 1f);
 		if (Chat.instance != null)
 		{
-			Vector3 above = b.Go.transform.rotation * (b.Centre * b.Size) + Vector3.up * (b.Height * b.Size * 0.65f);
-			Chat.instance.SetNpcText(b.Go, above, 30f, seconds, "", text, true);
+			// 1.16.89 (Sam: his words were still hidden behind the buff icons): below him, and
+			// in from the edge so the lines fit on screen.
+			Camera? cam = Utils.GetMainCamera();
+			Vector3 up = cam != null ? cam.transform.up : Vector3.up;
+			Vector3 right = cam != null ? cam.transform.right : Vector3.zero;
+			float half = cam != null ? Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth : 5f;
+			float aspect = cam != null && cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
+			Vector3 below = b.Go.transform.rotation * (b.Centre * b.Size) - up * (b.Height * b.Size * 0.6f + half * 0.12f)
+				- right * (b.Munin ? 0f : half * aspect * 0.14f);
+			Chat.instance.SetNpcText(b.Go, below, 30f, seconds, "", text, true);
 		}
 	}
 
@@ -809,10 +889,12 @@ internal sealed class SurfStory : MonoBehaviour
 		}
 		if (m_hugin != null)
 		{
+			KeepFlying(m_hugin);
 			Place(m_hugin, main);
 		}
 		if (m_munin != null)
 		{
+			KeepFlying(m_munin);
 			Place(m_munin, main);
 		}
 		if (m_birdCam != null)
@@ -828,14 +910,16 @@ internal sealed class SurfStory : MonoBehaviour
 		float aspect = cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
 		// 1.16.82 (Sam: his words sat over the buff icons at the top right): lower down the
 		// right side, so the speech above him clears the HUD.
-		Vector3 local = new Vector3((b.Munin ? 0.5f : 0.76f) * half * aspect, (b.Munin ? 0.12f : 0.16f) * half, Depth);
+		// 1.16.89: up in the top right corner (just under the buff icons), his words below him.
+		Vector3 local = new Vector3((b.Munin ? 0.6f : 0.82f) * half * aspect, (b.Munin ? 0.58f : 0.62f) * half, Depth);
 		Transform ct = cam.transform;
 		Vector3 at = ct.position + ct.rotation * local;
 		Vector3 back = ct.position - at;
 		back.y = 0f;
 		if (back.sqrMagnitude > 0.01f)
 		{
-			b.Go.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, b.Munin ? -25f : 25f, 0f);
+			// Facing you (a touch turned in towards the middle).
+			b.Go.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, b.Yaw + (b.Munin ? 15f : -15f), 0f);
 		}
 		b.Go.transform.position = at - b.Go.transform.rotation * (b.Centre * b.Size);
 		// 1.16.85 (Sam: only Munin's talons showed, big, in the corner, the rest of him off the
