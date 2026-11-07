@@ -25,7 +25,13 @@ internal sealed partial class SurfGame
 	private const float CryptHalf = TrackHalf + 1.2f;
 	private const float CryptWall = 0.6f;
 	// How far before a corner the turn can be pressed, and where you wait if you haven't.
-	private const float TurnWindow = 10f;
+	// 1.16.20 (Sam pressed D at a corner and hit the wall): a press a little early was taken as a
+	// lane change, and the window was under a second at speed. Now it's about 1.6 s, a press
+	// toward the opening just before it still counts, and being in the lane on the opening's side
+	// when you reach the corner takes the turn too.
+	private float TurnWindow => Mathf.Max(12f, m_speed * 1.6f);
+	private float m_cryptPressTime = -10f;
+	private int m_cryptPressDir;
 	private const float TurnPoint = 0.25f;
 	private const float BonkTime = 0.7f;
 
@@ -154,7 +160,7 @@ internal sealed partial class SurfGame
 		}
 		foreach (float c in m_crypt.Corners)
 		{
-			if (z > c - 16f && z < c + 9f)
+			if (z > c - Mathf.Max(16f, TurnWindow + 4f) && z < c + 9f)
 			{
 				return true;
 			}
@@ -1018,6 +1024,8 @@ internal sealed partial class SurfGame
 			return step;
 		}
 		float zc = m_crypt.Corners[k];
+		m_cryptPressTime = Time.time;
+		m_cryptPressDir = step;
 		if (m_crypt.Armed[k] || m_z < zc - TurnWindow || m_cryptBonk >= 0f || step != m_crypt.Dirs[k])
 		{
 			return step;
@@ -1062,6 +1070,18 @@ internal sealed partial class SurfGame
 				m_cryptOver = 0f;
 			}
 			return;
+		}
+		if (m_cryptBonk < 0f && m_z >= zc - TurnWindow)
+		{
+			// Pressed toward the opening just before the window, or already in the lane on its side.
+			bool early = m_cryptPressDir == m_crypt.Dirs[k] && Time.time - m_cryptPressTime < 0.6f;
+			if (early || m_lane == 1 + m_crypt.Dirs[k])
+			{
+				m_crypt.Armed[k] = true;
+				m_lane = 1;
+				m_audio.Play(Sfx.Lane, 0.55f, 0.95f);
+				return;
+			}
 		}
 		if (m_z > zc - TurnPoint)
 		{
