@@ -341,9 +341,12 @@ internal sealed partial class SurfGame
 			{
 				continue;
 			}
-			Vector2 at = i.C + new Vector2(i.Side * i.R * 0.15f, Random.Range(-3f, 3f));
+			// 1.16.72 (Sam: the island was hard to see, the trees were so big): a small tree on
+			// the far side of the island, away from the bench, so it doesn't hide it from above.
+			Vector2 at = i.C + new Vector2(i.Side * i.R * 0.45f, Random.Range(-2f, 2f));
 			GameObject t = Instantiate(Picture(tree), m_stage, false);
 			t.SetActive(true);
+			t.transform.localScale = Vector3.one * 0.4f;
 			t.transform.localPosition = new Vector3(at.x, IslandTop(at) - 0.2f, at.y);
 			t.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
 			if (i.Bench != null)
