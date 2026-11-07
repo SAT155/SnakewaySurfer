@@ -314,7 +314,7 @@ and for players without the mod.
   growths at the Plains' tar pits, draugr at the Mountains' graves.
   1.16.15 (Sam): the run's messages come from Hugin, the tutorial raven: he flies in at the top
   right of the screen with the game's own animation, says it in the game's own speech popup, and
-  flies off once it's said. Hugin's Messages in the config turns him off.
+  flies off once it's said. Hugin Messages in the config turns him off.
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others

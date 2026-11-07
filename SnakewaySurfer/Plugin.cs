@@ -361,7 +361,7 @@ public class Plugin : BaseUnityPlugin
 			"surfsup (with nothing after it) opens a grid of the biomes and star laps you've reached, to pick where to start. Off: it starts at your latest checkpoint.");
 		PopupText = Config.Bind("3 - Look", "Popup Text", false,
 			"Show text pop-ups during the run (\"Entering ...\", boss messages, JUMP!/SLIDE!). Off: the run speaks through sounds, flashes and the HUD instead.");
-		Raven = Config.Bind("3 - Look", "Hugin's Messages", true,
+		Raven = Config.Bind("3 - Look", "Hugin Messages", true,
 			"The run's messages (entering a biome, a boss's items, lives left, a boss beaten) come from Hugin, the tutorial raven: he flies in at the top right of the screen, says it in the game's own speech popup, and flies off. Off: no messages, unless Popup Text is on.");
 		LoadingScreen = Config.Bind("3 - Look", "Portal Loading Screen", true,
 			"Runs load behind the game's own portal loading screen (the swirl you see when you teleport), fading in when the run is ready. Off: the run just starts.");
