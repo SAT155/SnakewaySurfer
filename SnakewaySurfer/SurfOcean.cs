@@ -525,7 +525,9 @@ internal sealed partial class SurfGame
 				Vector2 pa = mid + side * a;
 				float noise = Mathf.PerlinNoise(a * 0.15f + r.Crest * 0.05f, m_seaClock * 0.4f);
 				float edge = r.Small ? Mathf.Clamp01(1f - Mathf.Abs(a) / span) : 1f;
-				FoamQuad(pa + side * ((b - a) * 0.5f), side * ((b - a) * 0.55f), r.Dir * 1.6f, fade * edge * (0.35f + 0.5f * noise));
+				// 1.16.76 (Sam: the waves were hard to understand): waves are harmless now, so their
+				// crests are a faint line of broken foam, not a bright band.
+				FoamQuad(pa + side * ((b - a) * 0.5f), side * ((b - a) * 0.55f), r.Dir * 0.9f, fade * edge * (0.12f + 0.2f * noise));
 			}
 		}
 		if (m_foamMesh == null)

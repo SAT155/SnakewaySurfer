@@ -440,8 +440,9 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		float s = 30f * k * (1f + 0.25f * m_hullFlash);
-		float gap = 4f * k;
+		// 1.16.76 (Sam): bigger planks.
+		float s = 44f * k * (1f + 0.25f * m_hullFlash);
+		float gap = 5f * k;
 		float total = HullMax * s + (HullMax - 1) * gap;
 		float x0 = rose.center.x - total * 0.5f;
 		float y = rose.y - s - 10f * k;

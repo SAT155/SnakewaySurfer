@@ -420,7 +420,9 @@ internal sealed partial class SurfGame
 				Kind = "rock",
 				Go = go,
 				P = new Vector2(x, m_z + Random.Range(72f, 90f)),
-				Y = -1.2f,
+				// 1.16.76 (Sam ran onto rocks he couldn't make out): they stand out of the water,
+				// ringed with breaking foam.
+				Y = -0.2f,
 				Radius = size * 0.42f,
 				Length = size,
 				Hp = 9999,
@@ -577,6 +579,12 @@ internal sealed partial class SurfGame
 						UpdateLeviathan(f, dt);
 						break;
 					case "rock":
+						if (Random.value < dt * 9f)
+						{
+							float a = Random.Range(0f, Mathf.PI * 2f);
+							Vector2 ring = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+							AddFoam(f.P + ring * (f.Radius * 1.05f), Random.Range(0.9f, 1.6f), Random.Range(1f, 1.6f), 0.75f, 1.6f, ring * 0.8f);
+						}
 						if (!f.Struck && ShipDistance(f.P) < f.Radius)
 						{
 							f.Struck = true;
