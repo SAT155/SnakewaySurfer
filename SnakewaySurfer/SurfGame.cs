@@ -203,7 +203,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private const float WaterDepth = 0.3f;
 	private const float Gravity = 32f;
 	private const float GroundTile = 40f;
-	private const float AheadDistance = 150f;
+	// 1.16.18 (Sam): how far ahead the track is built (it was always 150 m).
+	private static float AheadDistance => Mathf.Clamp(Plugin.ViewDistance.Value, 100f, 400f);
 
 	private Player m_player = null!;
 	private int m_layer;
@@ -392,7 +393,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camera.backgroundColor = s_sky[0];
 		m_camera.fieldOfView = Plugin.CameraFov.Value;
 		m_camera.nearClipPlane = 0.1f;
-		m_camera.farClipPlane = 400f;
+		m_camera.farClipPlane = Mathf.Max(400f, AheadDistance + 250f);
 		camGo.AddComponent<SurfCameraFog>().Game = this;
 		m_audio = new SurfAudio(camGo);
 
@@ -3791,7 +3792,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				else if (m_bannerTime > 0f && (m_paused || (!RavenTalks && (m_bannerKeep || Plugin.PopupText.Value))))
 				{
-					Shadowed(new Rect(0, h * 0.2f, w, 120 * k), m_banner, m_big);
+					Shadowed(new Rect(0, h * 0.2f - 90 * k, w, 300 * k), m_banner, m_big);
 				}
 				if (m_aimTime <= 0f && !m_paused)
 				{

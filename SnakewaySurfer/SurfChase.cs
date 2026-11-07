@@ -33,7 +33,7 @@ internal sealed partial class SurfGame
 	private bool Mirrored => m_camBack > 0.5f;
 
 	// A chase is on or coming up soon (what's behind you stays, for the camera to show).
-	private bool ChaseAhead() => Plugin.BossChase.Value && Plugin.BossFights.Value && m_segments.Count > 0 && (ChaseSeg(SegAt(m_z)) || ChaseSeg(SegAt(m_z + AheadDistance)));
+	private bool ChaseAhead() => Plugin.BossChase.Value && Plugin.BossFights.Value && m_segments.Count > 0 && (ChaseSeg(SegAt(m_z)) || ChaseSeg(SegAt(m_z + 150f)));
 
 	private static bool ChaseSeg(Segment s) => s.Boss && Progress.BossOf(s.Biome) is BossDef d && Chases(d);
 

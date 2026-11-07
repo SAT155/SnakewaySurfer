@@ -119,6 +119,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> Raven = null!;
 	internal static ConfigEntry<bool> LoadingScreen = null!;
 	internal static ConfigEntry<bool> DreamIntro = null!;
+	internal static ConfigEntry<float> ViewDistance = null!;
 
 	private void Awake()
 	{
@@ -365,6 +366,8 @@ public class Plugin : BaseUnityPlugin
 			"The run's messages (entering a biome, a boss's items, lives left, a boss beaten) come from Hugin, the tutorial raven: he flies in at the top right of the screen, says it in the game's own speech popup, and flies off. Off: no messages, unless Popup Text is on.");
 		LoadingScreen = Config.Bind("3 - Look", "Portal Loading Screen", true,
 			"Runs load behind the game's own portal loading screen (the swirl you see when you teleport), fading in when the run is ready. Off: the run just starts.");
+		ViewDistance = Config.Bind("3 - Look", "View Distance", 230f,
+			"How far ahead (metres) the track, trees and places are built, 100 to 400. Further shows more but costs frame rate; the biome's fog still hides the far end.");
 		DreamIntro = Config.Bind("3 - Look", "First-Run Dream", true,
 			"The very first run (per character) starts with a short dream, in the game's own dream text, instead of the start menu. Space wakes you early. \"surfprogress dream\" sees it again.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",

@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace SnakewaySurfer;
 
@@ -29,6 +30,9 @@ internal sealed partial class SurfGame
 	// Skipping: the line on screen fades out from here, then the dream ends.
 	private float m_dreamSkip = -1f;
 	private TMP_Text? m_dreamText;
+	// 1.16.18: the dream's own dark, on its own canvas over everything (the loading screen's
+	// own black flickered and let the world show through).
+	private GameObject? m_dreamCanvas;
 	private GUIStyle? m_dreamStyle;
 	private const float DreamIn = 1.5f;
 	private const float DreamStay = 3.2f;
@@ -266,40 +270,56 @@ internal sealed partial class SurfGame
 		m_loadHeld = LoadHold * 0.5f;
 	}
 
-	// A copy of the game's dream text (from its sleep screen), on its loading screen.
+	// Black, with a copy of the game's dream text (from its sleep screen) on it.
 	private void MakeDreamText()
 	{
-		if (m_dreamText != null)
+		if (m_dreamCanvas != null)
 		{
 			return;
 		}
+		Hud? hud = Hud.instance;
 		try
 		{
-			Hud? hud = Hud.instance;
-			if (hud == null || hud.m_sleepingProgress == null || !LoadNative())
+			m_dreamCanvas = new GameObject("SurfDream");
+			Canvas canvas = m_dreamCanvas.AddComponent<Canvas>();
+			canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+			canvas.sortingOrder = 30000;
+			CanvasScaler scaler = m_dreamCanvas.AddComponent<CanvasScaler>();
+			CanvasScaler? hudScaler = hud != null && hud.m_loadingScreen != null ? hud.m_loadingScreen.GetComponentInParent<CanvasScaler>() : null;
+			if (hudScaler != null)
 			{
-				return;
+				scaler.uiScaleMode = hudScaler.uiScaleMode;
+				scaler.referenceResolution = hudScaler.referenceResolution;
+				scaler.screenMatchMode = hudScaler.screenMatchMode;
+				scaler.matchWidthOrHeight = hudScaler.matchWidthOrHeight;
+				scaler.scaleFactor = hudScaler.scaleFactor;
 			}
-			SleepText? sleep = hud.m_sleepingProgress.GetComponentInChildren<SleepText>(true) ?? hud.GetComponentInChildren<SleepText>(true);
+			else
+			{
+				scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+				scaler.referenceResolution = new Vector2(1920f, 1080f);
+				scaler.matchWidthOrHeight = 0.5f;
+			}
+			GameObject dark = new GameObject("Dark", typeof(RectTransform));
+			dark.transform.SetParent(m_dreamCanvas.transform, false);
+			Image image = dark.AddComponent<Image>();
+			image.color = Color.black;
+			image.raycastTarget = false;
+			Stretch((RectTransform)dark.transform, Vector2.zero, Vector2.one);
+
+			SleepText? sleep = hud == null ? null
+				: (hud.m_sleepingProgress != null ? hud.m_sleepingProgress.GetComponentInChildren<SleepText>(true) : null) ?? hud.GetComponentInChildren<SleepText>(true);
 			if (sleep == null || sleep.m_dreamField == null)
 			{
 				return;
 			}
-			GameObject go = Instantiate(sleep.m_dreamField.gameObject, hud.m_loadingScreen.transform, false);
+			GameObject go = Instantiate(sleep.m_dreamField.gameObject, m_dreamCanvas.transform, false);
 			go.name = "SurfDreamText";
 			foreach (SleepText extra in go.GetComponentsInChildren<SleepText>(true))
 			{
 				DestroyImmediate(extra);
 			}
-			RectTransform rt = (RectTransform)go.transform;
-			rt.anchorMin = new Vector2(0.12f, 0.38f);
-			rt.anchorMax = new Vector2(0.88f, 0.62f);
-			rt.pivot = new Vector2(0.5f, 0.5f);
-			rt.offsetMin = Vector2.zero;
-			rt.offsetMax = Vector2.zero;
-			rt.localScale = Vector3.one;
-			rt.localRotation = Quaternion.identity;
-			go.transform.SetAsLastSibling();
+			Stretch((RectTransform)go.transform, new Vector2(0.12f, 0.38f), new Vector2(0.88f, 0.62f));
 			go.SetActive(true);
 			m_dreamText = go.GetComponent<TMP_Text>();
 			m_dreamText.enabled = true;
@@ -314,12 +334,24 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	private static void Stretch(RectTransform rt, Vector2 min, Vector2 max)
+	{
+		rt.anchorMin = min;
+		rt.anchorMax = max;
+		rt.pivot = new Vector2(0.5f, 0.5f);
+		rt.offsetMin = Vector2.zero;
+		rt.offsetMax = Vector2.zero;
+		rt.localScale = Vector3.one;
+		rt.localRotation = Quaternion.identity;
+	}
+
 	private void RemoveDreamText()
 	{
-		if (m_dreamText != null)
+		if (m_dreamCanvas != null)
 		{
-			Destroy(m_dreamText.gameObject);
+			Destroy(m_dreamCanvas);
 		}
+		m_dreamCanvas = null;
 		m_dreamText = null;
 	}
 
@@ -338,7 +370,7 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		if (!LoadNative())
+		if (!LoadNative() || (m_dreamLines != null && m_dreamCanvas == null))
 		{
 			Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(0f, 0f, 0f, cover));
 		}

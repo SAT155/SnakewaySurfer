@@ -25,6 +25,14 @@ internal sealed partial class SurfGame
 	private string m_prevBanner = "";
 	private const float RavenDepth = 5f;
 	private const float RavenScale = 1.3f;
+	// 1.16.18 (Sam saw only a foot, huge, at the top right): he is sized and placed by his
+	// actual shape, its middle kept at the spot, measured again once he has landed.
+	private Vector3 m_ravenCentre;
+	private Vector3 m_ravenCentreGoal;
+	private float m_ravenHeight = 1f;
+	private float m_ravenSize = RavenScale;
+	// His height on screen, as a share of half the view's height.
+	private const float RavenScreenHeight = 0.34f;
 
 	private bool RavenTalks => Plugin.Raven.Value && !Plugin.PopupText.Value;
 
@@ -93,6 +101,7 @@ internal sealed partial class SurfGame
 			if (!m_ravenTalked && m_ravenAge > 0.7f)
 			{
 				m_ravenTalked = true;
+				MeasureRaven(false);
 				if (m_ravenAnim != null)
 				{
 					SetTrigger(m_ravenAnim, "talk");
@@ -131,7 +140,9 @@ internal sealed partial class SurfGame
 			m_raven.name = "SurfHugin";
 			m_raven.SetActive(true);
 			m_raven.transform.localScale = Vector3.one * RavenScale;
+			m_ravenSize = RavenScale;
 			m_ravenAnim = m_raven.GetComponentInChildren<Animator>();
+			MeasureRaven(true);
 			m_ravenAge = 0f;
 			m_ravenTalked = false;
 			m_ravenLeave = -1f;
@@ -155,7 +166,8 @@ internal sealed partial class SurfGame
 		m_ravenNative = m_usingGameCamera && Chat.instance != null;
 		if (m_ravenNative)
 		{
-			Chat.instance!.SetNpcText(m_raven, Vector3.up * (0.75f * RavenScale), 30f, seconds + 0.5f, "", text, true);
+			Vector3 above = m_raven.transform.rotation * (m_ravenCentre * m_ravenSize) + Vector3.up * (m_ravenHeight * m_ravenSize * 0.65f);
+			Chat.instance!.SetNpcText(m_raven, above, 30f, seconds + 0.5f, "", text, true);
 		}
 	}
 
@@ -201,15 +213,39 @@ internal sealed partial class SurfGame
 		}
 		float half = Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) * RavenDepth;
 		float aspect = m_camera != null && m_camera.aspect > 0.1f ? m_camera.aspect : 16f / 9f;
-		Vector3 local = new Vector3(0.74f * half * aspect, 0.3f * half, RavenDepth);
+		Vector3 local = new Vector3(0.72f * half * aspect, 0.5f * half, RavenDepth);
 		Vector3 at = m_camFinal + m_camFinalRot * local;
-		m_raven.transform.position = at;
 		Vector3 back = m_camFinal - at;
 		back.y = 0f;
 		if (back.sqrMagnitude > 0.01f)
 		{
 			m_raven.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, 25f, 0f);
 		}
+		// His middle at the spot, wherever his model keeps it (settling gently once he's landed).
+		m_ravenCentre = Vector3.Lerp(m_ravenCentre, m_ravenCentreGoal, 1f - Mathf.Exp(-5f * Time.unscaledDeltaTime));
+		m_raven.transform.position = at - m_raven.transform.rotation * (m_ravenCentre * m_ravenSize);
+	}
+
+	// His shape as it stands (unscaled, in his own frame): sized to fit the corner when he
+	// arrives, and his middle settled again once he has landed.
+	private void MeasureRaven(bool arriving)
+	{
+		if (m_raven == null || !Pictures.MeshBounds(m_raven, out Bounds b) || b.size.y < 0.01f)
+		{
+			return;
+		}
+		Transform t = m_raven.transform;
+		float scale = Mathf.Max(0.001f, t.lossyScale.y);
+		m_ravenCentreGoal = Quaternion.Inverse(t.rotation) * (b.center - t.position) / scale;
+		m_ravenHeight = b.size.y / scale;
+		if (arriving)
+		{
+			m_ravenCentre = m_ravenCentreGoal;
+			float half = Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) * RavenDepth;
+			m_ravenSize = Mathf.Clamp(RavenScreenHeight * half / m_ravenHeight, 0.05f, 3f);
+			t.localScale = Vector3.one * m_ravenSize;
+		}
+		Plugin.Log.LogInfo($"Hugin: height {m_ravenHeight:0.00}, middle {m_ravenCentreGoal}, scale {m_ravenSize:0.00}");
 	}
 
 	// With our own camera the game's popup can't find him: the words beside him instead.
