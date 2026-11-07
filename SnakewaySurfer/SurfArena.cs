@@ -19,6 +19,9 @@ internal sealed partial class SurfGame
 	private float m_backdropDist = 70f;
 	private float m_backdropLift;
 	private float m_backdropHeight;
+	// 1.16.26 (Sam: the big monument clipped into the track): from its middle to its near side,
+	// so its nearest part keeps the distance, not its middle.
+	private float m_backdropNear;
 	private float m_nextTorchZ;
 	private int m_torchCount;
 	// Location prefabs are soft references the game loads on demand: ours stay loaded (our
@@ -158,7 +161,7 @@ internal sealed partial class SurfGame
 		float wanted = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f * ViewScale) * MonumentFar;
 		wanted = Mathf.Max(wanted, m_backdropDef.Mode == "stand" ? m_backdropDef.Distance + 22f : m_backdropDef.Distance + 14f);
 		m_backdropDist = Mathf.Lerp(m_backdropDist, wanted, dt <= 0f ? 1f : 1f - Mathf.Exp(-1f * dt));
-		float z = m_z + m_backdropDist;
+		float z = m_z + m_backdropDist + m_backdropNear;
 		float k = Mathf.SmoothStep(0f, 1f, m_backdropShow);
 		float y = RoadY(z) + m_backdropLift - (1f - k) * (m_backdropHeight + 2f);
 		m_backdrop.transform.localPosition = new Vector3(0f, y, z);
@@ -221,6 +224,7 @@ internal sealed partial class SurfGame
 		m_backdropDist = dist;
 		float scale = 1f;
 		float bottom = 0f;
+		m_backdropNear = 0f;
 		float height = 10f;
 		wrapper.transform.position = m_stage.position;
 		if (Pictures.MeshBounds(go, out Bounds bounds) && bounds.size.y > 0.1f)
@@ -230,6 +234,7 @@ internal sealed partial class SurfGame
 			float tall = Mathf.Min(0.75f, (location ? 0.34f : 0.4f) * MonumentTall);
 			scale = Mathf.Clamp(Mathf.Min(dist * tall / bounds.size.y, dist * 1.3f * MonumentTall / wide), 0.3f, (location ? 8f : 12f) * MonumentFar * MonumentTall) * def.BackdropSize;
 			bottom = bounds.min.y - m_stage.position.y;
+			m_backdropNear = Mathf.Max(0f, m_stage.position.z - bounds.min.z) * scale;
 			height = bounds.size.y * scale;
 		}
 		wrapper.transform.localScale = Vector3.one * scale;
