@@ -123,6 +123,11 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> Raven = null!;
 	internal static ConfigEntry<bool> LoadingScreen = null!;
 	internal static ConfigEntry<bool> DreamIntro = null!;
+	internal static ConfigEntry<bool> RavenStory = null!;
+	internal static ConfigEntry<float> PortalMinutes = null!;
+	internal static ConfigEntry<float> RavenMinutes = null!;
+	internal static ConfigEntry<float> MuninDays = null!;
+	internal static ConfigEntry<bool> DreamEverySleep = null!;
 	internal static ConfigEntry<float> ViewDistance = null!;
 
 	private void Awake()
@@ -378,6 +383,16 @@ public class Plugin : BaseUnityPlugin
 			"How far ahead (metres) the track, trees and places are built, 100 to 400. Further shows more but costs frame rate; the biome's fog still hides the far end.");
 		DreamIntro = Config.Bind("3 - Look", "First-Run Dream", true,
 			"The very first run (per character) starts with a short dream, in the game's own dream text, instead of the start menu. Space wakes you early. \"surfprogress dream\" sees it again.");
+		RavenStory = Config.Bind("4 - Ravens", "Raven Story", true,
+			"The way into the dream run: a strange portal turns up near you; step through and Hugin starts nagging you to go to sleep (more often and ruder the longer you stay up; after a day his brother Munin joins in and they talk about you). Sleep, and you dream the run. Off: no portal and no ravens (surfsup still works).");
+		PortalMinutes = Config.Bind("4 - Ravens", "Portal After Minutes", 5f,
+			new ConfigDescription("Minutes of play (per session) before the strange portal appears near you, until you've stepped through it once.", new AcceptableValueRange<float>(0f, 120f)));
+		RavenMinutes = Config.Bind("4 - Ravens", "Raven Chat Minutes", 4f,
+			new ConfigDescription("About how many minutes between the ravens' remarks (Hugin comes back sooner the longer you stay awake).", new AcceptableValueRange<float>(0.5f, 60f)));
+		MuninDays = Config.Bind("4 - Ravens", "Munin After Days", 1f,
+			new ConfigDescription("In-game days awake before Munin joins Hugin.", new AcceptableValueRange<float>(0.05f, 20f)));
+		DreamEverySleep = Config.Bind("4 - Ravens", "Dream Every Sleep", true,
+			"After the first time, every sleep dreams the run too. Off: only the first sleep after the ravens' nagging does.");
 		Swoopers = Config.Bind("1 - Run", "Swoopers", "deathsquito",
 			"Flying creatures that wait beside the track and dive across the lanes at head height as you come (slide under them).");
 		Ambushers = Config.Bind("1 - Run", "Ambushers", "abomination",
@@ -448,6 +463,9 @@ public class Plugin : BaseUnityPlugin
 			"In the open Ashlands some rows are lava instead: a glowing channel across the track (jump it) or a pool along one or two lanes (keep out of it), with glowing cracks in the ash beside the track. Off: none (the charred fortresses keep theirs).");
 
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
+		GameObject story = new GameObject("SnakewaySurfer_Story");
+		DontDestroyOnLoad(story);
+		story.AddComponent<SurfStory>();
 	}
 
 	internal static BiomeDef BiomeConfig(int i)
@@ -500,6 +518,16 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				args.Context.AddString(Progress.Command(player, args.Args));
+			});
+			new Terminal.ConsoleCommand("surfstory", "surfstory [reset | portal | hugin [days awake] | munin [episode] | next] - testing: the ravens' story (the strange portal, Hugin's nagging, Munin's episodes)", args =>
+			{
+				Player player = Player.m_localPlayer;
+				if (player == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				args.Context.AddString(SurfStory.Command(player, args.Args));
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{

@@ -43,6 +43,8 @@ internal sealed partial class SurfGame
 	private const float DreamPortalTime = 2.2f;
 
 	// Vague, like the game's own dreams.
+	internal static string[] FirstDream => s_firstDream;
+
 	private static readonly string[] s_firstDream =
 	{
 		"You dream of a road that runs on without end, and you upon it.",
@@ -204,13 +206,13 @@ internal sealed partial class SurfGame
 		return true;
 	}
 
-	private void StartDream()
+	private void StartDream(string[]? lines = null)
 	{
 		if (!Plugin.DreamIntro.Value)
 		{
 			return;
 		}
-		m_dreamLines = s_firstDream;
+		m_dreamLines = lines ?? s_firstDream;
 		m_dreamLine = 0;
 		// A moment of dark first.
 		m_dreamTime = -1f;

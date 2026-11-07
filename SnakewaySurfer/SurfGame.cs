@@ -296,10 +296,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private Vector3 m_camPos;
 	private bool m_camPlaced;
 	private SurfAudio m_audio = null!;
+	private string[]? m_dream;
 	private int m_lastTick;
 	private float m_stepTimer;
 
-	public static void Begin(Player player, Terminal? terminal, string[]? args = null)
+	// `dream`: started by waking from sleep (SurfStory.cs), dreaming these lines first.
+	public static void Begin(Player player, Terminal? terminal, string[]? args = null, string[]? dream = null)
 	{
 		void Say(string text)
 		{
@@ -320,12 +322,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Say("Not right now.");
 			return;
 		}
-		if (player.IsAttached() || player.GetDoodadController() != null)
+		if (dream == null && (player.IsAttached() || player.GetDoodadController() != null))
 		{
 			Say("Stand up first, then type surfsup.");
 			return;
 		}
-		if (player.InWater() || !player.IsOnGround())
+		if (dream == null && (player.InWater() || !player.IsOnGround()))
 		{
 			Say("Find solid ground first.");
 			return;
@@ -354,6 +356,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		game.m_startStars = start.Value.stars;
 		game.m_explicitStart = explicitStart;
 		game.m_startSea = startSea;
+		game.m_dream = dream;
 		game.Init(player);
 	}
 
@@ -453,7 +456,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 		PlayerHooks.RefreshHelmet(player);
 		ResetRun();
 		// 1.16.16 (Sam): the very first run goes straight in (after a dream), no menu.
-		if (FirstRun())
+		bool first = FirstRun();
+		if (m_dream != null && Plugin.DreamIntro.Value)
+		{
+			StartDream(m_dream);
+		}
+		else if (first)
 		{
 			StartDream();
 		}
@@ -3528,7 +3536,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// Sets a trigger; returns the one used, or null. An attack with random variants (the game's
 	// Attack.m_attackRandomAnimations, e.g. the goblin brute's "attack") has no trigger of its
 	// own name, only "attack0", "attack1"...: one of those is picked.
-	private static string? SetTrigger(Animator anim, string name)
+	internal static string? SetTrigger(Animator anim, string name)
 	{
 		List<string>? variants = null;
 		foreach (AnimatorControllerParameter p in anim.parameters)
