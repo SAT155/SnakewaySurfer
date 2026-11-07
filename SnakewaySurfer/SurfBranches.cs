@@ -335,6 +335,7 @@ internal sealed partial class SurfGame
 		{
 			m_lane = Mathf.Clamp(m_subLane / 2, 0, 2);
 		}
+		UpdateMazeGuide();
 	}
 
 	private bool CanSwitchPath(int from, int to)
@@ -452,21 +453,117 @@ internal sealed partial class SurfGame
 	// A narrow wall of the Elder's vines (or logs) between two paths.
 	private void MazeWall(BossDef def, BiomeRuntime b, float x, float zs, float ze)
 	{
-		GroundStrip(b, x, zs - 0.3f, ze + 0.3f, 0.32f);
-		bool vines = false;
-		for (float pz = zs + 0.6f; pz < ze; pz += 2.2f)
+		GroundStrip(b, x, zs - 0.3f, ze + 0.3f, 0.45f);
+		// 1.16.70 (Sam: "impossible to tell which lane is which"): an unbroken hedge of roots
+		// along the whole wall, so each wall reads as a line, with vines standing up out of it,
+		// pinched thin so their arms stay in the wall instead of sprawling over the paths.
+		for (float pz = zs; pz < ze - 0.1f; pz += 6f)
 		{
-			Quaternion lean = Quaternion.Euler(Random.Range(-10f, 10f), Random.Range(0f, 360f), Random.Range(-10f, 10f));
-			vines |= VinePiece(def, new Vector3(x + Random.Range(-0.08f, 0.08f), 0f, pz + Random.Range(-0.4f, 0.4f)), Random.Range(1.3f, 1.9f), lean) != null;
+			float piece = Mathf.Min(6f, ze - pz);
+			RootPiece(b, def, new Vector3(x, 0f, pz + piece * 0.5f), new Vector3(0.35f, 0.9f, piece + 0.3f), Quaternion.Euler(90f, 0f, 0f));
 		}
-		if (!vines)
+		for (float pz = zs + 1.2f; pz < ze; pz += 3.6f)
 		{
-			for (float pz = zs; pz < ze - 0.1f; pz += 6f)
+			Quaternion lean = Quaternion.Euler(Random.Range(-6f, 6f), Random.Range(0f, 360f), Random.Range(-6f, 6f));
+			GameObject? v = VinePiece(def, new Vector3(x, 0f, pz + Random.Range(-0.3f, 0.3f)), Random.Range(1.8f, 2.3f), lean);
+			Pinch(v, 0.38f);
+		}
+	}
+
+	// Narrower across, as tall as before (a vine's arms reach far out from its middle).
+	private static void Pinch(GameObject? go, float across)
+	{
+		if (go != null)
+		{
+			Vector3 s = go.transform.localScale;
+			go.transform.localScale = new Vector3(s.x * across, s.y, s.z * across);
+		}
+	}
+
+	private GameObject? m_mazeGuide;
+	private GameObject? m_mazeGuideEnd;
+	private Material? m_mazeGuideMat;
+	private Material? m_mazeGuideEndMat;
+
+	// 1.16.70: a faint glow along the path you're on, as far as you can follow it: gold to the
+	// end of the view, or to a red mark where vines close it.
+	private void UpdateMazeGuide()
+	{
+		bool show = m_subLane >= 0 && m_state == State.Running;
+		if (!show)
+		{
+			if (m_mazeGuide != null && m_mazeGuide.activeSelf)
 			{
-				float piece = Mathf.Min(6f, ze - pz);
-				RootPiece(b, def, new Vector3(x, 0f, pz + piece * 0.5f), new Vector3(0.3f, 1.1f, piece + 0.3f), Quaternion.Euler(90f, 0f, 0f));
+				m_mazeGuide.SetActive(false);
+				m_mazeGuideEnd!.SetActive(false);
+			}
+			return;
+		}
+		if (m_mazeGuide == null)
+		{
+			Shader? shader = Shader.Find("Sprites/Default");
+			if (shader == null)
+			{
+				return;
+			}
+			m_mazeGuideMat = new Material(shader) { color = new Color(1f, 0.85f, 0.4f, 0.32f) };
+			m_mazeGuideEndMat = new Material(shader) { color = new Color(1f, 0.25f, 0.15f, 0.6f) };
+			m_mazeGuide = GuideQuad("MazeGuide", m_mazeGuideMat);
+			m_mazeGuideEnd = GuideQuad("MazeGuideEnd", m_mazeGuideEndMat);
+		}
+		float x = SubX(m_subLane);
+		float from = m_z + 0.8f;
+		float to = Mathf.Min(m_z + 30f, m_mazeEnd);
+		bool closed = false;
+		foreach (Thing t in m_things)
+		{
+			if (t.Kind == Kind.Block && t.Lane == 10 + m_subLane && t.Z > from && t.Z - 0.6f < to && t.Go != null && t.Go.activeSelf)
+			{
+				to = t.Z - 0.6f;
+				closed = true;
 			}
 		}
+		float len = to - from;
+		if (len < 0.5f)
+		{
+			m_mazeGuide!.SetActive(false);
+		}
+		else
+		{
+			LayGuide(m_mazeGuide!, x, from, to, PathWidth * 0.4f);
+		}
+		if (closed)
+		{
+			LayGuide(m_mazeGuideEnd!, x, Mathf.Max(from, to - 1.2f), to, PathWidth * 0.75f);
+		}
+		else
+		{
+			m_mazeGuideEnd!.SetActive(false);
+		}
+	}
+
+	private GameObject GuideQuad(string name, Material mat)
+	{
+		GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+		Destroy(quad.GetComponent<Collider>());
+		quad.name = name;
+		quad.layer = m_layer;
+		quad.transform.SetParent(m_stage, false);
+		Renderer r = quad.GetComponent<Renderer>();
+		r.sharedMaterial = mat;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		r.receiveShadows = false;
+		return quad;
+	}
+
+	private void LayGuide(GameObject quad, float x, float z0, float z1, float width)
+	{
+		float zc = (z0 + z1) * 0.5f;
+		float slope = Mathf.Atan2(RoadY(z1) - RoadY(z0), Mathf.Max(0.1f, z1 - z0)) * Mathf.Rad2Deg;
+		quad.SetActive(true);
+		quad.transform.localPosition = new Vector3(x, RoadY(zc) + 0.09f, zc);
+		quad.transform.localRotation = Quaternion.Euler(90f - slope, 0f, 0f);
+		quad.transform.localScale = new Vector3(width, z1 - z0, 1f);
 	}
 
 	// A thicket closing a path at a cell's end.
@@ -484,6 +581,7 @@ internal sealed partial class SurfGame
 				Quaternion.Euler(Random.Range(-10f, 10f), Random.Range(0f, 360f), (k - 0.5f) * -14f), false);
 			if (v != null)
 			{
+				Pinch(v, 0.55f);
 				v.transform.SetParent(wall.transform, true);
 				grown++;
 			}

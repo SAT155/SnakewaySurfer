@@ -26,7 +26,7 @@ internal sealed partial class SurfGame
 	private bool m_gustPlaced;
 	private static Mesh? s_gustDisc;
 	private static Mesh? s_gustSpike;
-	private const float GustGoneTime = 0.9f;
+	private const float GustGoneTime = 0.55f;
 
 	// A flat shape seen from both sides: a disc (radius 0.5) or a spike (base 1 wide, 1 tall).
 	private static Mesh GustMesh(bool spike)
@@ -67,8 +67,14 @@ internal sealed partial class SurfGame
 		return mesh;
 	}
 
-	private Material GustMaterial(Color c)
+	// 1.16.70: see-through smoke (the ink drawn first, the fill over it).
+	private Material GustMaterial(Color c, int queue)
 	{
+		Shader? sprite = Shader.Find("Sprites/Default");
+		if (sprite != null)
+		{
+			return new Material(sprite) { color = c, renderQueue = queue };
+		}
 		Shader? unlit = Shader.Find("Unlit/Color");
 		if (unlit != null && unlit.isSupported)
 		{
@@ -109,8 +115,8 @@ internal sealed partial class SurfGame
 		m_gust = new GameObject("SurfGust");
 		m_gust.layer = m_layer;
 		m_gust.transform.SetParent(transform, false);
-		Material body = GustMaterial(new Color(0.94f, 0.92f, 0.86f));
-		Material ink = GustMaterial(new Color(0.07f, 0.06f, 0.07f));
+		Material body = GustMaterial(new Color(0.92f, 0.91f, 0.88f, 0.94f), 3101);
+		Material ink = GustMaterial(new Color(0.08f, 0.07f, 0.09f, 0.85f), 3100);
 		// Drawn with +x the way to go; mirrored for a left turn.
 		m_gustFlip = new GameObject("Flip").transform;
 		m_gustFlip.SetParent(m_gust.transform, false);
@@ -141,7 +147,7 @@ internal sealed partial class SurfGame
 		{
 			m_gustSpikes.Add((GustPart(m_gustSharp, true, body, ink), at, h, w));
 		}
-		for (int i = 0; i < 7; i++)
+		for (int i = 0; i < 12; i++)
 		{
 			m_gustDots.Add(GustPart(m_gustTrail, false, body, ink));
 		}
@@ -199,12 +205,14 @@ internal sealed partial class SurfGame
 		float u = Mathf.Clamp01(Mathf.InverseLerp(zc - TurnWindow - 14f, zc - TurnPoint, m_z));
 		float gone = m_gustGone >= 0f ? Mathf.Clamp01(m_gustGone / GustGoneTime) : 0f;
 
-		// Just ahead of you, in your hall, facing the camera (left behind once you've turned).
+		// 1.16.70 (Sam: it read as a little sticker far up the hall, and sat on you mid-turn):
+		// big, filling the corner itself where the hall turns, high over the floor, so it is
+		// the corner that beckons; it puffs away as soon as you've turned.
 		if (m_gustGone < 0f)
 		{
-			Transform frame = CryptFrameAt(m_z);
-			Vector3 want = frame.TransformPoint(new Vector3(LaneX(m_lane) * 0.5f, c.Floor + 1.6f, Mathf.Min(m_z + 4.5f, zc - 1.2f)));
-			m_gust.transform.position = m_gustPlaced ? Vector3.Lerp(m_gust.transform.position, want, 1f - Mathf.Exp(-8f * dt)) : want;
+			Transform frame = CryptFrameAt(zc - 1f);
+			Vector3 want = frame.TransformPoint(new Vector3(0f, c.Floor + 3.2f, zc + 0.6f));
+			m_gust.transform.position = want;
 			m_gustPlaced = true;
 			// The way on, as it shows on the screen.
 			Vector3 way = frame.TransformDirection(new Vector3(turn, 0f, 0f));
@@ -212,7 +220,7 @@ internal sealed partial class SurfGame
 			m_gustFlip!.localScale = new Vector3(side >= 0f ? 1f : -1f, 1f, 1f);
 		}
 		m_gust.transform.rotation = m_camera.transform.rotation;
-		m_gust.transform.localScale = Vector3.one * 0.85f;
+		m_gust.transform.localScale = Vector3.one * (2.1f * (1f - 0.6f * gone * gone));
 
 		// The drawn lines boil: each shape shifts a touch, a dozen times a second.
 		if (t >= m_gustBoilAt)
@@ -259,7 +267,7 @@ internal sealed partial class SurfGame
 			float spin = p * 6f * Mathf.PI;
 			at += new Vector2(Mathf.Cos(spin), Mathf.Sin(spin)) * (0.22f * p);
 			m_gustDots[i].localPosition = new Vector3(at.x, at.y, 0f);
-			m_gustDots[i].localScale = Vector3.one * Mathf.Max(0.001f, 0.2f * Mathf.Sin(p * Mathf.PI) * trail);
+			m_gustDots[i].localScale = Vector3.one * Mathf.Max(0.001f, 0.3f * Mathf.Sin(p * Mathf.PI) * trail);
 		}
 
 		if (m_gustGone < 0f && m_z >= zc - TurnWindow && t >= c.NextWhoosh)

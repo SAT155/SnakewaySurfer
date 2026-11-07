@@ -138,6 +138,15 @@ internal static class Pictures
 
 	public static void Strip(GameObject go)
 	{
+		// 1.16.70 (Sam: "These birds are stuck in the sky"): a place's own birds (gulls, crows)
+		// fly by their RandomFlyingBird script; stripped of it they hang frozen, so they go.
+		foreach (MonoBehaviour mb in go.GetComponentsInChildren<MonoBehaviour>(true))
+		{
+			if (mb != null && mb.gameObject != go && mb.GetType().Name == "RandomFlyingBird")
+			{
+				Object.DestroyImmediate(mb.gameObject);
+			}
+		}
 		// A component another one still depends on ([RequireComponent]) can't go yet (Unity logs
 		// "Can't remove X because Y depends on it"), so each pass removes only the ones nothing
 		// left requires. ZNetView last of all, as the notes advise.
