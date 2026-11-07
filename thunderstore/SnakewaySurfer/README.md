@@ -327,6 +327,9 @@ and for players without the mod.
   1.16.21 (Sam): boss landmarks are extra large: further off and towering over the skyline, the
   air clearing a little more as you near the arena. Boss Landmark Size in the config (1 to 3,
   default 2; 1 is the old size).
+  1.16.22 (Sam): in the dungeons the camera only turns for a corner once you press for it, and
+  a glowing arrow on the corner's floor beats as you come up to it (with a soft call when it's
+  time to press), pointing the way on.
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others

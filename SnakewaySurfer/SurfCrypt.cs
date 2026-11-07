@@ -65,6 +65,11 @@ internal sealed partial class SurfGame
 		// +1 turns right, -1 left.
 		public readonly List<int> Dirs = new();
 		public readonly List<bool> Armed = new();
+		// 1.16.22 (Sam): the camera turns once you've pressed for the corner (0 to 1 each), and a
+		// glowing arrow on the floor at the corner shows which way until you do.
+		public readonly List<float> CamTurn = new();
+		public readonly Dictionary<int, GameObject> Arrows = new();
+		public readonly HashSet<int> Cued = new();
 		// Frames[0] is the stage; Frames[k] holds the hallway after corner k - 1.
 		public readonly List<Transform> Frames = new();
 		public readonly List<CryptLeg> Legs = new();
@@ -314,6 +319,7 @@ internal sealed partial class SurfGame
 			frame.localRotation = q;
 			c.Frames.Add(frame);
 			c.Armed.Add(false);
+			c.CamTurn.Add(0f);
 			m_cryptPinned.Add(frame);
 		}
 		for (int k = 0; k <= c.Corners.Count; k++)
@@ -679,6 +685,7 @@ internal sealed partial class SurfGame
 			// "turn here".
 			CryptPiece(root, theme.TallPillar, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
 			Sconce(root, new Vector3(turn * 1.6f, y + 1.7f, leg.B + CryptHalf), 180f, 9f);
+			c.Arrows[leg.Index] = TurnArrow(root, turn, y, leg.B);
 		}
 
 		// Sconces along the walls, every 13 m or so on alternating sides (fewer in a sunken crypt).
@@ -1015,6 +1022,71 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// A glowing arrow across the corner's floor, pointing at the way on.
+	private GameObject TurnArrow(Transform root, int turn, float y, float zc)
+	{
+		GameObject arrow = new GameObject("TurnArrow");
+		arrow.layer = m_layer;
+		arrow.transform.SetParent(root, false);
+		arrow.transform.localPosition = new Vector3(0f, y + 0.06f, zc - 0.4f);
+		arrow.transform.localRotation = Quaternion.Euler(0f, turn > 0 ? 90f : -90f, 0f);
+		Material mat = SolidTint(new Color(1f, 0.86f, 0.45f));
+		// Built pointing along its +z: a shaft and two strokes of the head.
+		(Vector3 pos, Vector3 size, float yaw)[] bars =
+		{
+			(new Vector3(0f, 0f, -0.3f), new Vector3(0.32f, 0.04f, 2.2f), 0f),
+			(new Vector3(-0.42f, 0f, 0.5f), new Vector3(0.3f, 0.04f, 1.3f), 45f),
+			(new Vector3(0.42f, 0f, 0.5f), new Vector3(0.3f, 0.04f, 1.3f), -45f),
+		};
+		foreach ((Vector3 pos, Vector3 size, float yaw) in bars)
+		{
+			GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			Destroy(bar.GetComponent<Collider>());
+			bar.layer = m_layer;
+			bar.transform.SetParent(arrow.transform, false);
+			bar.transform.localPosition = pos;
+			bar.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+			bar.transform.localScale = size;
+			Renderer r = bar.GetComponent<Renderer>();
+			r.sharedMaterial = mat;
+			r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		}
+		arrow.SetActive(false);
+		return arrow;
+	}
+
+	// The next corner's arrow glows and beats as you come up to it (with a soft call as its
+	// window opens), and is gone once you've pressed.
+	private void UpdateTurnArrows(CryptRun c)
+	{
+		int next = NextCorner();
+		foreach (KeyValuePair<int, GameObject> kv in c.Arrows)
+		{
+			if (kv.Value == null)
+			{
+				continue;
+			}
+			int k = kv.Key;
+			float zc = c.Corners[k];
+			bool show = k == next && !c.Armed[k] && m_z > zc - TurnWindow - 12f;
+			if (kv.Value.activeSelf != show)
+			{
+				kv.Value.SetActive(show);
+			}
+			if (!show)
+			{
+				continue;
+			}
+			bool open = m_z >= zc - TurnWindow;
+			float beat = open ? 1f + 0.18f * Mathf.Abs(Mathf.Sin(Time.time * 7f)) : 0.9f;
+			kv.Value.transform.localScale = new Vector3(beat, 1f, beat);
+			if (open && c.Cued.Add(k))
+			{
+				m_audio.Play("sfx_gui_select|sfx_gui_button", 0.45f, 1.15f);
+			}
+		}
+	}
+
 	// Lane input near a corner: the key toward the opening takes the turn instead of a lane.
 	private int CryptTurn(int step)
 	{
@@ -1161,11 +1233,20 @@ internal sealed partial class SurfGame
 			m_cryptFocusSet = false;
 			return;
 		}
+		// Each corner's turn starts when you press for it (or after bouncing off its wall), and
+		// is done by the time you're round it.
 		float yaw = 0f;
 		for (int i = 0; i < c.Corners.Count; i++)
 		{
-			yaw += c.Dirs[i] * 90f * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(c.Corners[i] - 7f, c.Corners[i] + 4f, m_z));
+			bool go = c.Armed[i] || m_z > c.Corners[i] + 4f;
+			c.CamTurn[i] = Mathf.MoveTowards(c.CamTurn[i], go ? 1f : 0f, dt / 0.55f);
+			if (m_z > c.Corners[i] + 3f)
+			{
+				c.CamTurn[i] = Mathf.Max(c.CamTurn[i], Mathf.InverseLerp(c.Corners[i] + 3f, c.Corners[i] + 6f, m_z));
+			}
+			yaw += c.Dirs[i] * 90f * Mathf.SmoothStep(0f, 1f, c.CamTurn[i]);
 		}
+		UpdateTurnArrows(c);
 		Vector3 focus = StagePoint(new Vector3(0f, c.Floor + 1f, m_z + 6f));
 		if (!m_cryptFocusSet)
 		{
