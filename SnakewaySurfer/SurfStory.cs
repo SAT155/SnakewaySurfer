@@ -844,7 +844,7 @@ internal sealed class SurfStory : MonoBehaviour
 		// eased to the size he should be.
 		if (Pictures.MeshBounds(b.Go, out Bounds live) && live.size.y > 0.01f)
 		{
-			float half = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth;
+			// (half: the view's half height at his depth, above)
 			float want = ScreenHeight * half;
 			float tall = Mathf.Max(live.size.y, live.size.x * 0.6f);
 			float k = Mathf.Clamp(want / tall, 0.85f, 1.15f);
