@@ -32,7 +32,9 @@ internal sealed partial class SurfGame
 	private float m_ravenHeight = 1f;
 	private float m_ravenSize = RavenScale;
 	// His height on screen, as a share of half the view's height.
-	private const float RavenScreenHeight = 0.24f;
+	private const float RavenScreenHeight = 0.16f;
+	private string? m_ravenFly;
+	private float m_ravenYaw;
 
 	private bool RavenTalks => Plugin.Raven.Value && !Plugin.PopupText.Value;
 
@@ -101,8 +103,7 @@ internal sealed partial class SurfGame
 			if (!m_ravenTalked && m_ravenAge > 0.7f)
 			{
 				m_ravenTalked = true;
-				MeasureRaven(false);
-				if (m_ravenAnim != null)
+				if (m_ravenAnim != null && m_ravenFly == null)
 				{
 					SetTrigger(m_ravenAnim, "talk");
 				}
@@ -142,14 +143,24 @@ internal sealed partial class SurfGame
 			m_raven.transform.localScale = Vector3.one * RavenScale;
 			m_ravenSize = RavenScale;
 			m_ravenAnim = m_raven.GetComponentInChildren<Animator>();
+			foreach (SkinnedMeshRenderer smr in m_raven.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+			{
+				smr.updateWhenOffscreen = true;
+			}
 			MeasureRaven(true);
+			m_ravenYaw = SurfStory.HeadYaw(m_raven);
+			m_ravenFly = m_ravenAnim != null ? SurfStory.FlyClip(m_ravenAnim) : null;
 			m_ravenAge = 0f;
 			m_ravenTalked = false;
 			m_ravenLeave = -1f;
 			PlaceRaven();
 			// In as he comes to you in the world (a puff of feathers if this version has no
 			// fly-in).
-			if (m_ravenAnim != null && SetTrigger(m_ravenAnim, "flyin") == null)
+			if (m_ravenFly != null)
+			{
+				m_ravenAnim!.Play(m_ravenFly, 0, 0.3f);
+			}
+			else if (m_ravenAnim != null && SetTrigger(m_ravenAnim, "flyin") == null)
 			{
 				SetTrigger(m_ravenAnim, "teleportin");
 			}
@@ -221,11 +232,19 @@ internal sealed partial class SurfGame
 		back.y = 0f;
 		if (back.sqrMagnitude > 0.01f)
 		{
-			m_raven.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, 25f, 0f);
+			// 1.16.92 (Sam: mid run Hugin filled the screen): flying, facing you, and kept in
+			// frame from his live outline (as the world's Hugin in 1.16.87).
+			m_raven.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, m_ravenYaw - 15f, 0f);
 		}
-		// His middle at the spot, wherever his model keeps it (settling gently once he's landed).
-		m_ravenCentre = Vector3.Lerp(m_ravenCentre, m_ravenCentreGoal, 1f - Mathf.Exp(-5f * Time.unscaledDeltaTime));
+		if (m_ravenLeave < 0f)
+		{
+			SurfStory.HoldFlight(m_ravenAnim, m_ravenFly);
+		}
 		m_raven.transform.position = at - m_raven.transform.rotation * (m_ravenCentre * m_ravenSize);
+		if (m_ravenLeave < 0f)
+		{
+			SurfStory.FitLive(m_raven, at, RavenScreenHeight * half, half, ref m_ravenCentre, ref m_ravenSize, ref m_ravenHeight);
+		}
 	}
 
 	// His shape as it stands (unscaled, in his own frame): sized to fit the corner when he

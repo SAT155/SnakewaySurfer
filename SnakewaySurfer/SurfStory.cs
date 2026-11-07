@@ -42,7 +42,12 @@ internal sealed class SurfStory : MonoBehaviour
 	private Transform? m_portalCentre;
 	private float m_portalTime = -1f;
 	private float m_portalLooked;
-	private const float PortalBlack = 2.6f;
+	// 1.16.92 (Sam: the dream ripple and its sound instead of the portal loading screen): the
+	// view ripples into the warm haze, holds, and ripples back out.
+	private const float PortalBlack = 1.0f;
+	private const float PortalIn = 0.6f;
+	private const float PortalOut = 1.4f;
+	private RenderTexture? m_waveRt;
 
 	// The two ravens, drawn by a camera of their own over the view.
 	private sealed class Bird
@@ -86,6 +91,12 @@ internal sealed class SurfStory : MonoBehaviour
 
 	private void OnDestroy()
 	{
+		if (m_waveRt != null)
+		{
+			m_waveRt.Release();
+			Destroy(m_waveRt);
+			m_waveRt = null;
+		}
 		if (Instance == this)
 		{
 			Instance = null;
@@ -425,7 +436,7 @@ internal sealed class SurfStory : MonoBehaviour
 	private void EnterPortal(Player p)
 	{
 		m_portalTime = 0f;
-		m_audio.Play("sfx_OpenPortal|sfx_raven_teleport", 0.5f);
+		m_audio.Play(SurfGame.WaveSound, 0.4f, 0.8f);
 		Plugin.Log.LogInfo("Through the strange portal.");
 	}
 
@@ -437,11 +448,11 @@ internal sealed class SurfStory : MonoBehaviour
 			return;
 		}
 		m_portalTime += Time.unscaledDeltaTime;
-		if (m_portal != null && m_portalTime > 0.6f)
+		if (m_portal != null && m_portalTime > PortalIn)
 		{
 			RemovePortal();
 		}
-		if (m_portalTime >= PortalBlack + 0.6f)
+		if (m_portalTime >= PortalBlack + PortalOut)
 		{
 			m_portalTime = -1f;
 			EndPortalScreen();
@@ -456,47 +467,28 @@ internal sealed class SurfStory : MonoBehaviour
 	}
 
 	private int m_arrivalLine = -1;
-	private bool m_screenShown;
+
+	private float PortalCover => m_portalTime < 0f ? 0f : m_portalTime < PortalIn ? m_portalTime / PortalIn
+		: m_portalTime < PortalBlack ? 1f : 1f - (m_portalTime - PortalBlack) / PortalOut;
 
 	private void ApplyPortalScreen()
 	{
-		Hud? hud = Hud.instance;
-		if (m_portalTime < 0f || hud == null || hud.m_loadingScreen == null)
+	}
+
+	private void OnGUI()
+	{
+		if (m_portalTime < 0f || Event.current.type != EventType.Repaint)
 		{
 			return;
 		}
-		float a = m_portalTime < 0.4f ? m_portalTime / 0.4f : m_portalTime < PortalBlack ? 1f : 1f - (m_portalTime - PortalBlack) / 0.6f;
-		m_screenShown = true;
-		hud.m_loadingScreen.gameObject.SetActive(true);
-		hud.m_loadingScreen.alpha = Mathf.Clamp01(a);
-		if (hud.m_teleportingProgress != null)
-		{
-			hud.m_teleportingProgress.SetActive(true);
-		}
-		if (hud.m_loadingProgress != null)
-		{
-			hud.m_loadingProgress.SetActive(false);
-		}
-		if (hud.m_sleepingProgress != null)
-		{
-			hud.m_sleepingProgress.SetActive(false);
-		}
+		GUI.depth = -1000;
+		float a = Mathf.Clamp01(PortalCover);
+		SurfGame.DrawWaveFrom(Utils.GetMainCamera(), ref m_waveRt, a);
+		SurfGame.DrawHaze(a);
 	}
 
 	private void EndPortalScreen()
 	{
-		Hud? hud = Hud.instance;
-		if (!m_screenShown || hud == null || hud.m_loadingScreen == null)
-		{
-			return;
-		}
-		m_screenShown = false;
-		hud.m_loadingScreen.alpha = 0f;
-		if (hud.m_teleportingProgress != null)
-		{
-			hud.m_teleportingProgress.SetActive(false);
-		}
-		hud.m_loadingScreen.gameObject.SetActive(false);
 	}
 
 	// ---------------------------------------------------------------- what they say, and when
@@ -752,7 +744,7 @@ internal sealed class SurfStory : MonoBehaviour
 
 	// 1.16.89 (Sam: "He should be in the top right corner, flying, facing the screen"): the
 	// raven's own flight, from its animations: a hover or flap loop if it has one, else its fly-in.
-	private static string? FlyClip(Animator anim)
+	internal static string? FlyClip(Animator anim)
 	{
 		RuntimeAnimatorController? rc = anim.runtimeAnimatorController;
 		if (rc == null)
@@ -783,21 +775,67 @@ internal sealed class SurfStory : MonoBehaviour
 	// Each frame: keep the wings going by holding the flight's middle.
 	private static void KeepFlying(Bird b)
 	{
-		if (b.Fly == null || b.Anim == null || b.Leave >= 0f || b.Anim.IsInTransition(0))
+		if (b.Leave < 0f)
+		{
+			HoldFlight(b.Anim, b.Fly);
+		}
+	}
+
+	internal static void HoldFlight(Animator? anim, string? fly)
+	{
+		if (fly == null || anim == null || anim.IsInTransition(0))
 		{
 			return;
 		}
-		AnimatorStateInfo st = b.Anim.GetCurrentAnimatorStateInfo(0);
-		if (!st.IsName(b.Fly))
+		AnimatorStateInfo st = anim.GetCurrentAnimatorStateInfo(0);
+		if (!st.IsName(fly))
 		{
-			// Back from talking: into the air again.
-			b.Anim.CrossFade(b.Fly, 0.2f, 0, 0.3f);
+			anim.CrossFade(fly, 0.2f, 0, 0.3f);
 			return;
 		}
 		if (!st.loop && st.normalizedTime > 0.7f)
 		{
-			b.Anim.Play(b.Fly, 0, 0.3f);
+			anim.Play(fly, 0, 0.3f);
 		}
+	}
+
+	// The turn that brings a raven's head (its face) round to look down its forward.
+	internal static float HeadYaw(GameObject go)
+	{
+		if (!Pictures.MeshBounds(go, out Bounds bounds))
+		{
+			return 0f;
+		}
+		Transform t = go.transform;
+		foreach (Transform bone in go.GetComponentsInChildren<Transform>(true))
+		{
+			if (bone.name.ToLowerInvariant().Contains("head"))
+			{
+				Vector3 d = Quaternion.Inverse(t.rotation) * (bone.position - bounds.center);
+				d.y = 0f;
+				return d.sqrMagnitude > 1e-6f ? -Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg : 0f;
+			}
+		}
+		return 0f;
+	}
+
+	// Its live outline eased onto the spot and the height it should have on screen.
+	internal static void FitLive(GameObject go, Vector3 at, float want, float half, ref Vector3 centre, ref float size, ref float height)
+	{
+		if (!Pictures.MeshBounds(go, out Bounds live) || live.size.y < 0.01f)
+		{
+			return;
+		}
+		float tall = Mathf.Max(live.size.y, live.size.x * 0.6f);
+		float k = Mathf.Clamp(want / tall, 0.85f, 1.15f);
+		if (Mathf.Abs(k - 1f) > 0.03f)
+		{
+			size = Mathf.Clamp(size * Mathf.Lerp(1f, k, 0.5f), 0.02f, 3f);
+			go.transform.localScale = Vector3.one * size;
+		}
+		height = live.size.y / Mathf.Max(0.01f, size);
+		Vector3 off = Vector3.ClampMagnitude(live.center - at, half);
+		centre += Quaternion.Inverse(go.transform.rotation) * off / Mathf.Max(0.01f, size) * 0.3f;
 	}
 
 	private void Measure(Bird b, Camera cam)

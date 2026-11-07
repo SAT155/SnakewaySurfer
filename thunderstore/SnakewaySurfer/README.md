@@ -286,7 +286,10 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.91** (alpha, from Sam's playtests):
+- **1.16.56 to 1.16.92** (alpha, from Sam's playtests):
+  1.16.92: the run's Hugin is small, flying and facing you too; every portal (the run's way in,
+  the ravens' portal, the Strange Portal) ripples through the dream haze instead of a loading
+  screen.
   1.16.91: the campfire's two choices fit their boxes.
   1.16.90: walking into a Strange Portal set to the dream starts the ravens' story over (once
   you've slept; before that Hugin just reminds you).

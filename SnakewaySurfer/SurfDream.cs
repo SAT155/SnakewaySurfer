@@ -71,7 +71,7 @@ internal sealed partial class SurfGame
 		m_loadHeld = 0f;
 		m_loadAction = action;
 		m_loadBlink = true;
-		m_audio.Play("sfx_demister_start|sfx_runestone_interact", 0.35f, 0.8f);
+		m_audio.Play(WaveSound, 0.35f, 0.8f);
 	}
 
 	// Already covered (starting up: the run is set up behind it).
@@ -82,7 +82,12 @@ internal sealed partial class SurfGame
 			return;
 		}
 		m_loadTime = LoadFadeIn;
-		m_loadBlink = false;
+		// 1.16.92: coming in ripples out of the dream haze too (the dream itself stays dark).
+		m_loadBlink = m_dreamLines == null;
+		if (m_loadBlink)
+		{
+			m_audio.Play(WaveSound, 0.35f, 0.8f);
+		}
 		m_loadAlpha = 1f;
 		m_loadRan = true;
 		m_loadHeld = 0f;
@@ -172,7 +177,7 @@ internal sealed partial class SurfGame
 		SetActive(hud.m_loadingProgress, false);
 		SetActive(hud.m_sleepingProgress, false);
 		// Dreaming: only the dark.
-		SetActive(hud.m_teleportingProgress, m_dreamLines == null || m_dreamPortal > 0f);
+		SetActive(hud.m_teleportingProgress, false);
 	}
 
 	private static void SetActive(GameObject? go, bool on)
@@ -262,16 +267,10 @@ internal sealed partial class SurfGame
 		m_dreamTime = -1f;
 		m_dreamSkip = -1f;
 		// Through the portal first (its swirl), then the dark of the dream.
-		if (Plugin.LoadingScreen.Value && LoadNative())
-		{
-			m_dreamPortal = DreamPortalTime;
-			m_audio.Play("sfx_OpenPortal|sfx_raven_teleport", 0.45f);
-		}
-		else
-		{
-			m_dreamPortal = 0f;
-			MakeDreamText();
-		}
+		// 1.16.92: no portal swirl any more; the dream's own sound, then its dark.
+		m_dreamPortal = 0f;
+		m_audio.Play(WaveSound, 0.35f, 0.7f);
+		MakeDreamText();
 	}
 
 	private float DreamAlpha()
@@ -343,8 +342,10 @@ internal sealed partial class SurfGame
 		m_dreamLines = null;
 		m_dreamPortal = 0f;
 		RemoveDreamText();
-		// A short look at the portal, then into the run.
-		m_loadHeld = LoadHold * 0.5f;
+		// Out of the dark the run ripples in.
+		m_loadBlink = true;
+		m_loadHeld = 0f;
+		m_audio.Play(WaveSound, 0.35f, 0.8f);
 	}
 
 	// Black, with a copy of the game's dream text (from its sleep screen) on it.
@@ -488,36 +489,43 @@ internal sealed partial class SurfGame
 	// haze rises over it; the run is set up behind the haze and ripples back in as it calms.
 	private RenderTexture? m_waveRt;
 
-	private bool DrawWave(float cover)
+	private bool DrawWave(float cover) => DrawWaveFrom(m_camera, ref m_waveRt, cover);
+
+	// Also the strange portals' way through (1.16.92, Sam: "The dream screen transition/sound is
+	// what you should use instead of the portal loading screens").
+	internal const string WaveSound = "sfx_demister_start|sfx_runestone_interact";
+
+	internal static bool DrawWaveFrom(Camera? cam, ref RenderTexture? rt, float cover)
 	{
 		int w = Screen.width;
 		int h = Screen.height;
-		if (m_camera == null || !m_camera.isActiveAndEnabled || w < 8 || h < 8)
+		if (cam == null || !cam.isActiveAndEnabled || w < 8 || h < 8)
 		{
 			return false;
 		}
-		if (m_waveRt == null || m_waveRt.width != w || m_waveRt.height != h)
+		if (rt == null || rt.width != w || rt.height != h)
 		{
-			if (m_waveRt != null)
+			if (rt != null)
 			{
-				m_waveRt.Release();
-				Destroy(m_waveRt);
+				rt.Release();
+				Destroy(rt);
 			}
-			m_waveRt = new RenderTexture(w, h, 24);
+			rt = new RenderTexture(w, h, 24);
 		}
-		RenderTexture old = m_camera.targetTexture;
+		RenderTexture old = cam.targetTexture;
 		try
 		{
-			m_camera.targetTexture = m_waveRt;
-			m_camera.Render();
+			cam.targetTexture = rt;
+			cam.Render();
 		}
 		catch (System.Exception e)
 		{
 			Plugin.Log.LogWarning("The dream ripple couldn't draw the view: " + e.Message);
-			m_camera.targetTexture = old;
+			cam.targetTexture = old;
 			return false;
 		}
-		m_camera.targetTexture = old;
+		cam.targetTexture = old;
+		RenderTexture waveRt = rt;
 		float wave = Mathf.SmoothStep(0f, 1f, cover);
 		float amp = w * 0.05f * wave;
 		float t = Time.unscaledTime;
@@ -531,14 +539,16 @@ internal sealed partial class SurfGame
 			float y = i * rowH;
 			float off = amp * (Mathf.Sin(i * 0.31f + t * 4.2f) * 0.7f + Mathf.Sin(i * 0.087f - t * 2.3f) * 0.3f);
 			Rect uv = new Rect(0f, 1f - (y + rowH) / h, 1f, rowH / h);
-			GUI.DrawTextureWithTexCoords(new Rect(off - amp, y, w + 2f * amp, rowH + 1f), m_waveRt, uv);
+			GUI.DrawTextureWithTexCoords(new Rect(off - amp, y, w + 2f * amp, rowH + 1f), waveRt, uv);
 		}
 		GUI.color = oldColor;
 		return true;
 	}
 
 	// The haze over the ripple: warm, and all but white at the turn.
-	private void DrawWaveHaze(float cover)
+	private void DrawWaveHaze(float cover) => DrawHaze(cover);
+
+	internal static void DrawHaze(float cover)
 	{
 		Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1f, 0.92f, 0.76f, Mathf.Clamp01(cover * cover * 1.05f)));
 	}
