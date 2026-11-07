@@ -199,7 +199,10 @@ internal sealed class SurfStory : MonoBehaviour
 	private void LateUpdate()
 	{
 		PlaceBirds();
-		ApplyPortalScreen();
+		if (m_portalTime >= 0f)
+		{
+			SurfGame.CaptureWave(Utils.GetMainCamera(), ref m_waveRt);
+		}
 	}
 
 	// Lying down, sleeping, waking: when you wake, you've dreamt the run.
@@ -483,7 +486,7 @@ internal sealed class SurfStory : MonoBehaviour
 		}
 		GUI.depth = -1000;
 		float a = Mathf.Clamp01(PortalCover);
-		SurfGame.DrawWaveFrom(Utils.GetMainCamera(), ref m_waveRt, a);
+		SurfGame.DrawWaveFrom(m_waveRt, a);
 		SurfGame.DrawHaze(a);
 	}
 

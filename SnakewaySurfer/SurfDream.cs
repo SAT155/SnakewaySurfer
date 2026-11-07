@@ -489,19 +489,21 @@ internal sealed partial class SurfGame
 	// haze rises over it; the run is set up behind the haze and ripples back in as it calms.
 	private RenderTexture? m_waveRt;
 
-	private bool DrawWave(float cover) => DrawWaveFrom(m_camera, ref m_waveRt, cover);
+	private bool DrawWave(float cover) => DrawWaveFrom(m_waveRt, cover);
 
 	// Also the strange portals' way through (1.16.92, Sam: "The dream screen transition/sound is
 	// what you should use instead of the portal loading screens").
 	internal const string WaveSound = "sfx_demister_start|sfx_runestone_interact";
 
-	internal static bool DrawWaveFrom(Camera? cam, ref RenderTexture? rt, float cover)
+	// 1.16.93 (Sam had a crash to desktop): the view is copied in LateUpdate, at half size, not
+	// from inside OnGUI, which only lays the copy back down.
+	internal static void CaptureWave(Camera? cam, ref RenderTexture? rt)
 	{
-		int w = Screen.width;
-		int h = Screen.height;
+		int w = Screen.width / 2;
+		int h = Screen.height / 2;
 		if (cam == null || !cam.isActiveAndEnabled || w < 8 || h < 8)
 		{
-			return false;
+			return;
 		}
 		if (rt == null || rt.width != w || rt.height != h)
 		{
@@ -522,10 +524,19 @@ internal sealed partial class SurfGame
 		{
 			Plugin.Log.LogWarning("The dream ripple couldn't draw the view: " + e.Message);
 			cam.targetTexture = old;
-			return false;
+			return;
 		}
 		cam.targetTexture = old;
-		RenderTexture waveRt = rt;
+	}
+
+	internal static bool DrawWaveFrom(RenderTexture? waveRt, float cover)
+	{
+		int w = Screen.width;
+		int h = Screen.height;
+		if (waveRt == null || !waveRt.IsCreated() || w < 8 || h < 8)
+		{
+			return false;
+		}
 		float wave = Mathf.SmoothStep(0f, 1f, cover);
 		float amp = w * 0.05f * wave;
 		float t = Time.unscaledTime;

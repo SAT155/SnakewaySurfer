@@ -1564,6 +1564,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		UpdateCryptFrames();
 		PlaceRaven();
+		if (Loading && m_loadBlink)
+		{
+			CaptureWave(m_camera, ref m_waveRt);
+		}
 		UpdateHaze();
 		ApplyFogNow();
 		ApplyLoadScreen();

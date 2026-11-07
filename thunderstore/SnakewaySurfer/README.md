@@ -286,7 +286,8 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.92** (alpha, from Sam's playtests):
+- **1.16.56 to 1.16.93** (alpha, from Sam's playtests):
+  1.16.93: the ripple copies the view at a safer moment (looking into a crash).
   1.16.92: the run's Hugin is small, flying and facing you too; every portal (the run's way in,
   the ravens' portal, the Strange Portal) ripples through the dream haze instead of a loading
   screen.
