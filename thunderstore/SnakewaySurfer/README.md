@@ -286,7 +286,9 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.89** (alpha, from Sam's playtests):
+- **1.16.56 to 1.16.90** (alpha, from Sam's playtests):
+  1.16.90: walking into a Strange Portal set to the dream starts the ravens' story over (once
+  you've slept; before that Hugin just reminds you).
   1.16.89: Hugin flies in the top right corner facing you, his words below him.
   1.16.87: Hugin and Munin keep themselves in frame (no more giant talons in the corner).
   1.16.84: the Strange Portal piece (hammer, Misc: 10 ectoplasm, 10 feathers). Use it to set it

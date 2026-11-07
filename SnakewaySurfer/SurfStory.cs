@@ -19,6 +19,8 @@ internal sealed class SurfStory : MonoBehaviour
 	private const string AwakeKey = "SnakewaySurfer.StoryAwake";
 	private const string EpisodeKey = "SnakewaySurfer.StoryEpisode";
 	private const string BurstKey = "SnakewaySurfer.StoryBurst";
+	// Set while a story started again at a Strange Portal is running (until you sleep).
+	private const string AgainKey = "SnakewaySurfer.StoryAgain";
 
 	// 0: nothing yet (the portal is coming), 1: Hugin nags, 2: Munin too, 3: you've slept.
 	public const int StageNone = 0;
@@ -118,6 +120,7 @@ internal sealed class SurfStory : MonoBehaviour
 	// whoever has already been through a run is past the ravens' story.
 	public static void MarkDreamed(Player p)
 	{
+		p.m_customData.Remove(AgainKey);
 		if (Stage(p) != StageSlept)
 		{
 			Set(p, StageKey, StageSlept);
@@ -138,7 +141,7 @@ internal sealed class SurfStory : MonoBehaviour
 		if (p != m_checked)
 		{
 			m_checked = p;
-			if (p != null && Stage(p) != StageSlept && p.m_customData.ContainsKey(Progress.FirstRunKey))
+			if (p != null && Stage(p) != StageSlept && !p.m_customData.ContainsKey(AgainKey) && p.m_customData.ContainsKey(Progress.FirstRunKey))
 			{
 				MarkDreamed(p);
 			}
@@ -219,6 +222,7 @@ internal sealed class SurfStory : MonoBehaviour
 			return;
 		}
 		bool first = stage == StageHugin || stage == StageMunin;
+		p.m_customData.Remove(AgainKey);
 		if (first)
 		{
 			Set(p, StageKey, StageSlept);
@@ -305,6 +309,19 @@ internal sealed class SurfStory : MonoBehaviour
 			return;
 		}
 		RemovePortal();
+		// 1.16.90 (Sam: "I would expect the surfstory to reset every time the strange portal set
+		// to surfstory is entered ... except if the user hasn't slept yet"): after a sleep the
+		// story starts over (Hugin arrives fresh, Munin's episodes from the top); before one, he
+		// just reminds you.
+		if (Stage(p) == StageSlept)
+		{
+			Set(p, StageKey, StageNone);
+			Set(p, EpisodeKey, 0);
+			Set(p, BurstKey, 0);
+			Set(p, AgainKey, 1);
+			RemoveBirds();
+			m_queue.Clear();
+		}
 		EnterPortal(p);
 		if (Stage(p) != StageNone)
 		{
