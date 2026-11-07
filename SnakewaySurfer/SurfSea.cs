@@ -922,7 +922,10 @@ internal sealed partial class SurfGame
 				next = r;
 			}
 		}
-		if (next == null || m_seaPhase != 2)
+		// 1.16.73 (Sam: "it follows the ship perfectly ... I don't understand how it is supposed to
+		// help"): only shown while you're side on to the wave, when it matters; lined up with it
+		// (bow or stern to the wave) it goes away.
+		if (next == null || m_seaPhase != 2 || !SideOn(next.Dir))
 		{
 			if (m_safeLine != null)
 			{

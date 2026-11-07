@@ -822,7 +822,12 @@ internal sealed partial class SurfGame
 					AddFoam(f.P - Dir2(f.Facing) * 2f, Random.Range(0.6f, 1.1f), 1.2f, 0.45f, 1.8f);
 				}
 				f.Wait -= dt;
-				if (to.magnitude < 3f && f.Wait <= 0f && f.Move == "breath")
+				// 1.16.73 (Sam: "These attacks are undodgable"): one attack at a time.
+				if (to.magnitude < 3f && f.Wait <= 0f && OtherAttacking(f))
+				{
+					f.Wait = 0.4f;
+				}
+				else if (to.magnitude < 3f && f.Wait <= 0f && f.Move == "breath")
 				{
 					StartBreath(f);
 				}
@@ -843,7 +848,7 @@ internal sealed partial class SurfGame
 				// Up and rearing: the streak shows where it will strike.
 				f.Y = Mathf.MoveTowards(f.Y, -0.3f, dt * 5f);
 				// It follows the ship with its eyes until just before the lunge.
-				if (f.T < windup * 0.7f)
+				if (f.T < windup * 0.45f)
 				{
 					f.Aim = ship + shipVel * (windup - f.T + 0.25f);
 					f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(f.Aim - f.P), 220f * dt);
@@ -938,6 +943,9 @@ internal sealed partial class SurfGame
 
 	private bool Surfaced(SeaFoe f) => f.Y > -1.2f;
 
+	// Another serpent rearing, lunging or breathing right now.
+	private bool OtherAttacking(SeaFoe f) => m_seaFoes.Exists(o => o != f && !o.Dead && (o.Kind == "serpent" || o.Kind == "boss") && (o.Phase == 1 || o.Phase == 2 || o.Phase == 4));
+
 	// ---------------------------------------------------------------- the serpent of the deep
 
 	private void UpdateSeaBoss(SeaFoe f, float dt)
@@ -969,7 +977,11 @@ internal sealed partial class SurfGame
 					AddFoam(f.P - Dir2(f.Facing) * 3f, Random.Range(1f, 1.8f), 1.5f, 0.5f, 2f);
 				}
 				f.Wait -= dt;
-				if (f.Wait <= 0f)
+				if (f.Wait <= 0f && OtherAttacking(f))
+				{
+					f.Wait = 0.4f;
+				}
+				else if (f.Wait <= 0f)
 				{
 					float hurt = 1f - (float)f.Hp / f.MaxHp;
 					float r = Random.value;
@@ -1009,7 +1021,7 @@ internal sealed partial class SurfGame
 				f.P += shipVel * dt;
 				if (f.Move == "lunge")
 				{
-					if (f.T < windup * 0.7f)
+					if (f.T < windup * 0.45f)
 					{
 						f.Aim = ship + shipVel * (windup - f.T + 0.3f);
 						f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(f.Aim - f.P), 200f * dt);
