@@ -66,10 +66,10 @@ internal sealed partial class SurfGame
 		public readonly List<int> Dirs = new();
 		public readonly List<bool> Armed = new();
 		// 1.16.22 (Sam): the camera turns once you've pressed for the corner (0 to 1 each), and a
-		// glowing arrow on the floor at the corner shows which way until you do.
+		// gust of wind at the corner beckons the way until you do (1.16.24, was an arrow).
 		public readonly List<float> CamTurn = new();
-		public readonly Dictionary<int, GameObject> Arrows = new();
-		public readonly HashSet<int> Cued = new();
+		public readonly Dictionary<int, TurnWisp> Arrows = new();
+		public float NextWhoosh;
 		// Frames[0] is the stage; Frames[k] holds the hallway after corner k - 1.
 		public readonly List<Transform> Frames = new();
 		public readonly List<CryptLeg> Legs = new();
@@ -1022,67 +1022,129 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// A glowing arrow across the corner's floor, pointing at the way on.
-	private GameObject TurnArrow(Transform root, int turn, float y, float zc)
+	// 1.16.24 (Sam): a gust of puffy, ink-edged cloud at each corner, streaming up the hall and
+	// curling off toward the way on, swaying back and forth like a beckoning "wooosh" (in the
+	// spirit of a hand-drawn wind, not anyone's actual art).
+	private sealed class TurnWisp
 	{
-		GameObject arrow = new GameObject("TurnArrow");
-		arrow.layer = m_layer;
-		arrow.transform.SetParent(root, false);
-		arrow.transform.localPosition = new Vector3(0f, y + 0.06f, zc - 0.4f);
-		arrow.transform.localRotation = Quaternion.Euler(0f, turn > 0 ? 90f : -90f, 0f);
-		Material mat = SolidTint(new Color(1f, 0.86f, 0.45f));
-		// Built pointing along its +z: a shaft and two strokes of the head.
-		(Vector3 pos, Vector3 size, float yaw)[] bars =
-		{
-			(new Vector3(0f, 0f, -0.3f), new Vector3(0.32f, 0.04f, 2.2f), 0f),
-			(new Vector3(-0.42f, 0f, 0.5f), new Vector3(0.3f, 0.04f, 1.3f), 45f),
-			(new Vector3(0.42f, 0f, 0.5f), new Vector3(0.3f, 0.04f, 1.3f), -45f),
-		};
-		foreach ((Vector3 pos, Vector3 size, float yaw) in bars)
-		{
-			GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(bar.GetComponent<Collider>());
-			bar.layer = m_layer;
-			bar.transform.SetParent(arrow.transform, false);
-			bar.transform.localPosition = pos;
-			bar.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
-			bar.transform.localScale = size;
-			Renderer r = bar.GetComponent<Renderer>();
-			r.sharedMaterial = mat;
-			r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-		}
-		arrow.SetActive(false);
-		return arrow;
+		public GameObject Go = null!;
+		public Transform[] Puffs = null!;
+		public float[] Sizes = null!;
+		public int Turn;
+		public float Zc;
+		public float Y;
+		public float Gone = -1f;
 	}
 
-	// The next corner's arrow glows and beats as you come up to it (with a soft call as its
-	// window opens), and is gone once you've pressed.
+	private const int WispPuffs = 14;
+
+	private TurnWisp TurnArrow(Transform root, int turn, float y, float zc)
+	{
+		GameObject go = new GameObject("TurnWisp");
+		go.layer = m_layer;
+		go.transform.SetParent(root, false);
+		Material body = SolidTint(new Color(0.93f, 0.91f, 0.85f));
+		Material ink = SolidTint(new Color(0.07f, 0.06f, 0.06f));
+		TurnWisp w = new TurnWisp { Go = go, Turn = turn, Zc = zc, Y = y, Puffs = new Transform[WispPuffs], Sizes = new float[WispPuffs] };
+		for (int i = 0; i < WispPuffs; i++)
+		{
+			Transform puff = new GameObject("Puff").transform;
+			puff.gameObject.layer = m_layer;
+			puff.SetParent(go.transform, false);
+			// A dark rim a little bigger and lower: an inked outline seen from above.
+			foreach ((Material mat, float grow, float drop) in new[] { (ink, 1.2f, -0.12f), (body, 1f, 0f) })
+			{
+				GameObject ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+				Destroy(ball.GetComponent<Collider>());
+				ball.layer = m_layer;
+				ball.transform.SetParent(puff, false);
+				ball.transform.localPosition = new Vector3(0f, drop, 0f);
+				ball.transform.localScale = Vector3.one * grow;
+				Renderer r = ball.GetComponent<Renderer>();
+				r.sharedMaterial = mat;
+				r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+				r.receiveShadows = false;
+			}
+			w.Puffs[i] = puff;
+			w.Sizes[i] = 0.5f + 0.35f * Mathf.Repeat(Mathf.Sin(i * 12.9898f + zc) * 43758.547f, 1f);
+		}
+		go.SetActive(false);
+		return w;
+	}
+
+	// Along the gust: up the hall, bending round the corner, curling as it goes off the way on.
+	private static Vector3 WispPath(TurnWisp w, float p, float t)
+	{
+		float sway = Mathf.Sin(t * 1.7f) * 0.7f;
+		Vector3 a = new Vector3(-w.Turn * 0.9f, w.Y + 1.0f, w.Zc - 9f + sway);
+		Vector3 b = new Vector3(-w.Turn * 0.2f, w.Y + 1.1f, w.Zc - 2f + sway * 0.6f);
+		Vector3 c = new Vector3(w.Turn * 0.8f, w.Y + 1.2f, w.Zc + 0.4f);
+		Vector3 d = new Vector3(w.Turn * (CryptHalf + 3f), w.Y + 1.3f, w.Zc - 0.3f);
+		float u = 1f - p;
+		Vector3 pos = u * u * u * a + 3f * u * u * p * b + 3f * u * p * p * c + p * p * p * d;
+		// A curl that winds up toward the end, turning the way you should go.
+		float theta = p * p * 4f * Mathf.PI * w.Turn + t * 1.3f;
+		float r = 0.75f * p * p + 0.12f;
+		pos += new Vector3(Mathf.Cos(theta) * r, Mathf.Sin(t * 3f + p * 6f) * 0.08f, Mathf.Sin(theta) * r);
+		return pos;
+	}
+
+	// The next corner's gust streams as you come up to it, stronger with a whoosh once it's time
+	// to press, and is swept off round the corner once you have.
 	private void UpdateTurnArrows(CryptRun c)
 	{
 		int next = NextCorner();
-		foreach (KeyValuePair<int, GameObject> kv in c.Arrows)
+		float t = Time.time;
+		float dt = Time.deltaTime;
+		foreach (KeyValuePair<int, TurnWisp> kv in c.Arrows)
 		{
-			if (kv.Value == null)
+			TurnWisp w = kv.Value;
+			if (w.Go == null)
 			{
 				continue;
 			}
 			int k = kv.Key;
 			float zc = c.Corners[k];
-			bool show = k == next && !c.Armed[k] && m_z > zc - TurnWindow - 12f;
-			if (kv.Value.activeSelf != show)
+			bool near = m_z > zc - TurnWindow - 14f && m_z < zc + 4f;
+			if (c.Armed[k] && w.Gone < 0f && w.Go.activeSelf)
 			{
-				kv.Value.SetActive(show);
+				w.Gone = 0f;
+			}
+			if (w.Gone >= 0f)
+			{
+				w.Gone += dt;
+			}
+			bool show = near && (k == next || w.Gone >= 0f) && (!c.Armed[k] || w.Gone < 0.7f);
+			if (w.Go.activeSelf != show)
+			{
+				w.Go.SetActive(show);
 			}
 			if (!show)
 			{
 				continue;
 			}
 			bool open = m_z >= zc - TurnWindow;
-			float beat = open ? 1f + 0.18f * Mathf.Abs(Mathf.Sin(Time.time * 7f)) : 0.9f;
-			kv.Value.transform.localScale = new Vector3(beat, 1f, beat);
-			if (open && c.Cued.Add(k))
+			float strength = open ? 1f : 0.65f;
+			float speed = 0.5f;
+			if (w.Gone >= 0f)
 			{
-				m_audio.Play("sfx_gui_select|sfx_gui_button", 0.45f, 1.15f);
+				// Swept away round the corner.
+				strength *= 1f - Mathf.Clamp01(w.Gone / 0.7f);
+				speed += w.Gone * 2.5f;
+			}
+			for (int i = 0; i < w.Puffs.Length; i++)
+			{
+				float p = Mathf.Repeat(t * speed + i / (float)w.Puffs.Length + 0.06f * Mathf.Sin(t * 2.2f), 1f);
+				Transform puff = w.Puffs[i];
+				puff.localPosition = WispPath(w, p, t);
+				float size = Mathf.Sin(p * Mathf.PI) * w.Sizes[i] * strength * (1f + 0.14f * Mathf.Sin(t * 5f + i * 1.7f));
+				puff.localScale = new Vector3(size, size * 0.55f, size);
+			}
+			if (open && !c.Armed[k] && t >= c.NextWhoosh)
+			{
+				// Whoosh: calling you round.
+				c.NextWhoosh = t + 1.5f;
+				m_audio.Play(Sfx.Slide, 0.45f, Random.Range(0.55f, 0.65f));
 			}
 		}
 	}

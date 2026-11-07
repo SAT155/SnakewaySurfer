@@ -332,6 +332,8 @@ and for players without the mod.
   time to press), pointing the way on.
   1.16.23 (Sam): the food reward is one food from each biome you ran through, each from its own
   biome (a Meadows-to-Swamp run gives three).
+  1.16.24 (Sam): the corner's arrow is now a gust of puffy, ink-edged cloud streaming up the hall
+  and curling off toward the way on, swaying like a beckoning whoosh (with a whoosh to hear).
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others
