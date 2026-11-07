@@ -14,7 +14,8 @@ modding notes live in [SAT155/SnakeWood](https://github.com/SAT155/SnakeWood) (`
   source destroyed, on render layer 30. A second camera with `cullingMask = 1 << 30` and a
   higher depth draws it; the main camera's mask is set to 0 meanwhile (restored in
   `OnDestroy`). The HUD root is hidden in `LateUpdate`. `SurfCameraFog` swaps fog and ambient
-  light during our camera's render only.
+  light from `OnPreCull` to `OnPostRender` (and each `LateUpdate` through the game's camera, with
+  `_SunFogColor`); `SurfHaze.cs` adds fading fog-coloured sheets across the far end of the view.
   - Track and land are cube meshes; the track borrows a build piece's material.
   - Rows of obstacles every 16–39 m: monsters (change lane), logs (jump), hanging logs or flyers
     (slide), coins. Collision is lane + distance checks, no physics.

@@ -1534,6 +1534,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		UpdateCryptFrames();
 		PlaceRaven();
+		UpdateHaze();
+		ApplyFogNow();
 		ApplyLoadScreen();
 		DrawGrass();
 		// The game may switch its HUD back on (Hud.Update); keep it hidden while we're up.
@@ -1611,7 +1613,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					m_audio.Play(Sfx.Jump);
 				}
 			}
-			if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C))
+			if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C) && SpendRollStamina())
 			{
 				if (grounded)
 				{
@@ -3733,6 +3735,18 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	public float FogDensity => m_fogNow;
 
+	public float ViewAhead => AheadDistance;
+
+	// Drawing through the game's camera: our fog in place for the whole frame, not only around
+	// our camera's render (the game puts its own back each Update).
+	private void ApplyFogNow()
+	{
+		if (m_usingGameCamera && m_camera != null && m_camera.enabled)
+		{
+			SurfCameraFog.Apply(this);
+		}
+	}
+
 	// ---------------------------------------------------------------- UI
 
 	private GUIStyle? m_big;
@@ -3879,10 +3893,6 @@ internal sealed class SurfCameraFog : MonoBehaviour
 			m_worldSunOn = m_worldSun.enabled;
 			m_worldSun.enabled = false;
 		}
-	}
-
-	private void OnPreRender()
-	{
 		m_fog = RenderSettings.fog;
 		m_fogColor = RenderSettings.fogColor;
 		m_fogMode = RenderSettings.fogMode;
@@ -3891,21 +3901,42 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		m_fogDensity = RenderSettings.fogDensity;
 		m_ambientMode = RenderSettings.ambientMode;
 		m_ambient = RenderSettings.ambientLight;
+		// 1.16.69: set already before culling, as the game's deferred fog and post effects read
+		// it then (set only before rendering, the track showed no fog through the game's camera).
+		Apply(Game);
+	}
 
-		Color sky = Game != null ? Game.SkyColor : Color.gray;
-		float density = Game != null ? Game.FogDensity : 0.012f;
+	private void OnPreRender() => Apply(Game);
+
+	// Our fog and light into the render settings (also each frame from SurfGame.LateUpdate
+	// while drawing through the game's camera).
+	public static void Apply(SurfGame? game)
+	{
+		Color sky = game != null ? game.SkyColor : Color.gray;
+		float density = game != null ? game.FogDensity : 0.012f;
+		Color fogColor = game != null ? game.FogColor : sky;
 		RenderSettings.fog = density > 0f;
-		RenderSettings.fogColor = Game != null ? Game.FogColor : sky;
+		RenderSettings.fogColor = fogColor;
 		// Keep the world's fog mode: the game's shaders are built for it, and a mode it never
 		// uses (1.2 set exponential-squared) can have no shader variant, so there was no fog.
+		// Whatever the mode, the far end of the track is mostly lost in it (the haze sheets,
+		// SurfHaze.cs, take the rest).
+		float ahead = game != null ? game.ViewAhead : 150f;
+		bool any = density > 0f;
 		if (RenderSettings.fogMode == FogMode.Linear)
 		{
 			RenderSettings.fogStartDistance = 0f;
-			RenderSettings.fogEndDistance = 2.5f / Mathf.Max(0.001f, density);
+			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead * 1.15f) : 100000f;
+		}
+		else if (any)
+		{
+			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 1.6f : 1.2f) / ahead);
 		}
 		RenderSettings.fogDensity = density;
 		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
-		RenderSettings.ambientLight = Game != null ? Game.AmbientColor : sky * Plugin.AmbientLight.Value;
+		RenderSettings.ambientLight = game != null ? game.AmbientColor : sky * Plugin.AmbientLight.Value;
+		// The game's own shaders tint their fog with this (EnvMan sets it every frame).
+		Shader.SetGlobalColor("_SunFogColor", fogColor);
 	}
 
 	private void OnPostRender()

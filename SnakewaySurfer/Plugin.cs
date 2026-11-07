@@ -92,6 +92,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> BossSummon = null!;
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
+	internal static ConfigEntry<bool> DistanceHaze = null!;
+	internal static ConfigEntry<float> RollStamina = null!;
 	internal static ConfigEntry<KeyCode> SprintKey = null!;
 	internal static ConfigEntry<KeyCode> BlockKey = null!;
 	internal static ConfigEntry<KeyCode> ThrowKey = null!;
@@ -194,6 +196,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Minigame camera field of view in degrees.", new AcceptableValueRange<float>(30f, 110f)));
 		FogStrength = Config.Bind("3 - Look", "Fog Strength", 1f,
 			new ConfigDescription("How thick the minigame's fog is (each biome has its own; the Swamp and Mistlands are thickest). 0 turns it off.", new AcceptableValueRange<float>(0f, 4f)));
+		DistanceHaze = Config.Bind("3 - Look", "Distance Haze", true,
+			"Thin sheets of mist across the far end of the view, so the end of the track fades away even where the game's own fog doesn't reach the minigame.");
 		AmbientLight = Config.Bind("3 - Look", "Ambient Light", 0.45f,
 			new ConfigDescription("Brightness of the light that comes from the sky colour everywhere (shadows get darker as it goes down).", new AcceptableValueRange<float>(0f, 2f)));
 		HillHeight = Config.Bind("3 - Look", "Hill Height", 1f,
@@ -346,6 +350,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Stamina for sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
 		SprintStamina = Config.Bind("1 - Run", "Sprint Stamina Per Second", 18f,
 			new ConfigDescription("Stamina used each second of sprinting.", new AcceptableValueRange<float>(0f, 100f)));
+		RollStamina = Config.Bind("1 - Run", "Roll Stamina", 12f,
+			new ConfigDescription("Stamina used by each roll (and each dive from the air). Without enough you can't roll.", new AcceptableValueRange<float>(0f, 100f)));
 		BlockStamina = Config.Bind("1 - Run", "Block Stamina", 30f,
 			new ConfigDescription("Stamina used by each blocked hit (a parry is free). Without enough, the guard breaks and the hit gets through.", new AcceptableValueRange<float>(0f, 200f)));
 		BlockHoldStamina = Config.Bind("1 - Run", "Block Hold Stamina Per Second", 8f,

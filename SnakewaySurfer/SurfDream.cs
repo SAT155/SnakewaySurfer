@@ -38,6 +38,9 @@ internal sealed partial class SurfGame
 	private const float DreamStay = 3.2f;
 	private const float DreamOut = 1.5f;
 	private const float DreamGap = 0.5f;
+	// 1.16.69 (Sam): the portal's swirl first, then the dream (seconds of swirl left).
+	private float m_dreamPortal;
+	private const float DreamPortalTime = 2.2f;
 
 	// Vague, like the game's own dreams.
 	private static readonly string[] s_firstDream =
@@ -161,7 +164,7 @@ internal sealed partial class SurfGame
 		SetActive(hud.m_loadingProgress, false);
 		SetActive(hud.m_sleepingProgress, false);
 		// Dreaming: only the dark.
-		SetActive(hud.m_teleportingProgress, m_dreamLines == null);
+		SetActive(hud.m_teleportingProgress, m_dreamLines == null || m_dreamPortal > 0f);
 	}
 
 	private static void SetActive(GameObject? go, bool on)
@@ -212,7 +215,17 @@ internal sealed partial class SurfGame
 		// A moment of dark first.
 		m_dreamTime = -1f;
 		m_dreamSkip = -1f;
-		MakeDreamText();
+		// Through the portal first (its swirl), then the dark of the dream.
+		if (Plugin.LoadingScreen.Value && LoadNative())
+		{
+			m_dreamPortal = DreamPortalTime;
+			m_audio.Play("sfx_OpenPortal|sfx_raven_teleport", 0.45f);
+		}
+		else
+		{
+			m_dreamPortal = 0f;
+			MakeDreamText();
+		}
 	}
 
 	private float DreamAlpha()
@@ -229,6 +242,23 @@ internal sealed partial class SurfGame
 
 	private void UpdateDream(float udt, bool canInput)
 	{
+		if (m_dreamPortal > 0f)
+		{
+			if (canInput && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
+			{
+				// Straight into the run.
+				m_dreamPortal = 0f;
+				EndDream();
+				return;
+			}
+			m_dreamPortal -= udt;
+			if (m_dreamPortal <= 0f)
+			{
+				m_dreamPortal = 0f;
+				MakeDreamText();
+			}
+			return;
+		}
 		m_dreamTime += udt;
 		if (m_dreamSkip < 0f && canInput && (m_dreamLine > 0 || m_dreamTime > 0.5f)
 			&& KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
@@ -265,6 +295,7 @@ internal sealed partial class SurfGame
 	private void EndDream()
 	{
 		m_dreamLines = null;
+		m_dreamPortal = 0f;
 		RemoveDreamText();
 		// A short look at the portal, then into the run.
 		m_loadHeld = LoadHold * 0.5f;
@@ -370,11 +401,11 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		if (!LoadNative() || (m_dreamLines != null && m_dreamCanvas == null))
+		if (!LoadNative() || (m_dreamLines != null && m_dreamCanvas == null && m_dreamPortal <= 0f))
 		{
 			Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(0f, 0f, 0f, cover));
 		}
-		if (m_dreamLines != null && m_dreamText == null && Event.current.type == EventType.Repaint)
+		if (m_dreamLines != null && m_dreamPortal <= 0f && m_dreamText == null && Event.current.type == EventType.Repaint)
 		{
 			// No dream text of the game's to copy: soft grey italics, the same way.
 			float k = Screen.height / 1080f;

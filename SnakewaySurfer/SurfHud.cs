@@ -27,6 +27,29 @@ internal sealed partial class SurfGame
 
 	private static float MaxStamina => Mathf.Max(10f, Plugin.MaxStamina.Value);
 
+	// When a roll was refused for want of stamina (the bar flashes red a moment).
+	private float m_staminaShort = -99f;
+
+	// 1.16.69 (Sam: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
+	// when there isn't enough left.
+	private bool SpendRollStamina()
+	{
+		float cost = Plugin.RollStamina.Value;
+		if (cost <= 0f)
+		{
+			return true;
+		}
+		if (m_stamina < cost)
+		{
+			m_staminaShort = Time.time;
+			m_audio.Play("sfx_gui_inventory_close|sfx_gui_button", 0.6f, 0.7f);
+			return false;
+		}
+		m_stamina -= cost;
+		m_staminaIdle = 0f;
+		return true;
+	}
+
 	private void ResetMoves()
 	{
 		m_stamina = MaxStamina;
@@ -374,10 +397,11 @@ internal sealed partial class SurfGame
 		}
 
 		// Stamina, as in the game: a yellow bar, shown while it isn't full.
-		if (m_stamina < MaxStamina - 0.01f || m_sprinting || m_blocking)
+		bool shortNow = Time.time - m_staminaShort < 0.6f;
+		if (m_stamina < MaxStamina - 0.01f || m_sprinting || m_blocking || shortNow)
 		{
 			float sw = 360f * k;
-			bool low = m_stamina < Plugin.BlockStamina.Value;
+			bool low = m_stamina < Plugin.BlockStamina.Value || shortNow;
 			Color c = low && Mathf.FloorToInt(Time.time * 6f) % 2 == 0 ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.78f, 0.15f);
 			Bar(new Rect((w - sw) * 0.5f, h - 70f * k, sw, 12f * k), m_stamina / MaxStamina, c);
 		}

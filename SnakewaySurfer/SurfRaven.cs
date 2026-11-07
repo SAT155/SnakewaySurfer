@@ -23,7 +23,7 @@ internal sealed partial class SurfGame
 	private bool m_ravenNative;
 	private float m_prevBannerTime;
 	private string m_prevBanner = "";
-	private const float RavenDepth = 5f;
+	private const float RavenDepth = 9f;
 	private const float RavenScale = 1.3f;
 	// 1.16.18 (Sam saw only a foot, huge, at the top right): he is sized and placed by his
 	// actual shape, its middle kept at the spot, measured again once he has landed.
@@ -161,6 +161,8 @@ internal sealed partial class SurfGame
 			m_ravenTalked = false;
 			m_ravenAge = Mathf.Min(m_ravenAge, 0.6f);
 		}
+		// Long enough to read: at least five seconds, more for a longer line.
+		seconds = Mathf.Max(seconds, 5f, 2.5f + text.Length * 0.07f);
 		m_ravenText = text;
 		m_ravenTime = seconds;
 		m_ravenNative = m_usingGameCamera && Chat.instance != null;
@@ -242,7 +244,10 @@ internal sealed partial class SurfGame
 		{
 			m_ravenCentre = m_ravenCentreGoal;
 			float half = Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) * RavenDepth;
-			m_ravenSize = Mathf.Clamp(RavenScreenHeight * half / m_ravenHeight, 0.05f, 3f);
+			// Never bigger than a raven set back in the corner (a measure taken mid-flap could say
+			// he is tiny and blow him up to fill the screen).
+			float most = RavenScale * RavenDepth / 5f * 0.8f;
+			m_ravenSize = Mathf.Clamp(RavenScreenHeight * half / m_ravenHeight, most * 0.4f, most);
 			t.localScale = Vector3.one * m_ravenSize;
 		}
 		Plugin.Log.LogInfo($"Hugin: height {m_ravenHeight:0.00}, middle {m_ravenCentreGoal}, scale {m_ravenSize:0.00}");
