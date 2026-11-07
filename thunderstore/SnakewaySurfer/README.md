@@ -318,6 +318,9 @@ and for players without the mod.
   1.16.18 (Sam): the first-run dream has its own solid dark; Hugin is sized and placed by his
   real shape at the top right; the pause message fits; View Distance in the config (default
   230 m, was 150 m).
+  1.16.19 (Sam): the longer view is put to use: the fog thins to match it, the boss's place
+  stands further off, the track ahead of a boss or the coast is closed off further away (so
+  nothing vanishes in plain sight), and the ocean and its islands show from further.
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others

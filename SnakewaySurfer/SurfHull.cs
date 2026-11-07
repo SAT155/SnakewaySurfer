@@ -230,7 +230,7 @@ internal sealed partial class SurfGame
 		Island? near = null;
 		foreach (Island i in m_islands)
 		{
-			if (!i.Built && i.C.y - m_z < 170f && i.C.y > m_z - 40f)
+			if (!i.Built && i.C.y - m_z < AheadDistance + 20f && i.C.y > m_z - 40f)
 			{
 				BuildIsland(i);
 			}

@@ -155,7 +155,7 @@ internal sealed partial class SurfGame
 		}
 		// Far enough to read as scenery and stay behind the boss, near enough to show through
 		// the fog.
-		float wanted = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f);
+		float wanted = Mathf.Clamp(0.85f / Mathf.Max(0.0005f, m_fogNow), 32f, 95f * ViewScale);
 		wanted = Mathf.Max(wanted, m_backdropDef.Mode == "stand" ? m_backdropDef.Distance + 22f : m_backdropDef.Distance + 14f);
 		m_backdropDist = Mathf.Lerp(m_backdropDist, wanted, dt <= 0f ? 1f : 1f - Mathf.Exp(-1f * dt));
 		float z = m_z + m_backdropDist;

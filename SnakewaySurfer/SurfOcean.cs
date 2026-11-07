@@ -120,7 +120,7 @@ internal sealed partial class SurfGame
 	{
 		foreach (Segment s in m_segments)
 		{
-			if (s.Sea && s.Start - m_z < 280f && (s.End == float.MaxValue || s.End - m_z > -160f))
+			if (s.Sea && s.Start - m_z < AheadDistance + 130f && (s.End == float.MaxValue || s.End - m_z > -160f))
 			{
 				return s;
 			}

@@ -205,6 +205,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private const float GroundTile = 40f;
 	// 1.16.18 (Sam): how far ahead the track is built (it was always 150 m).
 	private static float AheadDistance => Mathf.Clamp(Plugin.ViewDistance.Value, 100f, 400f);
+	// How much further than the original 150 m the view reaches.
+	private static float ViewScale => AheadDistance / 150f;
+	private static float ViewFog => 1f / ViewScale;
 
 	private Player m_player = null!;
 	private int m_layer;
@@ -3673,7 +3676,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// shows on the horizon.
 		float arenaFog = Plugin.BossLandmarks.Value ? 1f - 0.25f * arena : 1f + 0.5f * arena;
 		Color sky = Color.Lerp(b.Sky, b.Sky * 0.55f + tint * 0.2f, arena);
-		float fog = b.Fog * Plugin.FogStrength.Value * arenaFog;
+		// 1.16.19 (Sam): the air clears to match the View Distance, so the far end of the track
+		// still fades into the fog (the fogs were made for 150 m).
+		float fog = b.Fog * Plugin.FogStrength.Value * arenaFog * ViewFog;
 		Color fogColor = Color.Lerp(b.FogColor, b.FogColor * 0.6f + tint * 0.25f, arena);
 		Color ambient = b.Ambient * (1f - 0.25f * arena);
 		Color sunColor = Color.Lerp(b.SunColor, Color.Lerp(b.SunColor, tint, 0.3f), arena);

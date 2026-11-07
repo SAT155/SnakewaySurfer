@@ -306,7 +306,8 @@ internal sealed partial class SurfGame
 			}
 			if (m_items >= boss.Amount)
 			{
-				CloseSegment(here, Mathf.Max(here.Start + Plugin.BiomeLength.Value, m_z + 55f));
+				// 1.16.19: far enough on that the track already built doesn't vanish in plain view.
+				CloseSegment(here, Mathf.Max(here.Start + Plugin.BiomeLength.Value, m_z + Mathf.Max(55f, AheadDistance * 0.5f)));
 				m_banner = $"{boss.Name} approaches!";
 				m_bannerTime = 2.5f;
 				m_audio.Play(Sfx.Biome, 1f, 0.7f);
@@ -1378,12 +1379,12 @@ internal sealed partial class SurfGame
 		if (next.Sea)
 		{
 			// The coast: far enough on for the beach to slope down to the ship.
-			CloseSegment(seg, m_z + 110f);
+			CloseSegment(seg, m_z + Mathf.Max(110f, AheadDistance * 0.6f));
 			ReshapeShore(seg.End);
 		}
 		else
 		{
-			CloseSegment(seg, m_z + 45f);
+			CloseSegment(seg, m_z + Mathf.Max(45f, AheadDistance * 0.35f));
 		}
 		m_bossSink = 0f;
 		m_bossHidden = 0f;
