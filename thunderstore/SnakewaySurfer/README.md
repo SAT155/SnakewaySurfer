@@ -286,7 +286,8 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.90** (alpha, from Sam's playtests):
+- **1.16.56 to 1.16.91** (alpha, from Sam's playtests):
+  1.16.91: the campfire's two choices fit their boxes.
   1.16.90: walking into a Strange Portal set to the dream starts the ravens' story over (once
   you've slept; before that Hugin just reminds you).
   1.16.89: Hugin flies in the top right corner facing you, his words below him.

@@ -684,6 +684,10 @@ internal sealed partial class SurfGame
 	}
 
 	// The question, in the dream's look.
+	private GUIStyle? m_campLabel;
+	private GUIStyle? m_campNote;
+	private GUIStyle? m_campHint;
+
 	private void CampMenuGui(float k, float w, float h)
 	{
 		if (!m_campMenu)
@@ -702,10 +706,18 @@ internal sealed partial class SurfGame
 		s_guiAlpha = baseAlpha * open;
 		Shadowed(new Rect(w * 0.15f, h * 0.28f, w * 0.7f, 90 * k),
 			"This dreamworld will wait for you. Come back any time and carry on from here.", m_mid!);
+		// 1.16.91 (Sam's screenshot: the button words spilled out of their boxes): sizes of
+		// their own that fit, no wrapping on the names.
+		m_campLabel ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = false };
+		m_campNote ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Italic, wordWrap = true };
+		m_campHint ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
+		m_campLabel.fontSize = Mathf.RoundToInt(40 * k);
+		m_campNote.fontSize = Mathf.RoundToInt(24 * k);
+		m_campHint.fontSize = Mathf.RoundToInt(22 * k);
 		string[] labels = { "Keep dreaming", "Open your eyes" };
 		string[] notes = { "yawn, stretch, and run on", "wake up back in your world" };
-		float bw = 340f * k;
-		float bh = 120f * k;
+		float bw = 400f * k;
+		float bh = 130f * k;
 		float gap = 60f * k;
 		float x0 = w * 0.5f - bw - gap * 0.5f;
 		float y0 = h * 0.45f;
@@ -731,10 +743,10 @@ internal sealed partial class SurfGame
 			float pop = on ? 1f + 0.04f * Mathf.Sin(t * 3f) : 1f;
 			Rect rr = new Rect(r.center.x - r.width * pop * 0.5f, r.center.y - r.height * pop * 0.5f, r.width * pop, r.height * pop);
 			Fill(rr, on ? new Color(0.35f, 0.25f, 0.5f, 0.55f) : new Color(0.12f, 0.08f, 0.18f, 0.45f));
-			Shadowed(new Rect(rr.x, rr.y + 14f * k, rr.width, 50f * k), labels[i], m_big!);
-			Shadowed(new Rect(rr.x, rr.y + 66f * k, rr.width, 40f * k), notes[i], m_mid!);
+			Shadowed(new Rect(rr.x, rr.y + 18f * k, rr.width, 56f * k), labels[i], m_campLabel);
+			Shadowed(new Rect(rr.x + 12f * k, rr.y + 78f * k, rr.width - 24f * k, 36f * k), notes[i], m_campNote);
 		}
-		Shadowed(new Rect(0, y0 + bh + 40f * k, w, 40f * k), "Arrows or mouse to pick, Space or click", m_small!);
+		Shadowed(new Rect(0, y0 + bh + 40f * k, w, 40f * k), "Arrows or mouse to pick, Space or click", m_campHint);
 		s_guiAlpha = baseAlpha;
 	}
 }
