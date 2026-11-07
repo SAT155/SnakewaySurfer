@@ -115,6 +115,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> TrackBrightness = null!;
 	internal static ConfigEntry<bool> OceanCrossing = null!;
 	internal static ConfigEntry<bool> MidCheckpoints = null!;
+	internal static ConfigEntry<bool> CampBreak = null!;
 	internal static ConfigEntry<float> OceanLength = null!;
 	internal static ConfigEntry<float> SailSpeed = null!;
 	internal static ConfigEntry<bool> SeaSerpent = null!;
@@ -448,6 +449,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
 			"Use the game's own terrain textures for the land beside the track when they can be found (else a generated texture tinted per biome).");
+		CampBreak = Config.Bind("1 - Run", "Campfire Break", true,
+			"After each biome boss (and after the serpent of the deep, which you harpoon and tow ashore) you make camp: a fire, food and mead, more of a camp at higher stars, your lives restored and any crafting drop the boss left. Then you choose to keep dreaming or open your eyes (back to the game, progress saved). Off: the run just goes on.");
 		MidCheckpoints = Config.Bind("1 - Run", "Mid-Biome Checkpoints", true,
 			"Halfway through each biome a ward stone lights up as you pass, and another once you hold all of the boss's summoning items; at sea, mooring at an island counts. Only the latest one is kept. After a fall there, C on the crash screen starts again from it. Off: only the checkpoints after bosses.");
 		OceanCrossing = Config.Bind("1 - Run", "Ocean Crossing", true,

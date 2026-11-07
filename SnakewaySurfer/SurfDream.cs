@@ -452,6 +452,11 @@ internal sealed partial class SurfGame
 		{
 			s_guiAlpha = 1f - cover;
 			DrawGui();
+			if (m_campMenu && m_big != null)
+			{
+				float k = Screen.height / 1080f;
+				CampMenuGui(k, Screen.width, Screen.height);
+			}
 			s_guiAlpha = 1f;
 		}
 		if (!Loading)

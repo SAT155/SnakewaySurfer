@@ -1357,6 +1357,7 @@ internal sealed partial class SurfGame
 			// Beating Moder saves the crossing: a start there begins on the coast.
 			Progress.SaveCheckpoint(m_player, next.Sea ? SeaTo : next.Biome, next.Stars);
 			ClearResumePoint();
+			CampAfterBoss(seg, next, def);
 			m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Sea ? SeaTo : next.Biome, next.Stars, next.Sea)}";
 			if (next.Rush)
 			{

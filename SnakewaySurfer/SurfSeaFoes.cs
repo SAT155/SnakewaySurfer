@@ -618,7 +618,7 @@ internal sealed partial class SurfGame
 			}
 			PlaceFoe(f, dt);
 			// Gone behind, or far out to the side.
-			if (f.P.y < m_z - 40f || Mathf.Abs(f.P.x - m_x) > 90f || (f.Dead && f.T > 4f))
+			if (f != m_towed && (f.P.y < m_z - 40f || Mathf.Abs(f.P.x - m_x) > 90f || (f.Dead && f.T > 4f)))
 			{
 				if (f == m_seaBoss && !f.Dead)
 				{
@@ -1001,6 +1001,11 @@ internal sealed partial class SurfGame
 
 	private void UpdateSeaBoss(SeaFoe f, float dt)
 	{
+		if (f.Dead && f == m_towed)
+		{
+			TowBody(f, dt);
+			return;
+		}
 		if (f.Dead)
 		{
 			f.Y -= dt * 0.8f;
@@ -1710,6 +1715,7 @@ internal sealed partial class SurfGame
 			Flash(new Color(1f, 0.95f, 0.75f), 0.5f);
 			Plugin.Log.LogInfo($"The serpent of the deep is beaten at {m_z:0} m.");
 			SeaBossDone();
+			FireHarpoon(f);
 		}
 	}
 

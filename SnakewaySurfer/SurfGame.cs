@@ -1232,6 +1232,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		m_things.Clear();
 		ClearCrypt();
+		ClearCampScene(true);
 		ResetSea();
 		m_state = State.Countdown;
 		m_stateTime = 0f;
@@ -1452,6 +1453,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					UpdateSea(dt, canInput);
 				}
+				else if (m_camping)
+				{
+					UpdateCamp(dt, canInput);
+				}
 				else if (m_aimTime > 0f)
 				{
 					UpdateAim(dt, canInput);
@@ -1504,6 +1509,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		UpdateArrows(dt);
 		PlaceAvatar(dt);
 		PlaceCamera(dt);
+		CampCamera(dt);
 	}
 
 	private bool m_paused;
@@ -1728,6 +1734,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		UpdateStretch(dt);
 		UpdateCheckpoints(dt);
+		CheckCampStart();
 		SpawnAhead();
 		UpdateCrypt(dt);
 		UpdateTraders(dt);
@@ -3633,7 +3640,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		float lean = (LaneX(m_lane) - m_x) * -6f;
 		m_avatar.transform.localRotation = Quaternion.Euler(0f, m_avatarYaw, m_state == State.Running ? lean : 0f);
 		CryptAvatar(dt);
-		bool running = m_state == State.Running && m_aimTime <= 0f;
+		bool running = m_state == State.Running && m_aimTime <= 0f && !m_camping;
 		AvatarFloat("forward_speed", running ? m_runAnimSpeed : 0f);
 		AvatarFloat("sideway_speed", 0f);
 		AvatarBool("onGround", m_y <= 0.05f);
@@ -3643,6 +3650,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			m_avatarAnim.speed = running ? Mathf.Clamp(m_speed / 9f, 1f, 1.7f) : 1f;
 		}
+		CampAvatar();
 	}
 
 	private void PlaceCamera(float dt)

@@ -77,7 +77,8 @@ internal sealed partial class SurfGame
 		float pulse = 1f + 0.25f * m_windShift * Mathf.Abs(Mathf.Sin(Time.time * 10f));
 		Color tint = Color.Lerp(new Color(0.25f, 0.25f, 0.25f), Color.white, factor);
 		float from = (m_windAngle + 180f) * Mathf.Deg2Rad;
-		Vector2 at = rose.center + new Vector2(Mathf.Sin(from), -Mathf.Cos(from)) * (rose.width * 0.5f * 0.885f);
+		// 1.16.80 (Sam): it circles just outside the ring, not on it.
+		Vector2 at = rose.center + new Vector2(Mathf.Sin(from), -Mathf.Cos(from)) * (rose.width * 0.5f * 1.22f);
 		float ws = rose.width * 0.27f * pulse;
 		Rect icon = new Rect(at.x - ws * 0.5f, at.y - ws * 0.5f, ws, ws);
 		// A dark spot behind it so it reads over the ring.

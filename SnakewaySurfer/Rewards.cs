@@ -94,9 +94,9 @@ internal static class Rewards
 	// per Food Cooldown Minutes (one timer for all dungeons, saved on the character).
 	private const string LastLootKey = "SnakewaySurfer_LastLootUtc";
 
-	public static string? GiveDungeonLoot(Player player, string items, int amount)
+	public static string? GiveDungeonLoot(Player player, string items, int amount, string key = LastLootKey)
 	{
-		if (player == null || amount <= 0 || Cooldown(player, LastLootKey) > TimeSpan.Zero)
+		if (player == null || amount <= 0 || Cooldown(player, key) > TimeSpan.Zero)
 		{
 			return null;
 		}
@@ -125,10 +125,13 @@ internal static class Rewards
 				Object.Instantiate(prefab, player.transform.position + player.transform.forward + Vector3.up * (1f + 0.3f * i), Quaternion.identity);
 			}
 		}
-		player.m_customData[LastLootKey] = DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
+		player.m_customData[key] = DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
 		string name = drop.m_itemData.m_shared.m_name;
 		return (Localization.instance != null ? Localization.instance.Localize(name) : name) + (amount > 1 ? $" x{amount}" : "");
 	}
+
+	// 1.16.80: a boss's crafting drop at the camp after it, on its own 30-minute timer.
+	public static string? GiveBossDrop(Player player, string items, int amount) => GiveDungeonLoot(player, items, amount, "SnakewaySurfer_LastBossDropUtc");
 
 	public static TimeSpan LootCooldownLeft(Player player) => Cooldown(player, LastLootKey);
 

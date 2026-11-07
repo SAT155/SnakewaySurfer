@@ -497,6 +497,11 @@ internal sealed partial class SurfGame
 		// Up the deck from the helm to the bow, then over it onto the sand.
 		m_bowLocal = new Vector3(0f, m_helmLocal.y, m_centerLocalZ + m_shipLength * 0.4f);
 		m_deckRun = Mathf.Clamp((m_bowLocal.z - m_helmLocal.z) / 11f, 0.5f, 1.8f);
+		if (m_towed != null)
+		{
+			// Worn out after the serpent: a slow trudge up the deck.
+			m_deckRun *= 3f;
+		}
 		m_leapToZ = m_groundZ + 6f;
 		m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.8f, 0.8f);
 		m_shake = Mathf.Max(m_shake, 0.3f);
@@ -730,6 +735,7 @@ internal sealed partial class SurfGame
 			UpdateSeaStory(dt);
 		}
 		UpdateSeaFoes(dt);
+		UpdateTow(dt);
 		if (m_state != State.Running)
 		{
 			return;
@@ -755,8 +761,16 @@ internal sealed partial class SurfGame
 		m_storm = 0f;
 		// A clear stretch of beach before anything comes at you.
 		m_nextRowZ = Mathf.Max(m_nextRowZ, m_z + 45f);
+		bool towed = m_towed != null;
+		BeachCarcass();
 		ClearSeaFoes();
 		Plugin.Log.LogInfo($"Landed on the {m_biomes[Mathf.Min(SeaTo, m_biomes.Count - 1)].Def.Name} at {m_z:0} m after {m_seaTime:0} s at sea.");
+		if (m_seaBossBeaten || towed)
+		{
+			// The serpent's scales, and Moder's tears if she was beaten this run.
+			StartCamp(true, m_campLootSea.Length > 0 ? m_campLootSea : "SerpentScale");
+			m_campLootSea = "";
+		}
 	}
 
 	private void ShiftWind()
@@ -837,7 +851,7 @@ internal sealed partial class SurfGame
 			}
 		}
 		bool deckRun = m_seaPhase == 3 && m_seaPhaseT < m_deckRun;
-		AvatarFloat("forward_speed", deckRun ? m_runAnimSpeed : 0f);
+		AvatarFloat("forward_speed", deckRun ? (m_towed != null ? 1.2f : m_runAnimSpeed) : 0f);
 		AvatarFloat("sideway_speed", 0f);
 		AvatarBool("onGround", m_seaPhase == 2 || deckRun);
 		AvatarBool("crouching", false);

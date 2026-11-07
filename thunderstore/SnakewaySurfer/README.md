@@ -1,6 +1,37 @@
 # SnakewaySurfer
 
-Waiting at the longhouse for your friends? Open the console (F5) and type **`surfsup`**.
+> **Alpha.** This mod is in its early stages. I'm building it out into something complete as a
+> fun hobby, coding it together with Claude, so expect rough edges, odd visuals and things that change from one version to the
+> next. Your world is safe: nothing is placed in it, and the minigame only adds rewards to your
+> own character.
+
+Some evenings at the longhouse drag on. The fire's low, your friends are late, and a raven
+won't stop staring at you.
+
+Then one day a portal shows up near you that you didn't build. Hugin seems to know something
+about it. He'll keep telling you that you look tired, and that you should get some sleep.
+
+What waits on the other side is a road. It runs through every land you've fought for, and it
+doesn't stop for anyone.
+
+## How to start
+
+- **The story way:** play as normal. After a few minutes a strange portal appears and the
+  ravens come to talk. Do what Hugin says: find a bed and sleep.
+- **The quick way:** open the console (F5) and type **`surfsup`**.
+
+Either way your viking dreams. Keep your hands on **A / D**, **W** and **S**, keep your shield
+up (**right mouse**), and watch the ground for red, amber and blue marks. Hugin explains the rest
+as you go. Press **Esc** any time to wake up.
+
+What it gives back is real: Run XP, food from the biomes you crossed, the spoils of the places
+you get through, and a little more for those who go far.
+
+---
+
+## Spoilers ahead
+
+Everything below gives the game away: what you'll meet, where, and how to beat it.
 
 Your viking auto-runs down the Snakeway, a three-lane track through every biome in order:
 Meadows, Black Forest, Swamp, Mountains, Plains, Mistlands, Ashlands and Deep North (which
@@ -251,7 +282,26 @@ objects that only your own camera can see. The running animation and the circlet
 game's normal syncing, so they work on a vanilla dedicated server, with or without Valheim Plus,
 and for players without the mod.
 
-## Changes
+## Changelog (spoilers)
+
+- **1.16.56 to 1.16.80** (alpha, from Sam's playtests):
+  1.16.80: you harpoon the serpent of the deep (the Abyssal Harpoon, roped to the ship) and tow
+  its body to the Plains. After every boss you make camp: a fire, food and mead, a bigger camp
+  each star, your lives back and the boss's crafting drop. Then keep dreaming, or open your eyes.
+  The wind icon circles outside the wind ring.
+  1.16.79: mid-biome checkpoints. Ward stones light up halfway through each biome and again once
+  you hold the boss's items, and island moorings count at sea; press C after a crash to start
+  from one. Islands furl your sail for you. The ballista is aimed with the mouse. The sea is twice
+  as wide with slower oars and clear air. A rippling dream takes you from the menu into the run.
+  Boss arenas and dungeon halls are much bigger. Each dungeon gives its material (sunken crypt:
+  iron, and so on; one more per star, every 30 minutes).
+  1.16.76 to 1.16.78: bigger hull planks, harmless faint wave crests, rocks ringed with foam; a
+  wrecked ship sinks and cargo crates bob up; the start menu's hover breathes and sways.
+  1.16.71 to 1.16.75: the ravens' story (a strange portal, Hugin nagging you to sleep, Munin's
+  episodes, and the run is your dream); fairer serpents that commit to their attacks, no more
+  wave damage, the hammer's swing and sawdust when you mend the ship.
+  1.16.56 to 1.16.70: Hugin's messages, the dream intro and dreamy start menu, the portal
+  loading screen, the dungeon corner gust, distance haze, rolls cost stamina, the Elder's maze.
 
 - **1.16**: the ocean crossing between the Mountains and the Plains: a longship seen from
   above, steered with the rudder and sailed by the wind as in the game (it turns now and then),
