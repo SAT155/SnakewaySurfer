@@ -290,6 +290,8 @@ and for players without the mod.
   1.16.84: the Strange Portal piece (hammer, Misc: 10 ectoplasm, 10 feathers). Use it to set it
   to one of your checkpoints and walk in to run from there, or leave it on the dream (the ravens'
   portal: sleep to dream). `surfportal` makes the ravens' portal appear right away.
+  Also in 1.16.84: no more terrain flicker while Hugin is up, and Hugin stays gone for anyone
+  who has already dreamt the run.
   1.16.83: Hugin is about half the size.
   1.16.82: Hugin sits lower on the right, clear of the buff icons, and has his own light so he
   shows at night.

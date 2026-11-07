@@ -238,6 +238,10 @@ internal sealed partial class SurfGame
 
 	private bool FirstRun()
 	{
+		if (m_player != null && Plugin.RavenStory.Value && SurfStory.Stage(m_player) != SurfStory.StageSlept)
+		{
+			SurfStory.MarkDreamed(m_player);
+		}
 		if (m_player == null || m_player.m_customData.ContainsKey(Progress.FirstRunKey))
 		{
 			return false;

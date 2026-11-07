@@ -182,6 +182,8 @@ internal sealed class StrangePortal : MonoBehaviour, Hoverable, Interactable
 
 	public string GetHoverName() => "Strange Portal";
 
+	public float GetHoverOffset() => 0f;
+
 	public bool Interact(Humanoid user, bool hold, bool alt)
 	{
 		if (hold || m_nview == null || !m_nview.IsValid() || user != Player.m_localPlayer)
