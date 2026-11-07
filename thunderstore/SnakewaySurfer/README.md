@@ -334,6 +334,10 @@ and for players without the mod.
   biome (a Meadows-to-Swamp run gives three).
   1.16.24 (Sam): the corner's arrow is now a gust of puffy, ink-edged cloud streaming up the hall
   and curling off toward the way on, swaying like a beckoning whoosh (with a whoosh to hear).
+  1.16.25 (Sam's sketch): the gust now waits just ahead of you as flat, ink-edged cut-out shapes
+  in a storybook style: a billowy cloud on the side away from the turn, spiky gusts leaning the
+  way to go, puffs curling off toward the opening. Nearer the corner the cloud shrinks and the
+  gusts grow; once you turn the cloud is squeezed against the wall and left behind.
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others
