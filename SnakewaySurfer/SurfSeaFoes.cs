@@ -129,7 +129,7 @@ internal sealed partial class SurfGame
 			if (m_rollerTimer <= 0f)
 			{
 				m_rollerTimer = fight ? Random.Range(8f, 11f) : Random.Range(5f, 7.5f) / (1f + 0.12f * SeaStars);
-				SpawnRoller(WindVector(), Random.Range(2.2f, 3.4f) * m_storm, Random.Range(4.5f, 5.5f));
+				SpawnRoller(WindVector(), Random.Range(1.6f, 2.4f) * m_storm, Random.Range(4.5f, 5.5f));
 			}
 		}
 		if (m_storm > 0.6f)
@@ -1698,7 +1698,10 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		m.transform.localPosition = new Vector3(centre.x, SeaHeight(centre.x, centre.y) + 0.25f, centre.y);
+		// Above the swell all along its length (a long streak on one height dipped under the
+		// waves).
+		float top = Mathf.Max(SeaHeight(centre.x, centre.y), SeaY) + 0.35f + 1.4f * m_storm;
+		m.transform.localPosition = new Vector3(centre.x, top, centre.y);
 		m.transform.localRotation = Quaternion.Euler(90f, angle, 0f);
 		m.transform.localScale = new Vector3(width, Mathf.Max(0.5f, length), 1f);
 	}

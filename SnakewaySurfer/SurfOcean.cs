@@ -99,7 +99,7 @@ internal sealed partial class SurfGame
 		foreach (Roller r in m_rollers)
 		{
 			float s = x * r.Dir.x + z * r.Dir.y - r.Crest;
-			if (s > 30f || s < -40f)
+			if (s > 50f || s < -70f)
 			{
 				continue;
 			}
@@ -108,8 +108,10 @@ internal sealed partial class SurfGame
 			{
 				continue;
 			}
-			float w = s > 0f ? 4.5f : 8f;
-			float shape = Mathf.Exp(-(s / w) * (s / w)) - 0.28f * Mathf.Exp(-((s - 8f) / 5f) * ((s - 8f) / 5f));
+			// 1.16.77 (Sam: storm waves buried the ship, the serpent and the markers): broad,
+			// long swells the ship rides up and over, not steep walls of water.
+			float w = s > 0f ? 10f : 17f;
+			float shape = Mathf.Exp(-(s / w) * (s / w)) - 0.22f * Mathf.Exp(-((s - 18f) / 11f) * ((s - 18f) / 11f));
 			h += r.Height * fade * shape;
 		}
 		return SeaY + h;
