@@ -700,6 +700,11 @@ internal sealed class SurfStory : MonoBehaviour
 		go.name = munin ? "StoryMunin" : "StoryHugin";
 		go.SetActive(true);
 		b = new Bird { Go = go, Anim = go.GetComponentInChildren<Animator>(), Munin = munin };
+		foreach (SkinnedMeshRenderer smr in go.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+		{
+			// Its outline from the bones as they are, so Place can keep him in frame.
+			smr.updateWhenOffscreen = true;
+		}
 		Measure(b, main);
 		if (b.Anim != null && SurfGame.SetTrigger(b.Anim, "flyin") == null)
 		{
@@ -833,6 +838,26 @@ internal sealed class SurfStory : MonoBehaviour
 			b.Go.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, b.Munin ? -25f : 25f, 0f);
 		}
 		b.Go.transform.position = at - b.Go.transform.rotation * (b.Centre * b.Size);
+		// 1.16.85 (Sam: only Munin's talons showed, big, in the corner, the rest of him off the
+		// top of the view): the size and middle measured when he arrives aren't where his
+		// animation actually puts him. Each frame, his real outline is centred on his perch and
+		// eased to the size he should be.
+		if (Pictures.MeshBounds(b.Go, out Bounds live) && live.size.y > 0.01f)
+		{
+			float half = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth;
+			float want = ScreenHeight * half;
+			float tall = Mathf.Max(live.size.y, live.size.x * 0.6f);
+			float k = Mathf.Clamp(want / tall, 0.85f, 1.15f);
+			if (Mathf.Abs(k - 1f) > 0.03f)
+			{
+				b.Size = Mathf.Clamp(b.Size * Mathf.Lerp(1f, k, 0.5f), 0.02f, 3f);
+				b.Go.transform.localScale = Vector3.one * b.Size;
+			}
+			b.Height = live.size.y / Mathf.Max(0.01f, b.Size);
+			// Eased, not snapped: the outline can be a frame behind.
+			Vector3 off = Vector3.ClampMagnitude(live.center - at, half);
+			b.Centre += Quaternion.Inverse(b.Go.transform.rotation) * off / Mathf.Max(0.01f, b.Size) * 0.3f;
+		}
 	}
 
 	private void EnsureBirdCamera(Camera main)
