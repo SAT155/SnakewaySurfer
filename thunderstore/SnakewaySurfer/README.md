@@ -18,6 +18,8 @@ doesn't stop for anyone.
 
 - **The story way:** play as normal. After a few minutes a strange portal appears and the
   ravens come to talk. Do what Hugin says: find a bed and sleep.
+- **The builder's way:** the hammer's Misc tab has a **Strange Portal** (10 ectoplasm, 10
+  feathers). Use it to choose where it leads.
 - **The quick way:** open the console (F5) and type **`surfsup`**.
 
 Either way your viking dreams. Keep your hands on **A / D**, **W** and **S**, keep your shield
@@ -284,7 +286,10 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.83** (alpha, from Sam's playtests):
+- **1.16.56 to 1.16.84** (alpha, from Sam's playtests):
+  1.16.84: the Strange Portal piece (hammer, Misc: 10 ectoplasm, 10 feathers). Use it to set it
+  to one of your checkpoints and walk in to run from there, or leave it on the dream (the ravens'
+  portal: sleep to dream). `surfportal` makes the ravens' portal appear right away.
   1.16.83: Hugin is about half the size.
   1.16.82: Hugin sits lower on the right, clear of the buff icons, and has his own light so he
   shows at night.

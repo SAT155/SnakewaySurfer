@@ -116,6 +116,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> OceanCrossing = null!;
 	internal static ConfigEntry<bool> MidCheckpoints = null!;
 	internal static ConfigEntry<bool> CampBreak = null!;
+	internal static ConfigEntry<bool> PortalPiece = null!;
 	internal static ConfigEntry<float> OceanLength = null!;
 	internal static ConfigEntry<float> SailSpeed = null!;
 	internal static ConfigEntry<bool> SeaSerpent = null!;
@@ -449,6 +450,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
 			"Use the game's own terrain textures for the land beside the track when they can be found (else a generated texture tinted per biome).");
+		PortalPiece = Config.Bind("4 - Ravens", "Strange Portal Piece", true,
+			"A Strange Portal to build with the hammer (Misc tab, 10 ectoplasm and 10 feathers, no workbench needed). Use it to choose where it leads: one of your checkpoints (walk in and run from there) or the dream (the ravens' strange portal: sleep to dream the run). Needs a restart to change.");
 		CampBreak = Config.Bind("1 - Run", "Campfire Break", true,
 			"After each biome boss (and after the serpent of the deep, which you harpoon and tow ashore) you make camp: a fire, food and mead, more of a camp at higher stars, your lives restored and any crafting drop the boss left. Then you choose to keep dreaming or open your eyes (back to the game, progress saved). Off: the run just goes on.");
 		MidCheckpoints = Config.Bind("1 - Run", "Mid-Biome Checkpoints", true,
@@ -537,6 +540,16 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				args.Context.AddString(SurfStory.Command(player, args.Args));
+			});
+			new Terminal.ConsoleCommand("surfportal", "surfportal - testing: the ravens' strange portal, right now, in front of you", args =>
+			{
+				Player player = Player.m_localPlayer;
+				if (player == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				args.Context.AddString(SurfStory.Command(player, new[] { "surfstory", "portal" }));
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{

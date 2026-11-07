@@ -1,0 +1,241 @@
+using System.Collections.Generic;
+using HarmonyLib;
+using UnityEngine;
+
+namespace SnakewaySurfer;
+
+// 1.16.84 (Sam): "add a portal building that you can build and place with hammer that only costs
+// ectoplasm and feathers. Be sure to set it's category appropriately. ... these can be set for
+// the different biomes if a user just wants to go straight to running, reset them to make em
+// revert back to sleep required to start dream."
+// The Strange Portal: the game's wooden portal, glowing the story portal's sickly green, in the
+// hammer's Misc tab beside the real portal, for 10 ectoplasm and 10 feathers, anywhere (no
+// workbench). Use it (E) to pick where it leads: one of your checkpoints, or "the dream" (the
+// default, and where it goes back to after the last checkpoint). Walk into it: set to a
+// checkpoint you run from there; set to the dream it's the ravens' strange portal (before their
+// story starts it begins it; after, Hugin reminds you that the dream only comes in your sleep).
+internal static class SurfPortalPiece
+{
+	public const string PrefabName = "piece_surf_strangeportal";
+	private static GameObject? s_prefab;
+	private static GameObject? s_holder;
+
+	private static GameObject? Make(GameObject? portal)
+	{
+		if (s_prefab != null || portal == null)
+		{
+			return s_prefab;
+		}
+		s_holder = new GameObject("SnakewaySurfer_Prefabs");
+		s_holder.SetActive(false);
+		Object.DontDestroyOnLoad(s_holder);
+		GameObject copy = Object.Instantiate(portal, s_holder.transform, false);
+		copy.name = PrefabName;
+		TeleportWorld? tw = copy.GetComponent<TeleportWorld>();
+		StrangePortal marker = copy.AddComponent<StrangePortal>();
+		marker.Swirl = tw != null && tw.m_target_found != null ? tw.m_target_found.gameObject : null;
+		marker.Model = tw != null ? tw.m_model : null;
+		marker.Centre = tw != null ? tw.m_proximityRoot : null;
+		// No tag to type and no real teleport: everything of the portal's own goes.
+		foreach (MonoBehaviour mb in copy.GetComponentsInChildren<MonoBehaviour>(true))
+		{
+			if (mb != null && mb.GetType().Name.StartsWith("Teleport"))
+			{
+				Object.DestroyImmediate(mb);
+			}
+		}
+		Piece? piece = copy.GetComponent<Piece>();
+		if (piece != null)
+		{
+			piece.m_name = "Strange Portal";
+			piece.m_description = "It hums like a half-remembered dream. Use it to choose where it leads: one of your checkpoints, or back to the dream that only comes in your sleep.";
+			piece.m_category = Piece.PieceCategory.Misc;
+			piece.m_craftingStation = null;
+		}
+		s_prefab = copy;
+		Plugin.Log.LogInfo("Made the Strange Portal piece.");
+		return s_prefab;
+	}
+
+	private static GameObject? PortalFrom(List<GameObject> prefabs) => prefabs.Find(g => g != null && g.name == "portal_wood");
+
+	[HarmonyPatch(typeof(ZNetScene), "Awake")]
+	private static class ZNetSceneAwake
+	{
+		private static void Prefix(ZNetScene __instance)
+		{
+			if (!Plugin.PortalPiece.Value)
+			{
+				return;
+			}
+			GameObject? prefab = Make(PortalFrom(__instance.m_prefabs));
+			if (prefab != null && !__instance.m_prefabs.Contains(prefab))
+			{
+				__instance.m_prefabs.Add(prefab);
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(ObjectDB), "Awake")]
+	private static class ObjectDBAwake
+	{
+		private static void Postfix(ObjectDB __instance) => AddToHammer(__instance);
+	}
+
+	[HarmonyPatch(typeof(ObjectDB), "CopyOtherDB")]
+	private static class ObjectDBCopy
+	{
+		private static void Postfix(ObjectDB __instance) => AddToHammer(__instance);
+	}
+
+	private static void AddToHammer(ObjectDB db)
+	{
+		if (!Plugin.PortalPiece.Value || db == null || db.m_items == null || db.m_items.Count == 0)
+		{
+			return;
+		}
+		GameObject? hammer = db.GetItemPrefab("Hammer");
+		PieceTable? table = hammer != null ? hammer.GetComponent<ItemDrop>()?.m_itemData?.m_shared?.m_buildPieces : null;
+		if (table == null)
+		{
+			return;
+		}
+		GameObject? prefab = Make(PortalFrom(table.m_pieces));
+		if (prefab == null)
+		{
+			return;
+		}
+		Piece? piece = prefab.GetComponent<Piece>();
+		ItemDrop? ecto = db.GetItemPrefab("Ectoplasm")?.GetComponent<ItemDrop>();
+		ItemDrop? feathers = db.GetItemPrefab("Feathers")?.GetComponent<ItemDrop>();
+		if (piece != null && ecto != null && feathers != null)
+		{
+			piece.m_resources = new[]
+			{
+				new Piece.Requirement { m_resItem = ecto, m_amount = 10, m_recover = true },
+				new Piece.Requirement { m_resItem = feathers, m_amount = 10, m_recover = true },
+			};
+		}
+		if (!table.m_pieces.Contains(prefab))
+		{
+			int at = table.m_pieces.FindIndex(g => g != null && g.name == "portal_wood");
+			table.m_pieces.Insert(at >= 0 ? at + 1 : table.m_pieces.Count, prefab);
+		}
+	}
+}
+
+// On each built Strange Portal.
+internal sealed class StrangePortal : MonoBehaviour, Hoverable, Interactable
+{
+	public GameObject? Swirl;
+	public MeshRenderer? Model;
+	public Transform? Centre;
+
+	private const string TargetKey = "surf_portal_target";
+	private ZNetView? m_nview;
+	private bool m_away = true;
+	private float m_cool;
+
+	private void Start()
+	{
+		m_nview = GetComponent<ZNetView>();
+		if (Swirl != null)
+		{
+			Swirl.SetActive(true);
+			foreach (ParticleSystem ps in Swirl.GetComponentsInChildren<ParticleSystem>(true))
+			{
+				ps.gameObject.SetActive(true);
+				ParticleSystem.MainModule main = ps.main;
+				main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.55f, 0.95f, 0.35f), new Color(0.6f, 0.2f, 0.85f));
+				ps.Play(true);
+			}
+			foreach (Light l in Swirl.GetComponentsInChildren<Light>(true))
+			{
+				l.enabled = true;
+				l.color = new Color(0.55f, 0.9f, 0.4f);
+			}
+		}
+		if (Model != null)
+		{
+			Material mat = Model.material;
+			mat.EnableKeyword("_EMISSION");
+			mat.SetColor("_EmissionColor", new Color(0.35f, 0.9f, 0.25f) * 2.2f);
+		}
+	}
+
+	private string Target => m_nview != null && m_nview.IsValid() ? m_nview.GetZDO().GetString(TargetKey, "") : "";
+
+	private static string Describe(string target)
+	{
+		string[] bits = target.Split(':');
+		if (bits.Length == 2 && int.TryParse(bits[0], out int b) && int.TryParse(bits[1], out int s))
+		{
+			return Progress.Describe(b, s);
+		}
+		return "the dream (sleep to dream the run)";
+	}
+
+	public string GetHoverText()
+	{
+		return "Strange Portal\nLeads to: " + Describe(Target) + "\n[<color=yellow><b>$KEY_Use</b></color>] Change where it leads";
+	}
+
+	public string GetHoverName() => "Strange Portal";
+
+	public bool Interact(Humanoid user, bool hold, bool alt)
+	{
+		if (hold || m_nview == null || !m_nview.IsValid() || user != Player.m_localPlayer)
+		{
+			return false;
+		}
+		Player p = (Player)user;
+		List<(int biome, int stars)> list = Progress.Checkpoints(p);
+		list.Sort((a, b) => a.stars != b.stars ? a.stars.CompareTo(b.stars) : a.biome.CompareTo(b.biome));
+		List<string> targets = new() { "" };
+		foreach ((int b, int s) in list)
+		{
+			targets.Add(b + ":" + s);
+		}
+		int i = targets.IndexOf(Target);
+		string next = targets[(i + 1) % targets.Count];
+		m_nview.ClaimOwnership();
+		m_nview.GetZDO().Set(TargetKey, next);
+		p.Message(MessageHud.MessageType.Center, "The portal now leads to " + Describe(next));
+		return true;
+	}
+
+	public bool UseItem(Humanoid user, ItemDrop.ItemData item) => false;
+
+	private void Update()
+	{
+		Player? p = Player.m_localPlayer;
+		if (p == null || m_nview == null || !m_nview.IsValid() || SurfGame.Active != null)
+		{
+			return;
+		}
+		m_cool -= Time.deltaTime;
+		Vector3 centre = Centre != null ? Centre.position : transform.position + Vector3.up;
+		Vector3 d = p.transform.position - centre;
+		float flat = new Vector2(d.x, d.z).magnitude;
+		bool inside = flat < 1.2f && Mathf.Abs(d.y) < 2.5f;
+		if (!inside)
+		{
+			m_away = true;
+			return;
+		}
+		if (!m_away || m_cool > 0f || p.IsTeleporting() || p.InBed() || p.IsDead())
+		{
+			return;
+		}
+		m_away = false;
+		m_cool = 3f;
+		string target = Target;
+		string[] bits = target.Split(':');
+		if (bits.Length == 2 && int.TryParse(bits[0], out int b) && int.TryParse(bits[1], out int s))
+		{
+			SurfGame.Begin(p, null, new[] { "surfsup", (b + 1).ToString(), s.ToString() });
+			return;
+		}
+		SurfStory.Instance?.EnterBuiltPortal(p);
+	}
+}

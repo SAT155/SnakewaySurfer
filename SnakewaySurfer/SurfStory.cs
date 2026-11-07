@@ -233,6 +233,53 @@ internal sealed class SurfStory : MonoBehaviour
 		}
 	}
 
+	// The debug way: the usual spot if there is one, else 5 m in front of you.
+	private bool SpawnPortalNow(Player p)
+	{
+		TrySpawnPortal(p);
+		if (m_portal != null)
+		{
+			return true;
+		}
+		GameObject? prefab = Pictures.Prefab("portal_wood");
+		if (prefab == null)
+		{
+			return false;
+		}
+		Vector3 fwd = p.transform.forward;
+		fwd.y = 0f;
+		fwd = fwd.sqrMagnitude > 0.01f ? fwd.normalized : Vector3.forward;
+		Vector3 at = p.transform.position + fwd * 5f;
+		if (ZoneSystem.instance != null && ZoneSystem.instance.GetSolidHeight(at, out float height))
+		{
+			at.y = height;
+		}
+		MakePortal(prefab, at, Quaternion.LookRotation(-fwd));
+		return m_portal != null;
+	}
+
+	// 1.16.84: a built Strange Portal left on "the dream" (SurfPortalPiece.cs). It's the strange
+	// portal: it starts the ravens' story, or once that's begun, through it and out again and
+	// Hugin is soon at you to get some sleep. (Ravens off: straight into the run.)
+	public void EnterBuiltPortal(Player p)
+	{
+		if (SurfGame.Active != null || m_portalTime >= 0f)
+		{
+			return;
+		}
+		if (!Plugin.RavenStory.Value)
+		{
+			SurfGame.Begin(p, null, null, null);
+			return;
+		}
+		RemovePortal();
+		EnterPortal(p);
+		if (Stage(p) != StageNone)
+		{
+			m_nextTalk = Mathf.Min(m_nextTalk, 3f);
+		}
+	}
+
 	private void TrySpawnPortal(Player p)
 	{
 		if (p.InInterior() || p.InWater() || p.IsTeleporting() || ZoneSystem.instance == null)
@@ -861,11 +908,16 @@ internal sealed class SurfStory : MonoBehaviour
 				Set(p, StageKey, StageNone);
 				if (s != null)
 				{
+					// 1.16.84 (Sam: a debug to spawn the portal now): right away, in front of you.
 					s.RemovePortal();
 					s.m_playTime = 99999f;
-					s.m_portalLooked = 0f;
+					s.m_portalLooked = Time.time + 20f;
+					if (!s.SpawnPortalNow(p))
+					{
+						return "Couldn't place the strange portal here. Try in the open.";
+					}
 				}
-				return "A strange portal should appear in front of you in a moment.";
+				return Plugin.RavenStory.Value ? "A strange portal stands in front of you." : "A strange portal stands in front of you (Raven Story is off in the config, so it won't do anything).";
 			case "hugin":
 				Set(p, StageKey, StageHugin);
 				Set(p, AwakeKey, Now - (args.Length > 2 && float.TryParse(args[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float d) ? d : 0f) * DayLength);
