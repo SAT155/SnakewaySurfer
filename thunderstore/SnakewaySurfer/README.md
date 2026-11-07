@@ -284,7 +284,8 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **1.16.56 to 1.16.82** (alpha, from Sam's playtests):
+- **1.16.56 to 1.16.83** (alpha, from Sam's playtests):
+  1.16.83: Hugin is about half the size.
   1.16.82: Hugin sits lower on the right, clear of the buff icons, and has his own light so he
   shows at night.
   1.16.81: you harpoon the serpent of the deep (the Abyssal Harpoon, roped to the ship) and tow

@@ -32,7 +32,7 @@ internal sealed partial class SurfGame
 	private float m_ravenHeight = 1f;
 	private float m_ravenSize = RavenScale;
 	// His height on screen, as a share of half the view's height.
-	private const float RavenScreenHeight = 0.34f;
+	private const float RavenScreenHeight = 0.24f;
 
 	private bool RavenTalks => Plugin.Raven.Value && !Plugin.PopupText.Value;
 
@@ -246,8 +246,8 @@ internal sealed partial class SurfGame
 			float half = Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) * RavenDepth;
 			// Never bigger than a raven set back in the corner (a measure taken mid-flap could say
 			// he is tiny and blow him up to fill the screen).
-			float most = RavenScale * RavenDepth / 5f * 0.8f;
-			m_ravenSize = Mathf.Clamp(RavenScreenHeight * half / m_ravenHeight, most * 0.4f, most);
+			float most = RavenScale * RavenDepth / 5f * 0.56f;
+			m_ravenSize = Mathf.Clamp(RavenScreenHeight * half / m_ravenHeight, most * 0.3f, most);
 			t.localScale = Vector3.one * m_ravenSize;
 		}
 		Plugin.Log.LogInfo($"Hugin: height {m_ravenHeight:0.00}, middle {m_ravenCentreGoal}, scale {m_ravenSize:0.00}");

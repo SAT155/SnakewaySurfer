@@ -65,7 +65,8 @@ internal sealed class SurfStory : MonoBehaviour
 	private Camera? m_birdCam;
 	private Light? m_birdLight;
 	private const float Depth = 9f;
-	private const float ScreenHeight = 0.34f;
+	// 1.16.83 (Sam: "He is too big still"): about half the size (was 0.34).
+	private const float ScreenHeight = 0.16f;
 
 	private void Awake()
 	{
@@ -656,8 +657,8 @@ internal sealed class SurfStory : MonoBehaviour
 		b.Centre = Quaternion.Inverse(t.rotation) * (bounds.center - t.position);
 		b.Height = bounds.size.y;
 		float half = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth;
-		float most = 1.3f * Depth / 5f * 0.8f;
-		b.Size = Mathf.Clamp(ScreenHeight * half / b.Height, most * 0.4f, most);
+		float most = 1.3f * Depth / 5f * 0.4f;
+		b.Size = Mathf.Clamp(ScreenHeight * half / b.Height, most * 0.2f, most);
 		t.localScale = Vector3.one * b.Size;
 	}
 
