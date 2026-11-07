@@ -93,6 +93,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> GiantChance = null!;
 	internal static ConfigEntry<float> FogStrength = null!;
 	internal static ConfigEntry<bool> DistanceHaze = null!;
+	internal static ConfigEntry<bool> WaveGuide = null!;
 	internal static ConfigEntry<float> RollStamina = null!;
 	internal static ConfigEntry<KeyCode> SprintKey = null!;
 	internal static ConfigEntry<KeyCode> BlockKey = null!;
@@ -201,6 +202,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Minigame camera field of view in degrees.", new AcceptableValueRange<float>(30f, 110f)));
 		FogStrength = Config.Bind("3 - Look", "Fog Strength", 1f,
 			new ConfigDescription("How thick the minigame's fog is (each biome has its own; the Swamp and Mistlands are thickest). 0 turns it off.", new AcceptableValueRange<float>(0f, 4f)));
+		WaveGuide = Config.Bind("3 - Look", "Wave Guide", false,
+			"At sea, a band through the ship while a rolling wave comes at her side on (waves no longer do damage, so it's off by default).");
 		DistanceHaze = Config.Bind("3 - Look", "Distance Haze", true,
 			"Thin sheets of mist across the far end of the view, so the end of the track fades away even where the game's own fog doesn't reach the minigame.");
 		AmbientLight = Config.Bind("3 - Look", "Ambient Light", 0.45f,

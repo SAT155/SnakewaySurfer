@@ -249,9 +249,16 @@ internal sealed partial class SurfGame
 			if (d < shore && d > 0.01f)
 			{
 				// Aground: she's pushed back off the sand.
-				Vector2 push = (c - i.C) / d * (shore - d);
-				m_x += push.x;
-				m_z += Mathf.Max(0f, push.y);
+				// 1.16.74 (Sam: "If you get too close to the island you get stuck"): she slides off
+				// sideways round the island and her bow swings clear, instead of being held
+				// against it (she can't be pushed back down the course).
+				Vector2 away = (c - i.C) / d;
+				float over = shore - d;
+				Vector2 push = away * over;
+				float aside = Mathf.Sign(c.x - i.C.x + 0.01f);
+				m_x += away.x * over + (away.y < 0f ? aside * -away.y * over : 0f);
+				m_z += Mathf.Max(0f, away.y * over);
+				m_heading = Mathf.MoveTowards(m_heading, aside * MaxHeading * 0.7f, 140f * dt);
 				if (m_scrape <= 0f)
 				{
 					m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.6f, 0.75f);

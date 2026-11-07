@@ -19,7 +19,7 @@ internal sealed partial class SurfGame
 		return ShipCenter() + HeadingVector() * (ahead + m_boatSpeed * 0.5f) + new Vector2(f.Side * 4.5f, 0f);
 	}
 
-	private float BreathWindup(SeaFoe f) => f.Boss ? Mathf.Max(1.2f, 1.6f - 0.1f * SeaStars) : Mathf.Max(1f, 1.4f - 0.1f * SeaStars);
+	private float BreathWindup(SeaFoe f) => f.Boss ? Mathf.Max(1.5f, 2f - 0.1f * SeaStars) : Mathf.Max(1.3f, 1.8f - 0.1f * SeaStars);
 
 	// Up out of the water where it is, facing the ship.
 	private void StartBreath(SeaFoe f)
@@ -49,11 +49,11 @@ internal sealed partial class SurfGame
 		// Stopped dead, reared up out of the water: the ship comes on toward it.
 		f.Dir = Vector2.zero;
 		f.Y = Mathf.MoveTowards(f.Y, f.Boss ? 0f : -0.1f, dt * 5f);
-		if (f.T < windup * 0.75f)
+		// 1.16.74 (Sam: it shouldn't keep tracking once it starts): it barely turns after rearing
+		// up, so the ship can sail out of the streak.
+		if (f.T < windup * 0.5f)
 		{
-			// It turns with the ship until just before it blows.
-			f.Aim = ship + shipVel * Mathf.Max(0f, windup - f.T + 0.35f);
-			f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(f.Aim - f.P), 120f * dt);
+			f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(f.Aim - f.P), 10f * dt);
 		}
 		Vector2 dir = Dir2(f.Facing);
 		Vector2 mouth = f.P + dir * (f.Length * 0.3f);

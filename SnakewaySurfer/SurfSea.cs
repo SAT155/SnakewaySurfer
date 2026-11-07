@@ -925,7 +925,7 @@ internal sealed partial class SurfGame
 		// 1.16.73 (Sam: "it follows the ship perfectly ... I don't understand how it is supposed to
 		// help"): only shown while you're side on to the wave, when it matters; lined up with it
 		// (bow or stern to the wave) it goes away.
-		if (next == null || m_seaPhase != 2 || !SideOn(next.Dir))
+		if (next == null || m_seaPhase != 2 || !Plugin.WaveGuide.Value || !SideOn(next.Dir))
 		{
 			if (m_safeLine != null)
 			{
@@ -990,7 +990,8 @@ internal sealed partial class SurfGame
 				SpawnSplash(boat, 2f);
 				m_audio.Play("sfx_ship_impact|sfx_wood_hit", 1f, 0.75f);
 				m_shake = Mathf.Max(m_shake, 0.5f);
-				Hit(new Thing { Label = "", JumpOrSlide = true, Heavy = true }, "A wave caught you side on and rolled the ship! (Meet waves bow or stern first.)");
+				// 1.16.74 (Sam: "we don't need to worry about wave damage ... too confusing"):
+				// side on, a wave only rocks her.
 			}
 			else
 			{

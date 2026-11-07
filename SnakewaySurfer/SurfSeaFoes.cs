@@ -21,6 +21,7 @@ internal sealed partial class SurfGame
 		public string Kind = "";
 		public GameObject Go = null!;
 		public Animator? Anim;
+		public bool LoggedAnim;
 		public CreatureInfo? Info;
 		public CreatureAttack? Attack;
 		public string Label = "";
@@ -329,7 +330,7 @@ internal sealed partial class SurfGame
 	{
 		float side = Random.value < 0.5f ? -1f : 1f;
 		Vector2 at = new Vector2(m_x + side * Random.Range(14f, 24f), m_z + Random.Range(50f, 70f));
-		SeaFoe? f = SpawnCreature("serpent", "Serpent", 9f + SeaStars * 0.5f, at);
+		SeaFoe? f = SpawnCreature("serpent", "Serpent", 12f + SeaStars * 0.5f, at);
 		if (f == null)
 		{
 			return;
@@ -490,7 +491,7 @@ internal sealed partial class SurfGame
 	private void SpawnSeaBoss()
 	{
 		Vector2 at = new Vector2(m_x + 18f, m_z + 40f);
-		SeaFoe? f = SpawnCreature("boss", "Serpent", 17f + SeaStars, at);
+		SeaFoe? f = SpawnCreature("boss", "Serpent", 21f + SeaStars, at);
 		if (f == null)
 		{
 			SeaBossDone();
@@ -562,9 +563,11 @@ internal sealed partial class SurfGame
 				{
 					case "serpent":
 						UpdateSerpent(f, dt);
+						KeepOffIslands(f);
 						break;
 					case "boss":
 						UpdateSeaBoss(f, dt);
+						KeepOffIslands(f);
 						break;
 					case "drake":
 					case "squito":
@@ -635,7 +638,24 @@ internal sealed partial class SurfGame
 		}
 		if (f.Anim != null)
 		{
-			SetParam(f.Anim, "forward_speed", f.Dir.magnitude);
+			// 1.16.74 (Sam: "Why is the serpent not animated at all?"): a serpent never holds
+			// still in the water; it swims in place even while it rears or waits to be shot.
+			bool serpent = f.Kind == "serpent" || f.Kind == "boss";
+			if (serpent && !f.Anim.enabled)
+			{
+				f.Anim.enabled = true;
+			}
+			SetParam(f.Anim, "forward_speed", serpent && !f.Dead ? Mathf.Max(f.Dir.magnitude, 5f) : f.Dir.magnitude);
+			if (serpent && !f.LoggedAnim)
+			{
+				f.LoggedAnim = true;
+				List<string> ps = new();
+				foreach (AnimatorControllerParameter p in f.Anim.parameters)
+				{
+					ps.Add($"{p.name}:{p.type}");
+				}
+				Plugin.Log.LogInfo($"Serpent animator: controller {(f.Anim.runtimeAnimatorController != null ? f.Anim.runtimeAnimatorController.name : "none")}, enabled {f.Anim.enabled}, params {string.Join(", ", ps)}");
+			}
 		}
 	}
 
@@ -800,16 +820,17 @@ internal sealed partial class SurfGame
 		}
 		Vector2 ship = ShipCenter();
 		Vector2 shipVel = HeadingVector() * m_boatSpeed;
-		float windup = Mathf.Max(0.7f, 1.15f - 0.1f * SeaStars);
+		float windup = Mathf.Max(1.1f, 1.6f - 0.1f * SeaStars);
 		switch (f.Phase)
 		{
 			case 0:
 			{
 				// Swimming under, to a spot beside the ship (for a lunge), or well ahead of it
 				// (to stop and breathe).
-				Vector2 spot = f.Move == "breath" ? BreathSpot(f, 30f) : ship + new Vector2(f.Side * 12f, 6f) + shipVel * 0.8f;
+				Vector2 spot = f.Move == "breath" ? BreathSpot(f, 30f) : ship + new Vector2(f.Side * 14f, 6f) + shipVel * 0.8f;
 				Vector2 to = spot - f.P;
-				float speed = m_boatSpeed + 8f;
+				// 1.16.74 (Sam: "quite a bit slower"): it closes on the ship gently.
+				float speed = m_boatSpeed + 4f;
 				f.Dir = to.normalized * speed;
 				// 1.16.3 (Sam: "it should squiggle along, not straight-line it"): it weaves as it
 				// swims, straightening out as it gets there.
@@ -847,12 +868,8 @@ internal sealed partial class SurfGame
 			{
 				// Up and rearing: the streak shows where it will strike.
 				f.Y = Mathf.MoveTowards(f.Y, -0.3f, dt * 5f);
-				// It follows the ship with its eyes until just before the lunge.
-				if (f.T < windup * 0.45f)
-				{
-					f.Aim = ship + shipVel * (windup - f.T + 0.25f);
-					f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(f.Aim - f.P), 220f * dt);
-				}
+				// 1.16.74 (Sam): once it has picked its strike it holds it; the streak stays put
+				// and the ship can steer out of it.
 				Vector2 dir = Dir2(f.Facing);
 				f.P += shipVel * dt;
 				float reach = Vector2.Distance(f.P, f.Aim) + 5f;
@@ -863,7 +880,7 @@ internal sealed partial class SurfGame
 				{
 					f.Phase = 2;
 					f.T = 0f;
-					f.Dir = dir * (reach / 0.4f);
+					f.Dir = dir * (reach / 0.6f);
 					f.Struck = false;
 					AttackSound(f.Attack, false, 1f);
 					m_audio.Play("sfx_serpent_attack|sfx_serpent_attack_trigger", 1f, 1f);
@@ -890,7 +907,7 @@ internal sealed partial class SurfGame
 						break;
 					}
 				}
-				if (f.T >= 0.4f)
+				if (f.T >= 0.6f)
 				{
 					f.Phase = 3;
 					f.T = 0f;
@@ -943,6 +960,22 @@ internal sealed partial class SurfGame
 
 	private bool Surfaced(SeaFoe f) => f.Y > -1.2f;
 
+	// 1.16.74 (Sam: "the serpent swims too close to the island"): serpents keep to open water,
+	// clear of the islands' shores.
+	private void KeepOffIslands(SeaFoe f)
+	{
+		foreach (Island i in m_islands)
+		{
+			float clear = i.R * IslandShore + f.Length * 0.6f + 2f;
+			Vector2 d = f.P - i.C;
+			float dist = d.magnitude;
+			if (dist < clear)
+			{
+				f.P = i.C + (dist > 0.01f ? d / dist : Vector2.right) * clear;
+			}
+		}
+	}
+
 	// Another serpent rearing, lunging or breathing right now.
 	private bool OtherAttacking(SeaFoe f) => m_seaFoes.Exists(o => o != f && !o.Dead && (o.Kind == "serpent" || o.Kind == "boss") && (o.Phase == 1 || o.Phase == 2 || o.Phase == 4));
 
@@ -957,7 +990,7 @@ internal sealed partial class SurfGame
 		}
 		Vector2 ship = ShipCenter();
 		Vector2 shipVel = HeadingVector() * m_boatSpeed;
-		float windup = Mathf.Max(0.8f, 1.25f - 0.1f * SeaStars);
+		float windup = Mathf.Max(1.2f, 1.7f - 0.1f * SeaStars);
 		switch (f.Phase)
 		{
 			case 0:
@@ -1021,11 +1054,7 @@ internal sealed partial class SurfGame
 				f.P += shipVel * dt;
 				if (f.Move == "lunge")
 				{
-					if (f.T < windup * 0.45f)
-					{
-						f.Aim = ship + shipVel * (windup - f.T + 0.3f);
-						f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(f.Aim - f.P), 200f * dt);
-					}
+
 					Vector2 dir = Dir2(f.Facing);
 					float reach = Vector2.Distance(f.P, f.Aim) + 8f;
 					SerpentMarker(f, f.P, f.P + dir * reach, 4.4f);
@@ -1034,7 +1063,7 @@ internal sealed partial class SurfGame
 					{
 						f.Phase = 2;
 						f.T = 0f;
-						f.Dir = dir * (reach / 0.45f);
+						f.Dir = dir * (reach / 0.65f);
 						f.Struck = false;
 						AttackSound(f.Attack, false, 1f);
 						m_audio.Play("sfx_serpent_attack|sfx_serpent_attack_trigger", 1f, 0.8f);
@@ -1081,7 +1110,7 @@ internal sealed partial class SurfGame
 						break;
 					}
 				}
-				if (f.T >= 0.45f)
+				if (f.T >= 0.65f)
 				{
 					f.Phase = 3;
 					f.T = 0f;
