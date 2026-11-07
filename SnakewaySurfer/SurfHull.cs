@@ -102,6 +102,7 @@ internal sealed partial class SurfGame
 		m_hullGrace = 0f;
 		m_hullFlash = 0f;
 		m_moored = null;
+		m_hammerOut = false;
 	}
 
 	// Driftwood: two planks for the hull, else a life, else coins.
@@ -276,6 +277,7 @@ internal sealed partial class SurfGame
 		if (near == null || m_sail != Sail.Oars)
 		{
 			m_moored = null;
+			RepairHammer(false);
 			return;
 		}
 		if (m_moored != near)
@@ -286,27 +288,69 @@ internal sealed partial class SurfGame
 		}
 		if (m_hull >= HullMax || m_boatSpeed > 1.5f)
 		{
+			RepairHammer(false);
 			return;
 		}
+		// 1.16.75 (Sam: the sounds, animations and effects of a repair): the hammer comes out
+		// and you mend her the game's way, a swing for each plank, with the hammer's knock and
+		// the sawdust of a placed piece where it lands.
+		RepairHammer(true);
+		float before = m_repairTick;
 		m_repairTick -= dt;
+		if (before > 0.3f && m_repairTick <= 0.3f)
+		{
+			AvatarSwing(m_wieldShared, 0);
+		}
 		if (m_repairTick > 0f)
 		{
 			return;
 		}
-		m_repairTick = 0.6f;
+		m_repairTick = 0.75f;
 		m_hull = Mathf.Min(HullMax, m_hull + 1f);
 		m_hullFlash = 0.5f;
 		m_audio.Play("sfx_build_hammer_wood|sfx_wood_hit", 0.9f, Random.Range(0.95f, 1.1f));
-		Vector3 at = new Vector3(c.x, SeaY + 1.6f, c.y);
+		Vector2 fwd = HeadingVector();
+		Vector2 side = new Vector2(fwd.y, -fwd.x) * (Random.value < 0.5f ? -1f : 1f);
+		Vector2 spotOnHull = c + fwd * (Random.Range(-0.35f, 0.35f) * m_shipLength) + side * (m_shipBeam * 0.5f);
+		Vector3 at = new Vector3(spotOnHull.x, SeaY + 1.2f, spotOnHull.y);
 		if (FindFx("vfx_Place_wood_wall|vfx_Place_workbench|vfx_SawDust") is GameObject sparkle)
 		{
 			PlayFx(sparkle, at, Quaternion.identity, 2f);
 		}
+		if (FindFx("vfx_SawDust|vfx_Place_wood_beam") is GameObject dust)
+		{
+			PlayFx(dust, at + Vector3.up * 0.3f, Quaternion.identity, 2f);
+		}
+		m_lurchV += Random.Range(-6f, 6f);
 		if (m_hull >= HullMax)
 		{
-			// Whole again.
+			// Whole again: the game's own "repaired" chime.
 			Flash(new Color(0.4f, 1f, 0.5f), 0.4f);
-			m_audio.Play("sfx_build_hammer_metal|sfx_coins_placed", 0.7f, 1.2f);
+			m_audio.Play("sfx_gui_repairitem_workbench|sfx_build_hammer_metal", 0.8f, 1f);
+		}
+	}
+
+	private bool m_hammerOut;
+
+	// The hammer in hand while mending, put away after.
+	private void RepairHammer(bool on)
+	{
+		if (on == m_hammerOut)
+		{
+			return;
+		}
+		if (on)
+		{
+			Wield("Hammer");
+			m_hammerOut = true;
+		}
+		else
+		{
+			m_hammerOut = false;
+			if (m_wieldName == "Hammer")
+			{
+				Unwield();
+			}
 		}
 	}
 
