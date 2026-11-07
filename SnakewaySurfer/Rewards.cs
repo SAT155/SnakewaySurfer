@@ -13,7 +13,7 @@ internal static class Rewards
 
 	// Gives Run XP for the distance and, when allowed, one food from the highest biome reached.
 	// Returns the lines to show on the results screen.
-	public static string Grant(Player player, float distance, int highestBiome, float seconds, List<BiomeDef> biomes, float blockRaise = 0f, float dodgeRaise = 0f)
+	public static string Grant(Player player, float distance, int highestBiome, float seconds, List<BiomeDef> biomes, float blockRaise = 0f, float dodgeRaise = 0f, ICollection<int>? biomesRun = null)
 	{
 		List<string> lines = new();
 
@@ -55,11 +55,28 @@ internal static class Rewards
 			}
 			else
 			{
-				string? food = GiveFood(player, highestBiome, biomes);
-				if (food != null)
+				// 1.16.23 (Sam): one food from each biome you ran through, each its own biome's.
+				List<string> found = new();
+				if (biomesRun != null && biomesRun.Count > 0)
+				{
+					List<int> order = new(biomesRun);
+					order.Sort();
+					foreach (int b in order)
+					{
+						if (GiveFood(player, b, biomes, false) is string one)
+						{
+							found.Add(one);
+						}
+					}
+				}
+				if (found.Count == 0 && GiveFood(player, highestBiome, biomes, true) is string any)
+				{
+					found.Add(any);
+				}
+				if (found.Count > 0)
 				{
 					player.m_customData[LastFoodKey] = DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
-					lines.Add($"Found some {food} along the way!");
+					lines.Add($"Found along the way: {string.Join(", ", found)}!");
 				}
 			}
 		}
@@ -126,10 +143,11 @@ internal static class Rewards
 		return after - before;
 	}
 
-	private static string? GiveFood(Player player, int highestBiome, List<BiomeDef> biomes)
+	private static string? GiveFood(Player player, int highestBiome, List<BiomeDef> biomes, bool fallBack)
 	{
-		// Highest biome first; fall back to lower ones if none of its foods exist.
-		for (int b = Mathf.Clamp(highestBiome, 0, biomes.Count - 1); b >= 0; b--)
+		// That biome's food; with `fallBack`, a lower biome's if none of its foods exist.
+		int top = Mathf.Clamp(highestBiome, 0, biomes.Count - 1);
+		for (int b = top; b >= (fallBack ? 0 : top); b--)
 		{
 			List<GameObject> foods = new();
 			foreach (string key in Pictures.SplitList(biomes[b].Foods))

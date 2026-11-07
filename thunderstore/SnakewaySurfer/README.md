@@ -232,7 +232,7 @@ At the end of each run:
 
 - **Run XP**: real Run XP, half of what running in the world for the same time gives (Run
   XP Per Second 0.5; at most 300 seconds count). Higher levels need more XP, as in vanilla.
-- **One random food from the furthest biome you reached**, if the run lasted at least 30 seconds
+- **One food from each biome you ran through** (a random one of that biome's foods), if the run lasted at least 30 seconds
   and you haven't had food from the minigame in the last 30 minutes (real time, saved on your
   character). With full bags, it drops at your feet.
 
@@ -330,6 +330,8 @@ and for players without the mod.
   1.16.22 (Sam): in the dungeons the camera only turns for a corner once you press for it, and
   a glowing arrow on the corner's floor beats as you come up to it (with a soft call when it's
   time to press), pointing the way on.
+  1.16.23 (Sam): the food reward is one food from each biome you ran through, each from its own
+  biome (a Meadows-to-Swamp run gives three).
   1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others

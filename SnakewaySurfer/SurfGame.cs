@@ -244,6 +244,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private int m_mainMask;
 	private GameObject? m_hudRoot;
+	// 1.16.23: the biomes run through this run (one food from each).
+	private readonly HashSet<int> m_runBiomes = new();
 	private bool m_hudWasActive;
 
 	private GameObject? m_avatar;
@@ -1233,6 +1235,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_runTime = 0f;
 		m_coins = 0;
 		m_highestBiome = 0;
+		m_runBiomes.Clear();
 		m_shownBiome = -1;
 		m_nextRowZ = 45f;
 		m_nextSceneryZ = -20f;
@@ -1288,7 +1291,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		SetTrigger("stagger");
 		// Run XP for the running: time at sea is sailing.
 		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
-			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f);
+			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f, m_runBiomes);
 		m_blockXp = m_dodgeXp = 0f;
 		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
 	}
@@ -1673,6 +1676,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		Segment seg = SegAt(m_z);
 		int biome = seg.Biome;
 		m_highestBiome = Mathf.Max(m_highestBiome, biome);
+		if (!seg.Sea)
+		{
+			m_runBiomes.Add(biome);
+		}
 		int shown = seg.Boss ? -1 : biome + 100 * seg.Stars;
 		if (!seg.Boss && shown != m_shownBiome)
 		{
