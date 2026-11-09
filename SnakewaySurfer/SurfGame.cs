@@ -1267,6 +1267,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		ResetTraders();
 		m_livesFlash = 0f;
 		ResetMaze();
+		ResetCryptExtras();
 		m_torchCount = 0;
 		DestroyBackdrop();
 		m_backdropShow = 0f;
@@ -1605,6 +1606,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// A little slower down a crypt's halls, with corners to take, and slower still wading
 		// through a flooded one (SurfCryptThemes.cs).
 		m_speed *= CryptSpeed();
+		m_speed *= UpdateDig(dt, canInput);
 		UpdateSpears(dt, canInput);
 
 		bool grounded = m_y <= 0.001f;

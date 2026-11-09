@@ -312,7 +312,7 @@ internal sealed partial class SurfGame
 				m_bannerTime = 2.5f;
 				m_audio.Play(Sfx.Biome, 1f, 0.7f);
 			}
-			else if (m_z > here.Start + Plugin.BiomeLength.Value)
+			else if (m_z > here.Start + Plugin.BiomeLength.Value && !(m_z < CryptExitFor(here) + 10f))
 			{
 				m_itemNagTime -= dt;
 				if (m_itemNagTime <= 0f)
@@ -347,6 +347,11 @@ internal sealed partial class SurfGame
 		{
 			m_itemStartSeg = s;
 			m_itemStartZ = s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
+		}
+		// 1.16.109 (Sam): with a dungeon in the biome, not before you're out the far end of it.
+		if (boss != null && !float.IsNaN(CryptExitFor(s)) && z < CryptExitFor(s) + 10f)
+		{
+			return false;
 		}
 		// A good stretch of the biome first (also before the stretch's own bookkeeping starts).
 		if (boss == null || s.End != float.MaxValue || z < m_nextItemZ || z < m_itemStartZ || (s == m_itemSeg && m_items >= boss.Amount))

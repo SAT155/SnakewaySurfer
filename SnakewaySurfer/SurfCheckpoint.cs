@@ -113,7 +113,8 @@ internal sealed partial class SurfGame
 		Segment here = SegAt(m_z);
 		if (StoneStretch(here) && !m_halfPlanned.Contains(here))
 		{
-			float half = here.Start + Plugin.BiomeLength.Value * 0.5f;
+			// 1.16.109 (Sam): a biome's dungeon exit is its checkpoint, when it has one.
+			float half = !float.IsNaN(CryptExitFor(here)) ? CryptExitFor(here) + 12f : here.Start + Plugin.BiomeLength.Value * 0.5f;
 			if (half < m_z + 15f || here.End < half + 20f)
 			{
 				m_halfPlanned.Add(here);
