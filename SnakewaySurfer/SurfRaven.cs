@@ -10,31 +10,18 @@ internal sealed partial class SurfGame
 {
 	private GameObject? m_ravenTemplate;
 	private bool m_ravenLooked;
-	private GameObject? m_raven;
-	private Animator? m_ravenAnim;
 	private string m_ravenText = "";
 	private float m_ravenTime;
 	// Seconds since he started to leave (negative while he's staying).
 	private float m_ravenLeave = -1f;
 	// Seconds since he arrived (he talks once he's landed).
 	private float m_ravenAge;
-	private bool m_ravenTalked;
-	// The game's popup draws through the main camera; with our own camera, our own text instead.
-	private bool m_ravenNative;
 	private float m_prevBannerTime;
 	private string m_prevBanner = "";
-	private const float RavenDepth = 9f;
-	private const float RavenScale = 1.3f;
-	// 1.16.18 (Sam saw only a foot, huge, at the top right): he is sized and placed by his
-	// actual shape, its middle kept at the spot, measured again once he has landed.
-	private Vector3 m_ravenCentre;
-	private Vector3 m_ravenCentreGoal;
-	private float m_ravenHeight = 1f;
-	private float m_ravenSize = RavenScale;
-	// His height on screen, as a share of half the view's height.
-	private const float RavenScreenHeight = 0.16f;
-	private string? m_ravenFly;
-	private float m_ravenYaw;
+
+	private bool m_ravenOn;
+	private float m_ravenTextAge;
+	private Texture2D? m_ravenPortrait;
 
 	private bool RavenTalks => Plugin.Raven.Value && !Plugin.PopupText.Value;
 
@@ -93,21 +80,14 @@ internal sealed partial class SurfGame
 		{
 			RavenSay(m_banner, Mathf.Clamp(m_bannerTime, 2f, 8f) + 1.5f);
 		}
-		if (m_raven == null)
+		if (!m_ravenOn)
 		{
 			return;
 		}
 		m_ravenAge += dt;
+		m_ravenTextAge += dt;
 		if (m_ravenLeave < 0f)
 		{
-			if (!m_ravenTalked && m_ravenAge > 0.7f)
-			{
-				m_ravenTalked = true;
-				if (m_ravenAnim != null && m_ravenFly == null)
-				{
-					SetTrigger(m_ravenAnim, "talk");
-				}
-			}
 			m_ravenTime -= dt;
 			if (m_ravenTime <= 0f || m_state != State.Running)
 			{
@@ -117,7 +97,7 @@ internal sealed partial class SurfGame
 		else
 		{
 			m_ravenLeave += dt;
-			if (m_ravenLeave > 2f)
+			if (m_ravenLeave > 0.5f)
 			{
 				RemoveRaven();
 			}
@@ -126,163 +106,50 @@ internal sealed partial class SurfGame
 
 	private void RavenSay(string text, float seconds)
 	{
-		if (m_raven != null && m_ravenLeave >= 0f)
+		m_ravenPortrait ??= RavenUi.Portrait(RavenTemplate());
+		if (!m_ravenOn || m_ravenLeave >= 0f)
 		{
-			RemoveRaven();
-		}
-		if (m_raven == null)
-		{
-			GameObject? template = RavenTemplate();
-			if (template == null)
-			{
-				return;
-			}
-			m_raven = Instantiate(template, transform, false);
-			m_raven.name = "SurfHugin";
-			m_raven.SetActive(true);
-			m_raven.transform.localScale = Vector3.one * RavenScale;
-			m_ravenSize = RavenScale;
-			m_ravenAnim = m_raven.GetComponentInChildren<Animator>();
-			foreach (SkinnedMeshRenderer smr in m_raven.GetComponentsInChildren<SkinnedMeshRenderer>(true))
-			{
-				smr.updateWhenOffscreen = true;
-			}
-			MeasureRaven(true);
-			m_ravenYaw = SurfStory.HeadYaw(m_raven);
-			m_ravenFly = m_ravenAnim != null ? SurfStory.FlyClip(m_ravenAnim) : null;
+			m_ravenOn = true;
 			m_ravenAge = 0f;
-			m_ravenTalked = false;
 			m_ravenLeave = -1f;
-			PlaceRaven();
-			// In as he comes to you in the world (a puff of feathers if this version has no
-			// fly-in).
-			if (m_ravenFly != null)
-			{
-				m_ravenAnim!.Play(m_ravenFly, 0, 0.3f);
-			}
-			else if (m_ravenAnim != null && SetTrigger(m_ravenAnim, "flyin") == null)
-			{
-				SetTrigger(m_ravenAnim, "teleportin");
-			}
-			m_audio.Play("sfx_raven_flap|sfx_raven_teleport", 0.7f);
-			m_audio.Play("sfx_raven_kaw", 0.6f, Random.Range(0.95f, 1.08f));
-		}
-		else
-		{
-			m_ravenTalked = false;
-			m_ravenAge = Mathf.Min(m_ravenAge, 0.6f);
+			m_audio.Play("sfx_raven_flap|sfx_raven_teleport", 0.6f);
+			m_audio.Play("sfx_raven_kaw", 0.55f, Random.Range(0.95f, 1.08f));
 		}
 		// Long enough to read: at least five seconds, more for a longer line.
 		seconds = Mathf.Max(seconds, 5f, 2.5f + text.Length * 0.07f);
 		m_ravenText = text;
+		m_ravenTextAge = 0f;
 		m_ravenTime = seconds;
-		m_ravenNative = m_usingGameCamera && Chat.instance != null;
-		if (m_ravenNative)
-		{
-			Vector3 above = m_raven.transform.rotation * (m_ravenCentre * m_ravenSize) + Vector3.up * (m_ravenHeight * m_ravenSize * 0.65f);
-			Chat.instance!.SetNpcText(m_raven, above, 30f, seconds + 0.5f, "", text, true);
-		}
 	}
 
 	private void RavenLeave()
 	{
-		if (m_raven == null || m_ravenLeave >= 0f)
+		if (!m_ravenOn || m_ravenLeave >= 0f)
 		{
 			return;
 		}
 		m_ravenLeave = 0f;
-		if (Chat.instance != null)
-		{
-			Chat.instance.ClearNpcText(m_raven);
-		}
-		if (m_ravenAnim != null && SetTrigger(m_ravenAnim, "flyaway") == null)
-		{
-			SetTrigger(m_ravenAnim, "poff");
-		}
-		m_audio.Play("sfx_raven_flap|sfx_raven_poof", 0.6f);
+		m_audio.Play("sfx_raven_flap|sfx_raven_poof", 0.5f);
 	}
 
 	private void RemoveRaven()
 	{
-		if (m_raven != null)
-		{
-			if (Chat.instance != null)
-			{
-				Chat.instance.ClearNpcText(m_raven);
-			}
-			Destroy(m_raven);
-		}
-		m_raven = null;
-		m_ravenAnim = null;
+		m_ravenOn = false;
 		m_ravenLeave = -1f;
+		m_ravenText = "";
 	}
 
-	// Perched at the top right of the view, turned a little towards you (after the camera moves).
+	// 1.16.102: he's flat UI now, so there's nothing to place after the camera moves.
 	private void PlaceRaven()
 	{
-		if (m_raven == null)
-		{
-			return;
-		}
-		float half = Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) * RavenDepth;
-		float aspect = m_camera != null && m_camera.aspect > 0.1f ? m_camera.aspect : 16f / 9f;
-		Vector3 local = new Vector3(0.72f * half * aspect, 0.5f * half, RavenDepth);
-		Vector3 at = m_camFinal + m_camFinalRot * local;
-		Vector3 back = m_camFinal - at;
-		back.y = 0f;
-		if (back.sqrMagnitude > 0.01f)
-		{
-			// 1.16.92 (Sam: mid run Hugin filled the screen): flying, facing you, and kept in
-			// frame from his live outline (as the world's Hugin in 1.16.87).
-			m_raven.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, m_ravenYaw - 15f, 0f);
-		}
-		if (m_ravenLeave < 0f)
-		{
-			SurfStory.HoldFlight(m_ravenAnim, m_ravenFly);
-		}
-		m_raven.transform.position = at - m_raven.transform.rotation * (m_ravenCentre * m_ravenSize);
-		if (m_ravenLeave < 0f)
-		{
-			SurfStory.FitLive(m_raven, at, RavenScreenHeight * half, half, ref m_ravenCentre, ref m_ravenSize, ref m_ravenHeight);
-		}
 	}
 
-	// His shape as it stands (unscaled, in his own frame): sized to fit the corner when he
-	// arrives, and his middle settled again once he has landed.
-	private void MeasureRaven(bool arriving)
-	{
-		if (m_raven == null || !Pictures.MeshBounds(m_raven, out Bounds b) || b.size.y < 0.01f)
-		{
-			return;
-		}
-		Transform t = m_raven.transform;
-		float scale = Mathf.Max(0.001f, t.lossyScale.y);
-		m_ravenCentreGoal = Quaternion.Inverse(t.rotation) * (b.center - t.position) / scale;
-		m_ravenHeight = b.size.y / scale;
-		if (arriving)
-		{
-			m_ravenCentre = m_ravenCentreGoal;
-			float half = Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) * RavenDepth;
-			// Never bigger than a raven set back in the corner (a measure taken mid-flap could say
-			// he is tiny and blow him up to fill the screen).
-			float most = RavenScale * RavenDepth / 5f * 0.56f;
-			m_ravenSize = Mathf.Clamp(RavenScreenHeight * half / m_ravenHeight, most * 0.3f, most);
-			t.localScale = Vector3.one * m_ravenSize;
-		}
-		Plugin.Log.LogInfo($"Hugin: height {m_ravenHeight:0.00}, middle {m_ravenCentreGoal}, scale {m_ravenSize:0.00}");
-	}
-
-	// With our own camera the game's popup can't find him: the words beside him instead.
 	private void RavenGui(float k, float w, float h)
 	{
-		if (m_raven == null || m_ravenNative || m_ravenLeave >= 0f || m_ravenText.Length == 0)
+		if (!m_ravenOn)
 		{
 			return;
 		}
-		GUIStyle style = m_mid!;
-		TextAnchor anchor = style.alignment;
-		style.alignment = TextAnchor.UpperRight;
-		Shadowed(new Rect(w * 0.45f, h * 0.06f, w * 0.52f, 200 * k), m_ravenText, style);
-		style.alignment = anchor;
+		RavenUi.Draw(m_ravenPortrait, m_ravenLeave >= 0f ? "" : m_ravenText, m_ravenTextAge, m_ravenAge, m_ravenLeave, 0, false, s_guiAlpha);
 	}
 }

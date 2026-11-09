@@ -286,6 +286,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.102**: a gold ring closes in over your head and flashes when it's time to parry a boss's blow; Yagluth's frost arrows go to the bow, and his meteors fall from the sky as in the game; Moder only claws and bites while she's down on the track; boss fights use the boss's own shockwaves and beams (the Elder's vines) instead of logs and bars; Hugin and Munin are a flat portrait with a speech bubble in a fixed spot.
 - **1.16.101**: attack timings now read the game's "Hit" animation event too (bear, Eikthyr, Yagluth, greydwarfs, seekers, lox and more were being guessed).
 - **1.16.95** (alpha, from Sam's playtest): you can't be hurt during a boss combo (plus a short blink after); a dreamy tombstone rises where you fall; Gentle / Normal / Hard picked in the run menu (Tab or click); the Elder's maze paths are full lanes on a wider track; attack wind-ups are learned by playing each creature's real animation at load, not guessed.
 - **1.16.56 to 1.16.93** (alpha, from Sam's playtests):

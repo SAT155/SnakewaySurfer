@@ -537,6 +537,14 @@ internal sealed partial class SurfGame
 
 	private void EndBoss()
 	{
+		foreach (var m in m_meteors)
+		{
+			if (m.go != null)
+			{
+				Destroy(m.go);
+			}
+		}
+		m_meteors.Clear();
 		if (m_bossGo != null)
 		{
 			Destroy(m_bossGo);
@@ -566,6 +574,7 @@ internal sealed partial class SurfGame
 		UpdateBossHidden(dt);
 		UpdateVines(dt);
 		UpdateIce(dt);
+		UpdateMeteors(dt);
 		BossDef def = m_boss;
 		if (m_bossSink >= 0f)
 		{
@@ -873,7 +882,7 @@ internal sealed partial class SurfGame
 				int count = Random.Range(2, 4);
 				for (int k = 0; k < count; k++)
 				{
-					BossStrike(def, new[] { k == 0 ? m_lane : Random.Range(0, 3) }, AheadZ(1.4f + 0.55f * k), 2.2f, move == "blobs" ? "gas" : "fire");
+					BossStrike(def, new[] { k == 0 ? m_lane : Random.Range(0, 3) }, AheadZ(1.4f + 0.55f * k), 2.2f, move == "blobs" ? "gas" : "meteor");
 				}
 				break;
 			}
@@ -1008,6 +1017,17 @@ internal sealed partial class SurfGame
 					strike.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.9f, z + length * 0.5f - 1f);
 				}
 			}
+			else if (look == "meteor")
+			{
+				// 1.16.102 (Sam: meteors didn't look like the game's): the game's own meteor falls
+				// out of the sky onto the marked spot and bursts with its own impact.
+				strike = new GameObject("MeteorStrike");
+				strike.layer = m_layer;
+				strike.transform.SetParent(m_stage, false);
+				strike.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
+				float land = Mathf.Max(0.3f, (z - m_z) / Mathf.Max(1f, m_speed)) - 0.5f;
+				DropMeteor(new Vector3(LaneX(lane), RoadY(z), z), Mathf.Max(0.05f, land));
+			}
 			else
 			{
 				strike = GameObject.CreatePrimitive(look == "wall" ? PrimitiveType.Cube : PrimitiveType.Cylinder);
@@ -1026,7 +1046,7 @@ internal sealed partial class SurfGame
 			strike.SetActive(false);
 			// The game's attack effect inside the strike: not in gas, which is its own cloud (the
 			// effect would be stretched along with it).
-			if (look != "gas" && m_bossThing?.Attack != null)
+			if (look != "gas" && look != "meteor" && m_bossThing?.Attack != null)
 			{
 				foreach (GameObject fx in m_bossThing.Attack.Effects)
 				{
@@ -1169,25 +1189,22 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// Something low across a lane to jump: one of the biome's logs, else a bar in the boss's
-	// colour, over a red band.
+	// Something low across a lane to jump. 1.16.102 (Sam: no unnatural cut logs in boss fights):
+	// the boss's own shockwave rolling along the ground, glowing in its colour with its attack's
+	// impact effect. The Elder, a tree, still sends a root across.
 	private Thing BossLow(BiomeRuntime b, int lane, float z, BossDef def)
 	{
 		GameObject go;
 		float baseY = 0f;
-		if (b.Logs.Count > 0)
+		if (def.Prefab == "gd_king")
 		{
-			go = Fitted(Picture(b.Logs[Random.Range(0, b.Logs.Count)]), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
+			// A vine lying across the path, as his roots do in the maze.
+			go = VinePiece(def, Vector3.zero, LaneWidth * 0.9f, Quaternion.Euler(0f, Random.Range(-15f, 15f), 90f), false)
+				?? RootPiece(b, def, Vector3.zero, new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), Quaternion.Euler(0f, 0f, 90f), false);
 		}
 		else
 		{
-			go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(go.GetComponent<Collider>());
-			go.layer = m_layer;
-			go.transform.SetParent(m_stage, false);
-			go.transform.localScale = new Vector3(LaneWidth * 0.9f, 0.6f, 0.6f);
-			go.GetComponent<Renderer>().sharedMaterial = TintMaterial(def.Tint);
-			baseY = 0.3f;
+			go = BossEnergy(def, 0.28f, 0.55f, true);
 		}
 		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + baseY, z);
 		GameObject marker = MakeMarker(lane, z, 1.6f, JumpMaterial);
@@ -1197,43 +1214,84 @@ internal sealed partial class SurfGame
 		return t;
 	}
 
+	// A glowing bolt of the boss's power lying across a lane at height y (local to its root),
+	// with its attack's effect on it and a light: a shockwave low down, a beam up high.
+	private GameObject BossEnergy(BossDef def, float y, float thickness, bool impact)
+	{
+		GameObject root = new GameObject("BossEnergy");
+		root.layer = m_layer;
+		root.transform.SetParent(m_stage, false);
+		GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+		Destroy(bolt.GetComponent<Collider>());
+		bolt.layer = m_layer;
+		bolt.transform.SetParent(root.transform, false);
+		bolt.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
+		bolt.transform.localScale = new Vector3(thickness, LaneWidth * 0.48f, thickness);
+		bolt.transform.localPosition = new Vector3(0f, y, 0f);
+		Renderer r = bolt.GetComponent<Renderer>();
+		r.sharedMaterial = TintMaterial(def.Tint);
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		CreatureAttack? a = m_bossThing?.Attack;
+		List<GameObject>? fxs = a == null ? null : impact && a.Impact.Count > 0 ? a.Impact : a.Effects;
+		if (fxs != null && fxs.Count > 0)
+		{
+			GameObject f = Instantiate(Picture(fxs[0]), root.transform, false);
+			f.transform.localPosition = new Vector3(0f, y, 0f);
+			foreach (ParticleSystem ps in f.GetComponentsInChildren<ParticleSystem>(true))
+			{
+				ParticleSystem.MainModule main = ps.main;
+				main.loop = true;
+				ps.Play(true);
+			}
+		}
+		Light glow = new GameObject("Glow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(root.transform, false);
+		glow.transform.localPosition = new Vector3(0f, y + 0.3f, 0f);
+		glow.type = LightType.Point;
+		glow.range = 4f;
+		glow.intensity = 1.6f;
+		glow.color = def.Tint;
+		glow.cullingMask = 1 << m_layer;
+		return root;
+	}
+
 	// A bar at head height across a lane to slide under: a glowing beam in the boss's colour on
 	// two posts (a gate you can see the gap under), with a red band below.
 	private Thing BossHigh(BiomeRuntime b, int lane, float z, BossDef def)
 	{
 		const float barY = 1.35f;
-		GameObject root = new GameObject("BossBar");
-		root.layer = m_layer;
-		root.transform.SetParent(m_stage, false);
-		root.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
-		GameObject bar = GameObject.CreatePrimitive(PrimitiveType.Cube);
-		Destroy(bar.GetComponent<Collider>());
-		bar.layer = m_layer;
-		bar.transform.SetParent(root.transform, false);
-		bar.transform.localScale = new Vector3(LaneWidth * 0.95f, 0.55f, 0.55f);
-		bar.transform.localPosition = new Vector3(0f, barY + 0.25f, 0f);
-		Renderer r = bar.GetComponent<Renderer>();
-		r.sharedMaterial = SolidTint(def.Tint);
-		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-		foreach (float side in new[] { -1f, 1f })
+		// 1.16.102: the boss's beam crackling across at head height (the Elder's a root arching over).
+		GameObject root;
+		if (def.Prefab == "gd_king")
 		{
-			GameObject post = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(post.GetComponent<Collider>());
-			post.layer = m_layer;
-			post.transform.SetParent(root.transform, false);
-			post.transform.localScale = new Vector3(0.14f, barY + 0.5f, 0.14f);
-			post.transform.localPosition = new Vector3(side * LaneWidth * 0.46f, (barY + 0.5f) * 0.5f, 0f);
-			post.GetComponent<Renderer>().sharedMaterial = SolidTint(def.Tint * 0.6f);
+			// Two vines leaning in from the sides, meeting over the lane.
+			root = new GameObject("BossVineArch");
+			root.layer = m_layer;
+			root.transform.SetParent(m_stage, false);
+			root.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
+			bool any = false;
+			foreach (float side in new[] { -1f, 1f })
+			{
+				GameObject? v = VinePiece(def, new Vector3(LaneX(lane) + side * LaneWidth * 0.5f, 0f, z + side * 0.15f), 2.3f,
+					Quaternion.Euler(0f, Random.Range(0f, 360f), side * 58f), false);
+				if (v != null)
+				{
+					v.transform.SetParent(root.transform, true);
+					any = true;
+				}
+			}
+			if (!any)
+			{
+				GameObject bar = RootPiece(b, def, new Vector3(LaneX(lane), barY + 0.25f, z), new Vector3(LaneWidth, 0.6f, 0.6f), Quaternion.Euler(0f, 0f, 90f), false);
+				bar.transform.SetParent(root.transform, true);
+			}
 		}
-		Light glow = new GameObject("Glow").AddComponent<Light>();
-		glow.gameObject.layer = m_layer;
-		glow.transform.SetParent(root.transform, false);
-		glow.transform.localPosition = new Vector3(0f, barY, 0f);
-		glow.type = LightType.Point;
-		glow.range = 4f;
-		glow.intensity = 1.4f;
-		glow.color = def.Tint;
-		glow.cullingMask = 1 << m_layer;
+		else
+		{
+			root = BossEnergy(def, barY + 0.25f, 0.45f, false);
+		}
+		root.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
 		GameObject marker = MakeMarker(lane, z, 1.6f, SlideMaterial);
 		marker.transform.SetParent(root.transform, true);
 		Thing t = new Thing { Go = root, Kind = Kind.High, Lane = lane, Z = z, HalfLength = 0.35f, Label = def.Name, Hint = "SLIDE!", CrashText = $"{def.Name} caught you standing! (Slide under the high ones.)" };
@@ -1596,6 +1654,65 @@ internal sealed partial class SurfGame
 			if (m_bossHidden <= 0f && m_bossGo != null)
 			{
 				m_bossGo.SetActive(true);
+			}
+		}
+	}
+}
+
+internal sealed partial class SurfGame
+{
+	private readonly List<(GameObject go, Vector3 from, Vector3 to, float at, float dur)> m_meteors = new();
+	private float m_meteorClock;
+
+	private void DropMeteor(Vector3 to, float landIn)
+	{
+		GameObject? prefab = Pictures.Prefab("projectile_meteor");
+		if (prefab == null)
+		{
+			return;
+		}
+		float dur = Mathf.Clamp(landIn, 0.4f, 1.1f);
+		// From high up, a little ahead and to one side, as Yagluth's fall in the game.
+		Vector3 from = to + new Vector3(Random.Range(-6f, 6f), 28f, 14f);
+		GameObject go = Instantiate(Picture(prefab), m_stage, false);
+		go.transform.localPosition = from;
+		go.transform.localRotation = Quaternion.LookRotation(to - from);
+		go.SetActive(false);
+		LightUp(go);
+		m_meteors.Add((go, from, to, m_meteorClock + landIn - dur, dur));
+	}
+
+	private void UpdateMeteors(float dt)
+	{
+		m_meteorClock += dt;
+		for (int i = m_meteors.Count - 1; i >= 0; i--)
+		{
+			(GameObject go, Vector3 from, Vector3 to, float at, float dur) = m_meteors[i];
+			if (go == null)
+			{
+				m_meteors.RemoveAt(i);
+				continue;
+			}
+			float u = (m_meteorClock - at) / dur;
+			if (u < 0f)
+			{
+				continue;
+			}
+			if (!go.activeSelf)
+			{
+				go.SetActive(true);
+				LightUp(go);
+			}
+			go.transform.localPosition = Vector3.Lerp(from, to, Mathf.Min(1f, u * u));
+			if (u >= 1f)
+			{
+				if (FindFx("fx_goblinking_meteor_hit|fx_fader_meteor_hit") is GameObject hit)
+				{
+					PlayFx(hit, to, Quaternion.identity, 3f);
+				}
+				m_shake = Mathf.Max(m_shake, 0.3f);
+				Destroy(go);
+				m_meteors.RemoveAt(i);
 			}
 		}
 	}

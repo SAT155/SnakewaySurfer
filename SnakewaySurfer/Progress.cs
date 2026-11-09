@@ -124,7 +124,7 @@ internal static class Progress
 		new BossDef
 		{
 			Biome = 4, Name = "Yagluth", Prefab = "GoblinKing", Key = "defeated_goblinking", Item = "GoblinTotem", Amount = 5,
-			HitItem = "ArrowFrost|StaffIceShards|FreezeGland", HitVerb = "The frost bites", Mode = "stand", Distance = 50f, MaxHeight = 9f,
+			HitItem = "ArrowFrost|StaffIceShards|FreezeGland", HitVerb = "The frost bites", Mode = "stand", Distance = 50f, MaxHeight = 9f, Aim = true,
 			Location = "GoblinKing", Walls = 3f, Torch = "piece_groundtorch_wood", Tint = new Color(1f, 0.35f, 0.05f),
 			Env = "GoblinKing|Heath clear",
 			Moves = new[]
