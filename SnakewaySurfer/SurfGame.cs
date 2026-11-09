@@ -3876,6 +3876,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			HudGui(k, w, h);
 			AbilityIconsGui(24f * k, 84f * k, k);
 			WetGui(24f * k, 118f * k, k);
+			TotemGui(k);
 		}
 		if (m_shopOpen && m_state == State.Running)
 		{

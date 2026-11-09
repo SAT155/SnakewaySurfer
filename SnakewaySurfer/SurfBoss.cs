@@ -472,6 +472,7 @@ internal sealed partial class SurfGame
 			CloseSegment(seg, m_z + 20f);
 			return;
 		}
+		ResetTotems(def);
 		m_boss = def;
 		m_bossSeg = seg;
 		m_bossInfo = CreatureInfo.Of(prefab);
@@ -542,6 +543,8 @@ internal sealed partial class SurfGame
 
 	private void EndBoss()
 	{
+		EndTotemBeam();
+		m_totems = 0;
 		foreach (var m in m_meteors)
 		{
 			if (m.go != null)
@@ -580,6 +583,7 @@ internal sealed partial class SurfGame
 		UpdateVines(dt);
 		UpdateIce(dt);
 		UpdateMeteors(dt);
+		UpdateTotemBeam(dt);
 		BossDef def = m_boss;
 		if (m_bossSink >= 0f)
 		{
@@ -902,6 +906,9 @@ internal sealed partial class SurfGame
 				{
 					BossHigh(b, l, AheadZ(1.6f), def);
 				}
+				break;
+			case "totembeam":
+				StartTotemBeam(def);
 				break;
 			case "beam":
 				for (int l = 0; l < 3; l++)

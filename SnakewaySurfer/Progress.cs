@@ -129,9 +129,10 @@ internal static class Progress
 			Env = "GoblinKing|Heath clear",
 			Moves = new[]
 			{
-				new[] { "meteors" },
-				new[] { "beam", "meteors" },
-				new[] { "lob2", "meteors", "beam" },
+				// 1.16.124 (Sam): his beam is bounced back with the Fuling totems (SurfTotem.cs).
+				new[] { "meteors", "totembeam" },
+				new[] { "totembeam", "meteors", "beam" },
+				new[] { "lob2", "totembeam", "meteors", "totembeam" },
 			},
 			StarMoves = new[] { "minions:goblin", "firewall", "sweep" },
 		},
