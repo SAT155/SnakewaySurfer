@@ -48,7 +48,7 @@ internal sealed partial class SurfGame
 	private float m_lastCoinAt = -10f;
 	private bool m_trollUsed;
 	private bool m_valkyrieUsed;
-	private readonly Dictionary<string, Sprite?> m_icons = new();
+	private readonly Dictionary<string, Sprite?> m_shopIcons = new();
 
 	private bool Has(string id) => m_owned.Contains(id);
 
@@ -215,12 +215,12 @@ internal sealed partial class SurfGame
 
 	private Sprite? IconOf(string item)
 	{
-		if (!m_icons.TryGetValue(item, out Sprite? s))
+		if (!m_shopIcons.TryGetValue(item, out Sprite? s))
 		{
 			GameObject? prefab = ObjectDB.instance != null ? ObjectDB.instance.GetItemPrefab(item) : null;
 			ItemDrop? drop = prefab != null ? prefab.GetComponent<ItemDrop>() : null;
 			s = drop != null ? drop.m_itemData.GetIcon() : null;
-			m_icons[item] = s;
+			m_shopIcons[item] = s;
 		}
 		return s;
 	}
