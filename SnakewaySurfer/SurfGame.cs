@@ -1613,6 +1613,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// through a flooded one (SurfCryptThemes.cs).
 		m_speed *= CryptSpeed();
 		m_speed *= UpdateDig(dt, canInput);
+		m_speed *= UpdateForks(dt);
 		UpdateSpears(dt, canInput);
 
 		bool grounded = m_y <= 0.001f;
@@ -3874,6 +3875,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			HudGui(k, w, h);
 			AbilityIconsGui(24f * k, 84f * k, k);
+			WetGui(24f * k, 118f * k, k);
 		}
 		if (m_shopOpen && m_state == State.Running)
 		{

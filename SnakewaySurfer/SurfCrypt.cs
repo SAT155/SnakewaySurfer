@@ -1197,7 +1197,8 @@ internal sealed partial class SurfGame
 			}
 			yaw += c.Dirs[i] * 90f * Mathf.SmoothStep(0f, 1f, c.CamTurn[i]);
 		}
-		UpdateGust(c);
+		// 1.16.112 (Sam: the smoke cue isn't working out): the corner gust is gone.
+		RemoveGust();
 		Vector3 focus = StagePoint(new Vector3(0f, c.Floor + 1f, m_z + 6f));
 		if (!m_cryptFocusSet)
 		{

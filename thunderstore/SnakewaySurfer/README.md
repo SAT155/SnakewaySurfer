@@ -286,6 +286,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **Next**: no more smoky corner gust; a dead end turns you back to the split instead of hurting you; some wrong passages are flooded instead, and you swim through and come out Wet (30 s of slower stamina regen and dearer rolls and blocks).
 - **1.16.111**: shop: coins go into a bank kept on your character. Traders stop you in any lane and open a dreamy store with three of their abilities (12 so far, from honey to Valkyrie's wings). An ability lasts until that biome's boss falls, and a checkpoint retry keeps it.
 - **1.16.111**: dungeons: dungeons about twice as long, with halls of very different lengths; some halls split into three walled passages and only the one with light at its end goes on; sunken crypts have up to five chambers behind mud banks you dig through (attack: left mouse, Space or E), with draugr rising behind most; a biome's summoning items only turn up after its dungeon, and the dungeon's exit is the checkpoint.
 - **1.16.108**: a gold ring closes in over your head and flashes when it's time to parry a boss's blow; Yagluth's frost arrows go to the bow, and his meteors fall from the sky as in the game; Moder only claws and bites while she's down on the track; boss fights use the boss's own shockwaves and beams (the Elder's vines) instead of logs and bars; Hugin and Munin are a flat portrait with a speech bubble in a fixed spot.

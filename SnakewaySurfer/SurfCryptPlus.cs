@@ -19,7 +19,10 @@ internal sealed partial class SurfGame
 		public float Z0;
 		public float Z1;
 		public int Lane;
+		// A wrong passage that's flooded instead of walled off: you swim through, and come out wet.
+		public int Flood = -1;
 		public bool Built;
+		public bool Turned;
 	}
 
 	private sealed class DigWall
@@ -73,6 +76,10 @@ internal sealed partial class SurfGame
 			{
 				float z0 = Random.Range(from, to - len);
 				CryptFork f = new CryptFork { Z0 = z0, Z1 = z0 + len, Lane = Random.Range(0, 3) };
+				if (m_waterMaterial != null && Random.value < 0.5f)
+				{
+					f.Flood = (f.Lane + Random.Range(1, 3)) % 3;
+				}
 				m_forks.Add(f);
 				m_dividers.Add((f.Z0, f.Z1, 0));
 				m_dividers.Add((f.Z0, f.Z1, 1));
@@ -88,6 +95,7 @@ internal sealed partial class SurfGame
 		m_cryptSeg = null;
 		m_cryptExitZ = float.NaN;
 		m_digWielded = false;
+		m_wetTime = 0f;
 	}
 
 	private bool InForkOrDig(float z)
@@ -97,6 +105,64 @@ internal sealed partial class SurfGame
 			if (z > f.Z0 - 6f && z < f.Z1 + 4f)
 			{
 				return true;
+			}
+		}
+		foreach (DigWall d in m_digs)
+		{
+			if (z > d.Z - 8f && z < d.Z + 6f)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// While a hall is built: its forks' walls and lights, and its mud banks.
+	private void BuildCryptExtras(CryptLeg leg, Transform root, float y)
+	{
+		foreach (CryptFork f in m_forks)
+		{
+			if (f.Built || f.Z0 < leg.A || f.Z0 > leg.B)
+			{
+				continue;
+			}
+			f.Built = true;
+			foreach (float x in new[] { -LaneWidth * 0.5f, LaneWidth * 0.5f })
+			{
+				WallAlong(root, x, f.Z0, f.Z1, y);
+			}
+			for (int lane = 0; lane < 3; lane++)
+			{
+				if (lane == f.Lane)
+				{
+					// The way on: warm light where the passage opens out again.
+					Light l = new GameObject("ForkLight").AddComponent<Light>();
+					l.gameObject.layer = m_layer;
+					l.transform.SetParent(root, false);
+					l.transform.localPosition = new Vector3(LaneX(lane), y + 2f, f.Z1 + 1.5f);
+					l.type = LightType.Point;
+					l.range = 10f;
+					l.intensity = 2.2f;
+					l.color = new Color(1f, 0.75f, 0.4f);
+					l.shadows = LightShadows.None;
+					l.cullingMask = 1 << m_layer;
+					continue;
+				}
+				if (lane == f.Flood)
+				{
+					// Dark water filling the passage, as in the game's flooded crypts.
+					GameObject water = GameObject.CreatePrimitive(PrimitiveType.Quad);
+					Destroy(water.GetComponent<Collider>());
+					water.layer = m_layer;
+					water.transform.SetParent(root, false);
+					water.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+					water.transform.localScale = new Vector3(LaneWidth - 0.6f, f.Z1 - f.Z0, 1f);
+					water.transform.localPosition = new Vector3(LaneX(lane), y + 0.55f, (f.Z0 + f.Z1) * 0.5f);
+					water.GetComponent<Renderer>().sharedMaterial = m_waterMaterial;
+					continue;
+				}
+				// 1.16.112 (Sam: no damage for a wrong pick): a dead end turns you round instead.
+				WallAcross(root, f.Z1, LaneX(lane) - LaneWidth * 0.5f, LaneX(lane) + LaneWidth * 0.5f, y);
 			}
 		}
 		foreach (DigWall d in m_digs)
@@ -170,6 +236,62 @@ internal sealed partial class SurfGame
 					d.Pieces.Add(pile);
 				}
 			}
+		}
+	}
+
+	private float m_wetTime;
+	private float m_forkTurnFade;
+
+	private float WetStaminaRegen => m_wetTime > 0f ? 0.5f : 1f;
+	private float WetStaminaCost => m_wetTime > 0f ? 1.5f : 1f;
+
+	// Each frame on the run: a dead end turns you back to the fork's mouth (the time it took is
+	// the cost); a flooded passage slows you to a swim and leaves you wet for 30 seconds.
+	private float UpdateForks(float dt)
+	{
+		m_wetTime = Mathf.Max(0f, m_wetTime - dt);
+		m_forkTurnFade = Mathf.Max(0f, m_forkTurnFade - dt);
+		float factor = 1f;
+		foreach (CryptFork f in m_forks)
+		{
+			if (m_z < f.Z0 || m_z > f.Z1 + 0.5f)
+			{
+				continue;
+			}
+			if (m_lane == f.Flood)
+			{
+				factor = 0.55f;
+				m_wetTime = 30f;
+				if (Random.value < dt * 3f)
+				{
+					Splash(0.4f);
+				}
+				continue;
+			}
+			if (m_lane != f.Lane && m_z > f.Z1 - 1.4f)
+			{
+				// Bump, turn round, and you're back where the passages split.
+				m_z = f.Z0 - 14f;
+				m_forkTurnFade = 0.6f;
+				Flash(new Color(0.02f, 0.01f, 0.05f), 0.95f);
+				m_audio.Play("sfx_unarmed_blocked|sfx_wood_blocked", 0.6f, 0.8f);
+				m_audio.Play("sfx_raven_flap|sfx_dodge", 0.5f);
+				m_hurtTime = Mathf.Max(m_hurtTime, 0.8f);
+			}
+		}
+		return factor;
+	}
+
+	private void WetGui(float x, float y, float k)
+	{
+		if (m_wetTime <= 0f)
+		{
+			return;
+		}
+		StatusEffect? wet = ObjectDB.instance != null ? ObjectDB.instance.GetStatusEffect("Wet".GetStableHashCode()) : null;
+		if (wet != null && wet.m_icon != null)
+		{
+			DrawSprite(new Rect(x, y, 30f * k, 30f * k), wet.m_icon, (0.6f + 0.4f * Mathf.Clamp01(m_wetTime / 5f)) * s_guiAlpha);
 		}
 	}
 

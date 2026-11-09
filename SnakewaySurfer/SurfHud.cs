@@ -34,7 +34,7 @@ internal sealed partial class SurfGame
 	// when there isn't enough left.
 	private bool SpendRollStamina()
 	{
-		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f);
+		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		if (cost <= 0f)
 		{
 			return true;
@@ -97,7 +97,7 @@ internal sealed partial class SurfGame
 			m_staminaIdle += dt;
 			if (m_staminaIdle > 1f)
 			{
-				m_stamina = Mathf.Min(MaxStamina, m_stamina + Plugin.StaminaRegen.Value * dt);
+				m_stamina = Mathf.Min(MaxStamina, m_stamina + Plugin.StaminaRegen.Value * WetStaminaRegen * dt);
 			}
 		}
 		AvatarBool("blocking", m_blocking);
@@ -138,7 +138,7 @@ internal sealed partial class SurfGame
 			Plugin.Log.LogInfo($"Parried {t.Label}.");
 			return true;
 		}
-		float cost = Plugin.BlockStamina.Value * (Has("meadstam") ? 0.5f : 1f);
+		float cost = Plugin.BlockStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		m_staminaIdle = 0f;
 		if (heavy)
 		{
