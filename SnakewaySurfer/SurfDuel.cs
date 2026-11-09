@@ -171,7 +171,7 @@ internal sealed partial class SurfGame
 		}
 		m_duelTries--;
 		bool inLane = Mathf.Abs(m_x - LaneX(m_duelLane)) < LaneWidth * 0.5f;
-		if (inLane && m_blocking && m_runTime - m_blockPressed <= Plugin.ParryWindow.Value)
+		if (inLane && m_blocking && m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			// Parried: it reels, and you get your blows in.
 			PlayBlock(true);

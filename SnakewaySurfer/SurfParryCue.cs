@@ -85,7 +85,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Vector2 c = new Vector2(sp.x, Screen.height - sp.y);
-		float window = Mathf.Max(0.05f, Plugin.ParryWindow.Value);
+		float window = Mathf.Max(0.05f, ParryWindowNow);
 		float inner = 46f * k;
 		Color old = GUI.color;
 		if (left > window)

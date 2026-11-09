@@ -370,7 +370,7 @@ internal sealed partial class SurfGame
 		{
 			spacing *= 0.5f;
 		}
-		m_nextItemZ = z + spacing * Random.Range(0.8f, 1.2f);
+		m_nextItemZ = z + spacing * Random.Range(0.8f, 1.2f) * (Has("boar") ? 0.75f : 1f);
 		SpawnPickup(template, lane, z, Kind.Item);
 		return true;
 	}
@@ -1376,6 +1376,11 @@ internal sealed partial class SurfGame
 		}
 		BossDef def = m_boss;
 		m_bossHits++;
+		if (Has("meadheal") && m_lives < Plugin.StartLives)
+		{
+			m_lives++;
+			m_livesFlash = 1.2f;
+		}
 		m_shake = Mathf.Max(m_shake, 0.3f);
 		m_audio.Play(Sfx.HitMonster, 1f, 0.8f);
 		if (m_bossAnim != null)
@@ -1465,6 +1470,8 @@ internal sealed partial class SurfGame
 	// and it topples over before the ground takes it.
 	private void BossDeath(BossDef def)
 	{
+		// What you bought in this biome lasts until its boss falls (SurfShop.cs).
+		AbilitiesEnd();
 		m_bossDeathRot = m_bossGo != null ? m_bossGo.transform.localRotation : Quaternion.identity;
 		m_bossDeathSide = Random.value < 0.5f ? -1f : 1f;
 		if (m_bossAnim != null)

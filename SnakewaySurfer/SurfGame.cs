@@ -1288,6 +1288,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_startSea = false;
 		}
 		ResetSegments();
+		ResetShop(m_resumeNext);
 		ApplyResume();
 		SpawnAhead();
 		PlaceAvatar(0f);
@@ -1301,6 +1302,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		m_state = State.Crashed;
 		m_stateTime = 0f;
+		DepositCoins();
 		m_crashText = why;
 		if (m_atSea && m_seaPhase == 2)
 		{
@@ -1463,6 +1465,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				else if (m_aimTime > 0f)
 				{
 					UpdateAim(dt, canInput);
+				}
+				else if (m_shopOpen)
+				{
+					UpdateShop(dt, canInput);
 				}
 				else
 				{
@@ -1669,7 +1675,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 		}
 
-		m_vy -= Gravity * dt;
+		m_vy -= Gravity * dt * (Has("feather") && m_vy < 0f ? 0.6f : 1f);
 		m_y += m_vy * dt;
 		if (m_y < 0f)
 		{
@@ -1702,7 +1708,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_slide = Mathf.Max(0f, m_slide - dt);
 		}
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
-		m_x = Mathf.MoveTowards(m_x, InMaze ? SubX(m_subLane) : LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * dt);
+		m_x = Mathf.MoveTowards(m_x, InMaze ? SubX(m_subLane) : LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * (Has("deer") ? 1.2f : 1f) * dt);
 		m_z += m_speed * dt;
 		CryptCorner(dt);
 		// When you were last in each lane, for stepping out of the way of a blow (Dodge XP).
@@ -1762,7 +1768,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				continue;
 			}
-			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX ? t.X : LaneX(t.Lane))) > LaneWidth * 0.45f)
+			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX ? t.X : LaneX(t.Lane))) > (t.Kind == Kind.Coin && Has("magnet") ? LaneWidth * 1.5f : LaneWidth * 0.45f))
 			{
 				continue;
 			}
@@ -1777,7 +1783,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 							m_coins += 9;
 							m_audio.Play("sfx_chest_open|sfx_coins_pile_destroyed", 1f);
 						}
-						m_coins++;
+						m_coins += CoinGain();
 						m_audio.Play(Sfx.Coin, 1f, 1f + 0.03f * (m_coins % 5));
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
@@ -1948,6 +1954,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
+		// Shop abilities (SurfShop.cs): troll leather takes one knock; the valkyrie saves a last life.
+		if (Has("troll") && !m_trollUsed)
+		{
+			m_trollUsed = true;
+			t.Collidable = false;
+			m_hurtTime = 1f;
+			Flash(new Color(0.9f, 0.75f, 0.45f), 0.5f);
+			PlayBlock(false);
+			return;
+		}
 		// Sam's test: the combo animation up close is a cutscene of sorts, so nothing hurts you during it.
 		if (InCombo)
 		{
@@ -1972,6 +1988,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			SetTrigger("stagger");
 			m_banner = $"Ouch! {m_lives} {(m_lives == 1 ? "life" : "lives")} left";
 			m_bannerTime = 1.5f;
+			return;
+		}
+		if (Has("valkyrie") && !m_valkyrieUsed)
+		{
+			m_valkyrieUsed = true;
+			t.Collidable = false;
+			m_lane = 1;
+			m_hurtTime = 2f;
+			Flash(new Color(0.85f, 0.9f, 1f), 0.8f);
+			m_audio.Play("sfx_valkyrie_flap|sfx_raven_flap", 0.9f);
 			return;
 		}
 		Crash(why);
@@ -3847,6 +3873,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		if (m_state != State.Crashed && m_state != State.Menu && Event.current.type == EventType.Repaint)
 		{
 			HudGui(k, w, h);
+			AbilityIconsGui(24f * k, 84f * k, k);
+		}
+		if (m_shopOpen && m_state == State.Running)
+		{
+			ShopGui(k, w, h);
 		}
 		switch (m_state)
 		{

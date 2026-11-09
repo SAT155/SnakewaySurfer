@@ -34,7 +34,7 @@ internal sealed partial class SurfGame
 	// when there isn't enough left.
 	private bool SpendRollStamina()
 	{
-		float cost = Plugin.RollStamina.Value;
+		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f);
 		if (cost <= 0f)
 		{
 			return true;
@@ -118,7 +118,7 @@ internal sealed partial class SurfGame
 		}
 		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
 		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise;
-		if (m_runTime - m_blockPressed <= Plugin.ParryWindow.Value)
+		if (m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			t.Collidable = false;
 			if (t.Anim != null)
@@ -138,7 +138,7 @@ internal sealed partial class SurfGame
 			Plugin.Log.LogInfo($"Parried {t.Label}.");
 			return true;
 		}
-		float cost = Plugin.BlockStamina.Value;
+		float cost = Plugin.BlockStamina.Value * (Has("meadstam") ? 0.5f : 1f);
 		m_staminaIdle = 0f;
 		if (heavy)
 		{
