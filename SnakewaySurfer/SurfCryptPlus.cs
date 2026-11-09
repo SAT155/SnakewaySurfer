@@ -167,61 +167,6 @@ internal sealed partial class SurfGame
 		}
 		foreach (DigWall d in m_digs)
 		{
-			if (z > d.Z - 8f && z < d.Z + 6f)
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-	// While a hall is built: its forks' walls and lights, and its mud banks.
-	private void BuildCryptExtras(CryptLeg leg, Transform root, float y)
-	{
-		foreach (CryptFork f in m_forks)
-		{
-			if (f.Built || f.Z0 < leg.A || f.Z0 > leg.B)
-			{
-				continue;
-			}
-			f.Built = true;
-			foreach (float x in new[] { -LaneWidth * 0.5f, LaneWidth * 0.5f })
-			{
-				WallAlong(root, x, f.Z0, f.Z1, y);
-			}
-			for (int lane = 0; lane < 3; lane++)
-			{
-				if (lane == f.Lane)
-				{
-					// The way on: warm light where the passage opens out again.
-					Light l = new GameObject("ForkLight").AddComponent<Light>();
-					l.gameObject.layer = m_layer;
-					l.transform.SetParent(root, false);
-					l.transform.localPosition = new Vector3(LaneX(lane), y + 2f, f.Z1 + 1.5f);
-					l.type = LightType.Point;
-					l.range = 10f;
-					l.intensity = 2.2f;
-					l.color = new Color(1f, 0.75f, 0.4f);
-					l.shadows = LightShadows.None;
-					l.cullingMask = 1 << m_layer;
-					continue;
-				}
-				WallAcross(root, f.Z1, LaneX(lane) - LaneWidth * 0.5f, LaneX(lane) + LaneWidth * 0.5f, y);
-				GameObject dead = new GameObject("DeadEnd");
-				dead.transform.SetParent(m_stage, false);
-				m_things.Add(new Thing
-				{
-					Go = dead,
-					Kind = Kind.Block,
-					Lane = lane,
-					Z = f.Z1 - 0.4f,
-					HalfLength = 0.4f,
-					CrashText = "A dead end! (Before the split, look for the passage with light at its end.)",
-				});
-			}
-		}
-		foreach (DigWall d in m_digs)
-		{
 			if (d.Built || d.Z < leg.A || d.Z > leg.B)
 			{
 				continue;
