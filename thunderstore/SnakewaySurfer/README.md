@@ -286,7 +286,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
-- **Next**: Yagluth's gimmick: as his beam charges, a Fuling totem follows your mouse. Hold it over him when the beam lands to bounce it back and burn him. Miss, and the beam comes down your lane. You have five totems.
+- **1.16.128**: Yagluth's gimmick: as his beam charges, a Fuling totem follows your mouse. Hold it over him when the beam lands to bounce it back and burn him. Miss, and the beam comes down your lane. You have five totems.
 - **1.16.123**: no more smoky corner gust; a dead end turns you back to the split instead of hurting you; some wrong passages are flooded instead, and you swim through and come out Wet (30 s of slower stamina regen and dearer rolls and blocks).
 - **1.16.111**: shop: coins go into a bank kept on your character. Traders stop you in any lane and open a dreamy store with three of their abilities (12 so far, from honey to Valkyrie's wings). An ability lasts until that biome's boss falls, and a checkpoint retry keeps it.
 - **1.16.111**: dungeons: dungeons about twice as long, with halls of very different lengths; some halls split into three walled passages and only the one with light at its end goes on; sunken crypts have up to five chambers behind mud banks you dig through (attack: left mouse, Space or E), with draugr rising behind most; a biome's summoning items only turn up after its dungeon, and the dungeon's exit is the checkpoint.
