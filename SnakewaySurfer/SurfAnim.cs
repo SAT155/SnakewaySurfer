@@ -11,6 +11,10 @@ namespace SnakewaySurfer;
 internal static class AnimTiming
 {
 	private const string HitEvent = "OnAttackTrigger";
+	// 1.16.96: CharacterAnimEvent.Hit() calls the same Character.OnAttackTrigger(). Many clips
+	// (the bear, Eikthyr, Yagluth, greydwarfs, seekers, lox...) mark their blow with "Hit"
+	// instead, so those were being guessed as "a little before the middle of the clip".
+	private const string HitEventShort = "Hit";
 	private static readonly Dictionary<string, float> s_delay = new();
 	private static readonly Dictionary<AnimationClip, float> s_hitTime = new();
 	private static readonly HashSet<string> s_reported = new();
@@ -33,12 +37,17 @@ internal static class AnimTiming
 			t = -1f;
 			foreach (AnimationEvent e in clip.events)
 			{
-				if (e.functionName == HitEvent && (t < 0f || e.time < t))
+				if ((e.functionName == HitEvent || e.functionName == HitEventShort) && (t < 0f || e.time < t))
 				{
 					t = e.time;
 				}
 			}
 			s_hitTime[clip] = t;
+			if (t < 0f && clip.events.Length > 0)
+			{
+				// 1.16.96: which events such a clip has instead, so the right one can be used.
+				Plugin.Log.LogInfo($"Clip '{clip.name}' ({clip.length:0.00} s) events: " + string.Join(", ", System.Array.ConvertAll(clip.events, e => $"{e.functionName}({e.stringParameter}{e.intParameter})@{e.time:0.00}")));
+			}
 		}
 		return t;
 	}
