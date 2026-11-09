@@ -8,17 +8,17 @@ namespace SnakewaySurfer;
 // parry window opens. Then the inner ring flashes gold until the blow lands. No text.
 internal sealed partial class SurfGame
 {
-	private static Texture2D? s_ring;
+	private static Texture2D? s_cueRing;
 	private float m_cueFlash;
 
-	private static Texture2D Ring()
+	private static Texture2D CueRing()
 	{
-		if (s_ring != null)
+		if (s_cueRing != null)
 		{
-			return s_ring;
+			return s_cueRing;
 		}
 		const int n = 128;
-		s_ring = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+		s_cueRing = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
 		Color[] px = new Color[n * n];
 		for (int y = 0; y < n; y++)
 		{
@@ -29,9 +29,9 @@ internal sealed partial class SurfGame
 				px[y * n + x] = new Color(1f, 1f, 1f, a * a);
 			}
 		}
-		s_ring.SetPixels(px);
-		s_ring.Apply();
-		return s_ring;
+		s_cueRing.SetPixels(px);
+		s_cueRing.Apply();
+		return s_cueRing;
 	}
 
 	// Seconds until the next parryable blow reaches you, or -1.
@@ -94,9 +94,9 @@ internal sealed partial class SurfGame
 			float u = Mathf.Clamp01((left - window) / 1.2f);
 			float outer = inner * (1f + 2f * u);
 			GUI.color = new Color(1f, 0.85f, 0.4f, (1f - u) * 0.85f * s_guiAlpha);
-			GUI.DrawTexture(new Rect(c.x - outer, c.y - outer, outer * 2f, outer * 2f), Ring());
+			GUI.DrawTexture(new Rect(c.x - outer, c.y - outer, outer * 2f, outer * 2f), CueRing());
 			GUI.color = new Color(1f, 1f, 1f, 0.35f * s_guiAlpha);
-			GUI.DrawTexture(new Rect(c.x - inner, c.y - inner, inner * 2f, inner * 2f), Ring());
+			GUI.DrawTexture(new Rect(c.x - inner, c.y - inner, inner * 2f, inner * 2f), CueRing());
 		}
 		else
 		{
@@ -105,8 +105,8 @@ internal sealed partial class SurfGame
 			float pulse = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(m_cueFlash));
 			float r = inner * (1.05f + 0.1f * pulse);
 			GUI.color = new Color(1f, 0.9f, 0.3f, pulse * s_guiAlpha);
-			GUI.DrawTexture(new Rect(c.x - r, c.y - r, r * 2f, r * 2f), Ring());
-			GUI.DrawTexture(new Rect(c.x - r * 0.8f, c.y - r * 0.8f, r * 1.6f, r * 1.6f), Ring());
+			GUI.DrawTexture(new Rect(c.x - r, c.y - r, r * 2f, r * 2f), CueRing());
+			GUI.DrawTexture(new Rect(c.x - r * 0.8f, c.y - r * 0.8f, r * 1.6f, r * 1.6f), CueRing());
 		}
 		GUI.color = old;
 	}
