@@ -296,7 +296,9 @@ internal sealed partial class SurfGame
 internal sealed partial class SurfGame
 {
 	private const int MazePaths = 6;
-	private const float PathWidth = LaneWidth * 0.5f;
+	// 1.16.94 (Sam: the split lanes were "incredibly thin since the play area doesn't increase"):
+	// each of the six paths is a full lane wide now, and the track widens to hold them (SurfChase.ExtraFlat).
+	private const float PathWidth = LaneWidth;
 	private readonly List<(float z0, float z1, int boundary)> m_mazeWalls = new();
 	private float m_mazeStart;
 	private float m_mazeEnd;

@@ -354,7 +354,7 @@ internal sealed partial class SurfGame
 	// Your lives back to full, or one more if you have them all.
 	private void Trade(TraderStop t)
 	{
-		int full = Plugin.Lives.Value;
+		int full = Plugin.StartLives;
 		m_lives = m_lives < full ? full : m_lives + 1;
 		m_livesFlash = 1.2f;
 		if (t.Anim != null)

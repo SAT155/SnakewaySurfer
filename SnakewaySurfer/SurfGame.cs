@@ -1192,6 +1192,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			picture = Pictures.MakePicture(prefab, m_templates, m_layer);
 			m_pictureOf[prefab] = picture;
+			PrewarmTimings(prefab, picture);
 		}
 		return picture;
 	}
@@ -1251,14 +1252,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_nextSceneryZ = -20f;
 		m_nextGroundZ = -GroundTile;
 		m_crashText = "";
+		ClearTomb();
 		m_rewardText = "";
 		m_lastHealth = m_player.GetHealth();
-		m_speed = Plugin.StartSpeed.Value;
+		m_speed = Plugin.StartSpeed.Value * Plugin.SpeedScale;
 		m_camPlaced = false;
 		m_envPlaced = false;
 		m_lastTick = 0;
 		m_lastLandmarkZ = -999f;
-		m_lives = Plugin.Lives.Value;
+		m_lives = Plugin.StartLives;
 		m_dividers.Clear();
 		m_nextTorchZ = 0f;
 		ResetSwampSights();
@@ -1467,6 +1469,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				break;
 			case State.Crashed:
+				UpdateTomb(dt);
 				if (canInput && m_stateTime > 0.8f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
 				{
 					BeginLoad(ResetRun);
@@ -1592,7 +1595,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		m_runTime += dt;
 		float biomeProgress = SpeedProgressAt(m_z);
-		m_speed = Mathf.Min(Plugin.StartSpeed.Value + Plugin.SpeedPerBiome.Value * biomeProgress, Plugin.MaxSpeed.Value);
+		m_speed = Mathf.Min(Plugin.StartSpeed.Value + Plugin.SpeedPerBiome.Value * biomeProgress, Plugin.MaxSpeed.Value) * Plugin.SpeedScale;
 		if (m_slowTime > 0f)
 		{
 			m_slowTime -= dt;
@@ -1943,6 +1946,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
+		// Sam's test: the combo animation up close is a cutscene of sorts, so nothing hurts you during it.
+		if (InCombo)
+		{
+			t.Collidable = false;
+			return;
+		}
 		// 1.16.3: at sea the ship takes it (SurfHull.cs).
 		if (HullTakes(t, why))
 		{
@@ -1964,6 +1973,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		Crash(why);
+		if (m_state == State.Crashed)
+		{
+			RaiseTomb();
+		}
 	}
 
 	private void UpdateThings(float dt)
@@ -2265,10 +2278,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			float lz = -GroundTile * 0.5f + GroundTile * iz / (nz - 1);
 			float y = RoadY(centerZ + lz) + lift;
+			// The track widens where the Elder's maze needs the room; the texture keeps its edges.
+			float widen = trackUv ? (halfWidth + ExtraTrack(centerZ + lz)) / halfWidth : 1f;
 			for (int ix = 0; ix < nx; ix++)
 			{
 				float x = -halfWidth + 2f * halfWidth * ix / across;
-				verts[iz * nx + ix] = new Vector3(x, y, lz);
+				verts[iz * nx + ix] = new Vector3(x * widen, y, lz);
 				uvs[iz * nx + ix] = trackUv ? new Vector2((x / halfWidth + 1f) * 0.5f, (centerZ + lz) / 4f) : new Vector2(x / 10f, (centerZ + lz) / 10f);
 			}
 		}
@@ -2997,7 +3012,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			pace = info.WalkSpeed;
 			speed = pace * 0.5f;
 		}
-		speed = Mathf.Min(speed * Mathf.Clamp(0.5f + 0.12f * biomeIndex, 0.5f, 1.2f) * Plugin.MonsterMove.Value, 9f);
+		speed = Mathf.Min(speed * Mathf.Clamp(0.5f + 0.12f * biomeIndex, 0.5f, 1.2f) * Plugin.MonsterMove.Value * Plugin.FoeScale, 9f);
 		if (anim != null)
 		{
 			SetParam(anim, "forward_speed", 0f);
@@ -3810,7 +3825,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		bool sea = m_biomes.Count > 0 && (m_atSea || SegAt(m_z).Sea);
 		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z), sea) : "";
 		string stretch = m_biomes.Count > 0 ? StretchHud() : "";
-		string lives = Plugin.Lives.Value > 1 || m_lives > 1 ? $"   ·   lives {m_lives}" : "";
+		string lives = Plugin.StartLives > 1 || m_lives > 1 ? $"   ·   lives {m_lives}" : "";
 		string top = $"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}";
 		if (m_livesFlash > 0f && lives.Length > 0)
 		{

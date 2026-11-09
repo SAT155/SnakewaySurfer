@@ -363,7 +363,7 @@ internal sealed partial class SurfGame
 		m_campSteps.Add((t, () =>
 		{
 			// Rested: the lives come back, and anything the boss left.
-			m_lives = Mathf.Max(m_lives, Plugin.Lives.Value);
+			m_lives = Mathf.Max(m_lives, Plugin.StartLives);
 			m_livesFlash = 1f;
 			if (loot.Length > 0 && m_player != null && Rewards.GiveBossDrop(m_player, loot, 1 + CampStars) is string got)
 			{
