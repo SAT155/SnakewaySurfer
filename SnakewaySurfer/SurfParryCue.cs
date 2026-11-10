@@ -71,6 +71,81 @@ internal sealed partial class SurfGame
 		return best;
 	}
 
+	// 1.16.150 (Sam: the ring over your head distracted more than it helped; put the circle on
+	// the red tiles, and turn them yellow when a parry would work): a ring lying on the ground in
+	// your lane closes in on you as the blow comes, and every red warning tile turns yellow while
+	// the parry window is open.
+	private GameObject? m_tileRing;
+	private Material? m_tileRingMaterial;
+	private static readonly Color s_markerRed = new Color(1f, 0.25f, 0.05f, 0.6f);
+	private static readonly Color s_markerParry = new Color(1f, 0.95f, 0.3f, 0.75f);
+
+	private void UpdateTileCue(float dt)
+	{
+		float left = NextBlowIn();
+		float window = Mathf.Max(0.05f, ParryWindowNow);
+		bool open = left >= 0f && left <= window;
+		if (m_markerMaterial != null)
+		{
+			m_markerMaterial.color = open ? s_markerParry : s_markerRed;
+		}
+		if (left < 0f)
+		{
+			if (m_tileRing != null)
+			{
+				m_tileRing.SetActive(false);
+			}
+			return;
+		}
+		if (m_tileRing == null)
+		{
+			Shader shader = Shader.Find("Sprites/Default");
+			if (shader == null)
+			{
+				return;
+			}
+			m_tileRingMaterial = new Material(shader) { name = "SurfTileRing", mainTexture = CueRing(), renderQueue = 3105 };
+			m_tileRing = GameObject.CreatePrimitive(PrimitiveType.Quad);
+			Destroy(m_tileRing.GetComponent<Collider>());
+			m_tileRing.name = "TileRing";
+			m_tileRing.layer = m_layer;
+			m_tileRing.transform.SetParent(m_stage, false);
+			Renderer r = m_tileRing.GetComponent<Renderer>();
+			r.sharedMaterial = m_tileRingMaterial;
+			r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+			r.receiveShadows = false;
+		}
+		m_tileRing.SetActive(true);
+		float u = Mathf.Clamp01((left - window) / 1.2f);
+		float size = LaneWidth * 0.95f * (1f + 2f * u);
+		m_tileRing.transform.localScale = new Vector3(size, size, 1f);
+		m_tileRing.transform.localPosition = new Vector3(m_x, RoadY(m_z) + 0.1f + WaterWeight(m_z) * WaterDepth, m_z);
+		m_tileRing.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+		if (open)
+		{
+			m_cueFlash += dt * 18f;
+			float pulse = 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(m_cueFlash));
+			m_tileRingMaterial!.color = new Color(1f, 0.95f, 0.35f, pulse);
+		}
+		else
+		{
+			m_tileRingMaterial!.color = new Color(1f, 0.45f, 0.15f, (1f - u) * 0.9f);
+		}
+	}
+
+	private void ClearTileCue()
+	{
+		if (m_tileRing != null)
+		{
+			Destroy(m_tileRing);
+		}
+		m_tileRing = null;
+		if (m_markerMaterial != null)
+		{
+			m_markerMaterial.color = s_markerRed;
+		}
+	}
+
 	private void ParryCueGui(float k)
 	{
 		float left = NextBlowIn();

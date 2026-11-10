@@ -268,6 +268,9 @@ At the end of each run:
 - **One food from each biome you ran through** (a random one of that biome's foods), if the run lasted at least 30 seconds
   and you haven't had food from the minigame in the last 30 minutes (real time, saved on your
   character). With full bags, it drops at your feet.
+Unfortunately, even in a dream, you can't dual wield spears. You'll throw spears at Eikthyr,
+fire a ballista and parry trolls, but this mod never puts a spear in each hand.
+
 
 ## Config
 
@@ -286,6 +289,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.163**: dungeons get real junctions: some corners and long halls open three ways, and two of them are dark dead ends that send you back (pick by your lane). Draugr no longer rise right behind a mud bank, nothing shoots round corners or through banks, and there is a moment of clear hall after each turn. The dungeon camera now stays behind you, and the halls are one flagstone per lane. Sunken crypts are lit by green torches and their mud mounds are easier to jump; burial chambers are rough caves with timber props and wooden doors. Your lives now heal back slowly (faster after eating food found along the way), the dodge roll has a short cooldown, and jumping clean over a monster is worth 1 to 5 coins. Starred laps mix in lower-star monsters, and starred necks and draugr drift between lanes while plain greydwarfs swarm. Bosses at 2+ stars sometimes chain two moves. Eikthyr charges without jumping about, his jump bars crackle with lightning, and what you hurt a boss with stands in a beam of light; picking it up clears the boss's attacks in flight. The Elder's vines strike again in his maze, and grabbing a torch there burns the whole maze away. A retry at a boss goes straight to the boss. Warning tiles carry a closing ring and turn yellow while a parry would work. A trader now stands in every biome stretch (Haldor in the 0-star Meadows). The Swamp is land with pools, and the camp there stands on dry ground. Hugin's picture shows in his circle again, the difficulty words and shop notes fit their boxes, and forest folk stay out of the Meadows.
 - **1.16.149**: a dodge roll now gets you through most attacks and monsters, as in the game. Low foes like leeches, logs, and walls of roots or vines still get you.
 - **1.16.140**: the camp rest menu now comes up as soon as you sit by the fire, while you eat and drink behind it, instead of after the whole meal. Your lives and the boss drop come when you sit.
 - **1.16.132**: the Strange Portal now saves as a plain wooden portal for players and servers without the mod, so they no longer flood their log with "Missing prefab hash". With the mod it is still the Strange Portal. Portals built before this switch over the first time a modded player comes near.
@@ -295,9 +299,9 @@ and for players without the mod.
 - **1.16.111**: dungeons: dungeons about twice as long, with halls of very different lengths; some halls split into three walled passages and only the one with light at its end goes on; sunken crypts have up to five chambers behind mud banks you dig through (attack: left mouse, Space or E), with draugr rising behind most; a biome's summoning items only turn up after its dungeon, and the dungeon's exit is the checkpoint.
 - **1.16.108**: a gold ring closes in over your head and flashes when it's time to parry a boss's blow; Yagluth's frost arrows go to the bow, and his meteors fall from the sky as in the game; Moder only claws and bites while she's down on the track; boss fights use the boss's own shockwaves and beams (the Elder's vines) instead of logs and bars; Hugin and Munin are a flat portrait with a speech bubble in a fixed spot.
 - **1.16.101**: attack timings now read the game's "Hit" animation event too (bear, Eikthyr, Yagluth, greydwarfs, seekers, lox and more were being guessed).
-- **1.16.95** (alpha, from Sam's playtest): you can't be hurt during a boss combo (plus a short blink after); a dreamy tombstone rises where you fall; Gentle / Normal / Hard picked in the run menu (Tab or click); the Elder's maze paths are full lanes on a wider track; attack wind-ups are learned by playing each creature's real animation at load, not guessed.
-- **1.16.56 to 1.16.93** (alpha, from Sam's playtests):
-  1.16.93: the ripple copies the view at a safer moment (looking into a crash).
+- **1.16.95**: you can't be hurt during a boss combo (plus a short blink after); a dreamy tombstone rises where you fall; Gentle / Normal / Hard picked in the run menu (Tab or click); the Elder's maze paths are full lanes on a wider track; attack wind-ups are learned by playing each creature's real animation at load, not guessed.
+- **1.16.56 to 1.16.93**:
+  1.16.93: the ripple copies the view at a safer moment (a possible crash fix).
   1.16.92: the run's Hugin is small, flying and facing you too; every portal (the run's way in,
   the ravens' portal, the Strange Portal) ripples through the dream haze instead of a loading
   screen.
@@ -338,7 +342,7 @@ and for players without the mod.
   storm with rolling waves, lightning and the serpent of the deep. The beaches slope into the
   sea with surf washing up the sand and splashes in the shallows. An Ocean start in the menu.
   The dirt path is lighter.
-  From Sam's playtests: holding block drains stamina and slows you, bats knock your guard
+  Also: holding block drains stamina and slows you, bats knock your guard
   down, slide is now the game's dodge roll, and good blocks, parries and dodges earn Blocking
   and Dodge XP at the game's own rates. Attacks land with their animations (troll logs and
   abomination sweeps cover two lanes), the Elder's fight is a maze of six paths, wraiths stalk
@@ -391,38 +395,38 @@ and for players without the mod.
   to strike him. The golden shoes still need only the usual six bosses.
   1.16.14: the places' own creatures turn up even where the biome's spawns don't have them:
   growths at the Plains' tar pits, draugr at the Mountains' graves.
-  1.16.15 (Sam): the run's messages come from Hugin, the tutorial raven: he flies in at the top
+  1.16.15: the run's messages come from Hugin, the tutorial raven: he flies in at the top
   right of the screen with the game's own animation, says it in the game's own speech popup, and
   flies off once it's said. Hugin Messages in the config turns him off.
-  1.16.18 (Sam): the first-run dream has its own solid dark; Hugin is sized and placed by his
+  1.16.18: the first-run dream has its own solid dark; Hugin is sized and placed by his
   real shape at the top right; the pause message fits; View Distance in the config (default
   230 m, was 150 m).
-  1.16.19 (Sam): the longer view is put to use: the fog thins to match it, the boss's place
+  1.16.19: the longer view is put to use: the fog thins to match it, the boss's place
   stands further off, the track ahead of a boss or the coast is closed off further away (so
   nothing vanishes in plain sight), and the ocean and its islands show from further.
-  1.16.20 (Sam hit a wall pressing D at a corner): the turn can be pressed about 1.6 s before a
+  1.16.20: the turn can be pressed about 1.6 s before a
   dungeon corner (was under a second), a press just before that still counts, and running in
   the lane on the opening's side takes the turn by itself.
-  1.16.21 (Sam): boss landmarks are extra large: further off and towering over the skyline, the
+  1.16.21: boss landmarks are extra large: further off and towering over the skyline, the
   air clearing a little more as you near the arena. Boss Landmark Size in the config (1 to 3,
   default 2; 1 is the old size).
-  1.16.22 (Sam): in the dungeons the camera only turns for a corner once you press for it, and
+  1.16.22: in the dungeons the camera only turns for a corner once you press for it, and
   a glowing arrow on the corner's floor beats as you come up to it (with a soft call when it's
   time to press), pointing the way on.
-  1.16.23 (Sam): the food reward is one food from each biome you ran through, each from its own
+  1.16.23: the food reward is one food from each biome you ran through, each from its own
   biome (a Meadows-to-Swamp run gives three).
-  1.16.24 (Sam): the corner's arrow is now a gust of puffy, ink-edged cloud streaming up the hall
+  1.16.24: the corner's arrow is now a gust of puffy, ink-edged cloud streaming up the hall
   and curling off toward the way on, swaying like a beckoning whoosh (with a whoosh to hear).
-  1.16.25 (Sam's sketch): the gust now waits just ahead of you as flat, ink-edged cut-out shapes
+  1.16.25: the gust now waits just ahead of you as flat, ink-edged cut-out shapes
   in a storybook style: a billowy cloud on the side away from the turn, spiky gusts leaning the
   way to go, puffs curling off toward the opening. Nearer the corner the cloud shrinks and the
   gusts grow; once you turn the cloud is squeezed against the wall and left behind.
-  1.16.26 (Sam): the big boss landmarks keep their nearest side at the distance, so they no
+  1.16.26: the big boss landmarks keep their nearest side at the distance, so they no
   longer reach back over the track.
-  1.16.27 (Sam's idea): the boss's place is drawn once into a flat picture that stands far off on
+  1.16.27: the boss's place is drawn once into a flat picture that stands far off on
   the skyline like part of the sky, so it can't reach into the track. Boss Landmark On Sky in the
   config (off: the 3D place, nearer, as before).
-  1.16.16 (Sam): runs load behind the game's own portal loading screen. The very first run
+  1.16.16: runs load behind the game's own portal loading screen. The very first run
   starts with a short dream in the game's own dream text instead of the start menu. The start
   menu drifts in like a dream (floating buttons, a glow on the one you're on, the others
   drifting apart when you pick). `surfprogress` shows, erases (`wipe`) or sets (`set plains 1`)
@@ -491,7 +495,7 @@ and for players without the mod.
   only reaches as far as the furthest boss beaten in the world (Ignore Boss Gate under Debug to
   bypass), and biome landmarks and pickables beside the track.
 
-- **1.6**: every creature has its own challenge (Creature Schemas, picked by Sam creature by
+- **1.6**: every creature has its own challenge (Creature Schemas, hand-picked creature by
   creature): boars, necks and greylings are hurdles, deer and lox herds bolt across the track,
   greydwarfs and fulings swarm, wolves and seekers weave between lanes, brutes, bears and seeker
   soldiers sweep two lanes, shamans and blobs fill lanes with gas (blob gas: jump or slide through),
@@ -544,3 +548,7 @@ and for players without the mod.
 - **1.1**: sounds; food wearing off no longer counts as being hit (the game stopped after a
   few seconds); no more "Can't remove Humanoid" errors in the log.
 - **1.0**: first version.
+
+## Feedback
+
+Feedback, bug reports and requests are welcome at [feedback@snakesquad.net](mailto:feedback@snakesquad.net).

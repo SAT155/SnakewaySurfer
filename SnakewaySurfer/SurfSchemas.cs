@@ -98,7 +98,8 @@ internal sealed partial class SurfGame
 			for (int k = 0; k < count; k++)
 			{
 				Thing a = SpawnCreature(e, lane, z + k * 9f, Kind.Block, 0f, biomeIndex, "sideline");
-				a.X = bank * (TrackHalf + 2.2f + Random.Range(0f, 1.6f));
+				// (1.16.150: in a dungeon they stand clear of the wall, on its floor.)
+				a.X = bank * (InCrypt(a.Z) ? TrackHalf + 0.5f : TrackHalf + 2.2f + Random.Range(0f, 1.6f));
 				a.TargetX = a.X;
 				a.FreeX = true;
 				a.Collidable = false;
@@ -106,7 +107,7 @@ internal sealed partial class SurfGame
 				a.Attacked = true;
 				a.Side = bank;
 				a.Cooldown = Random.Range(0f, 0.6f);
-				a.Go.transform.localPosition = new Vector3(a.X, HillHeight(a.X, a.Z), a.Z);
+				a.Go.transform.localPosition = new Vector3(a.X, InCrypt(a.Z) ? RoadY(a.Z) : HillHeight(a.X, a.Z), a.Z);
 				a.Go.transform.localRotation = Quaternion.Euler(0f, bank > 0 ? 60f : -60f, 0f);
 			}
 			return true;
@@ -644,7 +645,7 @@ internal sealed partial class SurfGame
 			}
 			return;
 		}
-		t.Cooldown -= dt;
+		t.Cooldown -= dt * t.Haste;
 		float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, 0.8f);
 		float lead = m_speed * windup;
 		if (t.Cooldown <= 0f && t.Phase < 2 && distance < lead + 42f && distance > lead + m_speed * 0.9f + 6f)
@@ -681,8 +682,8 @@ internal sealed partial class SurfGame
 				t.TargetX = LaneX(to);
 				// 1.16.1 (Sam): slow swimmers (leeches) weave more slowly than wolves.
 				float pace = Mathf.Clamp((t.Info?.RunSpeed ?? 6f) / 6f, 0.45f, 1f);
-				t.XSpeed = 4.5f * pace;
-				t.SwitchTimer = Random.Range(0.8f, 1.4f) / pace;
+				t.XSpeed = t.Meander ? 1.3f : 4.5f * pace;
+				t.SwitchTimer = t.Meander ? Random.Range(1.6f, 3f) : Random.Range(0.8f, 1.4f) / pace;
 			}
 		}
 		else

@@ -416,20 +416,62 @@ internal sealed partial class SurfGame
 
 	private Thing SpawnPickup(GameObject template, int lane, float z, Kind kind)
 	{
-		GameObject go = Fitted(template, Quaternion.Euler(0f, 0f, 0f), new Vector3(0.9f, 0.9f, 0.9f), true, 3f);
+		bool weapon = kind == Kind.BossHit;
+		// 1.16.150 (Sam: hard to see in the Eikthyr fight): what you hurt a boss with is bigger,
+		// stands in a pillar of light, and glows brighter.
+		GameObject go = Fitted(template, weapon ? Quaternion.Euler(0f, 0f, 35f) : Quaternion.identity, Vector3.one * (weapon ? 1.5f : 0.9f), true, 3f);
 		const float y = 1.0f;
 		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + y, z);
+		if (weapon)
+		{
+			PickupBeam(go.transform, y);
+		}
 		Light glow = new GameObject("Glow").AddComponent<Light>();
 		glow.gameObject.layer = m_layer;
 		glow.transform.SetParent(go.transform, false);
 		glow.type = LightType.Point;
-		glow.range = 3.5f;
-		glow.intensity = 1.6f;
+		glow.range = weapon ? 6f : 3.5f;
+		glow.intensity = weapon ? 2.6f : 1.6f;
 		glow.color = kind == Kind.BossHit ? new Color(0.5f, 0.8f, 1f) : new Color(1f, 0.85f, 0.4f);
 		glow.cullingMask = 1 << m_layer;
 		Thing t = new Thing { Go = go, Kind = kind, Lane = lane, Z = z, Y = y, HalfLength = 0.45f };
 		m_things.Add(t);
 		return t;
+	}
+
+	private static Material? s_beamMaterial;
+
+	// A soft column of light up from the ground through a pickup, so it reads from far off.
+	private void PickupBeam(Transform parent, float y)
+	{
+		if (s_beamMaterial == null)
+		{
+			Shader shader = Shader.Find("Sprites/Default");
+			if (shader == null)
+			{
+				return;
+			}
+			s_beamMaterial = new Material(shader) { name = "SurfPickupBeam", color = new Color(0.55f, 0.85f, 1f, 0.28f), renderQueue = 3110 };
+		}
+		GameObject beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+		Destroy(beam.GetComponent<Collider>());
+		beam.name = "PickupBeam";
+		beam.layer = m_layer;
+		// (The fitted wrapper is upright and scaled evenly; undo its scale.)
+		float k = Mathf.Max(0.01f, parent.localScale.x);
+		beam.transform.SetParent(parent, false);
+		beam.transform.localRotation = Quaternion.identity;
+		beam.transform.localScale = new Vector3(0.5f / k, 3f / k, 0.5f / k);
+		beam.transform.localPosition = new Vector3(0f, (3f - y) / k, 0f);
+		Renderer r = beam.GetComponent<Renderer>();
+		r.sharedMaterial = s_beamMaterial;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		r.receiveShadows = false;
+		GameObject patch = MakeMarker(1, 0f, 1.6f, s_beamMaterial);
+		patch.transform.SetParent(parent, false);
+		patch.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+		patch.transform.localScale = new Vector3(LaneWidth * 0.92f / k, 1.6f / k, 1f);
+		patch.transform.localPosition = new Vector3(0f, (0.08f - y) / k, 0f);
 	}
 
 	private void PickedUpItem()
@@ -463,6 +505,7 @@ internal sealed partial class SurfGame
 
 	private void StartBoss(Segment seg)
 	{
+		m_quietToBoss = false;
 		EndBoss();
 		ResetSpears();
 		BossDef? def = Progress.BossOf(seg.Biome);
@@ -541,8 +584,20 @@ internal sealed partial class SurfGame
 
 	private static string Localize(string text) => Localization.instance != null ? Localization.instance.Localize(text) : text;
 
+	// 1.16.150 (Sam: little difference between star levels): from 2 stars a boss sometimes
+	// follows one move straight up with another (unless the move held the next one back).
+	private void StarFollowUp(int stars, float interval)
+	{
+		if (stars >= 2 && m_bossAttackTimer <= interval + 0.01f && Random.value < 0.22f * (stars - 1))
+		{
+			m_bossAttackTimer = 0.8f;
+		}
+	}
+
 	private void EndBoss()
 	{
+		m_dash = null;
+		m_dashBack = 0f;
 		EndTotemBeam();
 		m_totems = 0;
 		foreach (var m in m_meteors)
@@ -680,9 +735,11 @@ internal sealed partial class SurfGame
 		if (m_bossAttackTimer <= 0f)
 		{
 			BossMove(def, Flies(def) && m_bossLanded ? LandedMove() : NextMove(def, phase));
-			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.12f * (m_bossSeg?.Stars ?? 0));
+			int bossStars = m_bossSeg?.Stars ?? 0;
+			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.2f * bossStars);
 			// Some moves (branches, the dash) hold the next one back themselves.
 			m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, interval);
+			StarFollowUp(bossStars, interval);
 		}
 		m_bossHitTimer -= dt;
 		if (m_bossHitTimer <= 0f)
@@ -1233,6 +1290,33 @@ internal sealed partial class SurfGame
 		GameObject root = new GameObject("BossEnergy");
 		root.layer = m_layer;
 		root.transform.SetParent(m_stage, false);
+		if (def.Prefab == "Eikthyr")
+		{
+			// 1.16.150 (Sam: the yellow-marked bars looked like odd logs): Eikthyr's is a crackle
+			// of his lightning running along the ground across the lane.
+			Crackle crackle = root.AddComponent<Crackle>();
+			crackle.Glow = BoltLine(root, false, "Glow");
+			crackle.Core = BoltLine(root, true, "Core");
+			Color tint = def.Tint;
+			crackle.Glow.startColor = crackle.Glow.endColor = new Color(tint.r, tint.g, tint.b, 0.5f);
+			crackle.Glow.widthMultiplier = thickness * 1.1f;
+			Color white = Color.Lerp(Color.white, tint, 0.2f);
+			crackle.Core.startColor = crackle.Core.endColor = white;
+			crackle.Core.widthMultiplier = thickness * 0.3f;
+			crackle.From = new Vector3(-LaneWidth * 0.5f, y, 0f);
+			crackle.To = new Vector3(LaneWidth * 0.5f, y, 0f);
+			Light spark = new GameObject("Glow").AddComponent<Light>();
+			spark.gameObject.layer = m_layer;
+			spark.transform.SetParent(root.transform, false);
+			spark.transform.localPosition = new Vector3(0f, y + 0.4f, 0f);
+			spark.type = LightType.Point;
+			spark.range = 5f;
+			spark.intensity = 2.2f;
+			spark.color = Color.Lerp(Color.white, tint, 0.5f);
+			spark.cullingMask = 1 << m_layer;
+			crackle.Light = spark;
+			return root;
+		}
 		GameObject bolt = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
 		Destroy(bolt.GetComponent<Collider>());
 		bolt.layer = m_layer;

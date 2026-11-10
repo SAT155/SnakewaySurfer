@@ -441,26 +441,43 @@ internal sealed partial class SurfGame
 	}
 
 	// The camp, bigger with the stars.
+	// 1.16.150 (Sam: in the Swamp the fire was built under water): over water the camp stands on
+	// a little mound of dry ground at the water's surface.
+	private float CampY(float z) => RoadY(z) + WaterWeight(z) * (WaterDepth + 0.06f);
+
 	private void BuildCamp(int stars)
 	{
-		float y = RoadY(m_campZ + 1.9f);
+		if (WaterWeight(m_campZ) > 0.05f)
+		{
+			GameObject mound = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+			Destroy(mound.GetComponent<Collider>());
+			mound.name = "CampMound";
+			mound.layer = m_layer;
+			mound.transform.SetParent(m_stage, false);
+			mound.transform.localScale = new Vector3(9f, 0.25f, 9f);
+			mound.transform.localPosition = new Vector3(0f, CampY(m_campZ + 1f) - 0.22f, m_campZ + 1f);
+			Renderer mr = mound.GetComponent<Renderer>();
+			mr.sharedMaterial = m_biomes[BiomeAt(m_campZ)].Ground;
+			m_campProps.Add(mound);
+		}
+		float y = CampY(m_campZ + 1.9f);
 		Vector3 fire = new Vector3(0f, y, m_campZ + 1.9f);
 		CampProp(stars >= 3 ? "fire_pit_iron|fire_pit" : "fire_pit|piece_firepit", fire, 0f, 1f);
 		if (stars >= 1)
 		{
 			CampProp(stars >= 3 ? "piece_cookingstation_iron|piece_cookingstation" : "piece_cookingstation", fire, 0f, 1f);
-			CampProp("piece_logbench01|piece_bench01", new Vector3(0f, RoadY(m_campZ + 4.2f), m_campZ + 4.2f), 180f, 1f);
+			CampProp("piece_logbench01|piece_bench01", new Vector3(0f, CampY(m_campZ + 4.2f), m_campZ + 4.2f), 180f, 1f);
 		}
 		if (stars >= 2)
 		{
-			CampProp("piece_groundtorch_wood|piece_groundtorch", new Vector3(-2.6f, RoadY(m_campZ + 1f), m_campZ + 1f), 0f, 1f);
-			CampProp("piece_groundtorch_wood|piece_groundtorch", new Vector3(2.6f, RoadY(m_campZ + 1f), m_campZ + 1f), 0f, 1f);
-			CampProp("rug_fur|rug_wolf|rug_deer", new Vector3(0f, RoadY(m_campZ) + 0.02f, m_campZ - 0.2f), 0f, 1f);
+			CampProp("piece_groundtorch_wood|piece_groundtorch", new Vector3(-2.6f, CampY(m_campZ + 1f), m_campZ + 1f), 0f, 1f);
+			CampProp("piece_groundtorch_wood|piece_groundtorch", new Vector3(2.6f, CampY(m_campZ + 1f), m_campZ + 1f), 0f, 1f);
+			CampProp("rug_fur|rug_wolf|rug_deer", new Vector3(0f, CampY(m_campZ) + 0.02f, m_campZ - 0.2f), 0f, 1f);
 		}
 		if (stars >= 3)
 		{
-			CampProp("piece_cauldron|Cauldron", new Vector3(1.7f, RoadY(m_campZ + 2.4f), m_campZ + 2.4f), -30f, 1f);
-			CampProp("piece_bed02|bed", new Vector3(-2.2f, RoadY(m_campZ - 1.2f), m_campZ - 1.2f), 90f, 1f);
+			CampProp("piece_cauldron|Cauldron", new Vector3(1.7f, CampY(m_campZ + 2.4f), m_campZ + 2.4f), -30f, 1f);
+			CampProp("piece_bed02|bed", new Vector3(-2.2f, CampY(m_campZ - 1.2f), m_campZ - 1.2f), 90f, 1f);
 		}
 		// The fire's light and crackle.
 		GameObject lightGo = new GameObject("CampFireLight") { layer = m_layer };

@@ -83,15 +83,44 @@ internal static class RavenUi
 			rim.intensity = 1.2f;
 			rim.color = new Color(0.7f, 0.82f, 1f);
 			rim.cullingMask = 1 << layer;
+			// 1.16.150 (Sam: the circle was empty): the game's deferred path and shaders leave no
+			// usable alpha, so draw forward, fog off, once on black and once on white; what
+			// changes between them is see-through (as the boss's sky picture does).
 			const int size = 256;
 			rt = RenderTexture.GetTemporary(size, size, 24, RenderTextureFormat.ARGB32);
+			cam.renderingPath = RenderingPath.Forward;
 			cam.targetTexture = rt;
-			cam.Render();
-			RenderTexture.active = rt;
-			tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-			tex.ReadPixels(new Rect(0, 0, size, size), 0, 0);
-			tex.Apply();
+			bool fog = RenderSettings.fog;
+			RenderSettings.fog = false;
+			Color32[] onBlack = Shot(cam, rt, Color.black, size);
+			Color32[] onWhite = Shot(cam, rt, Color.white, size);
+			RenderSettings.fog = fog;
 			cam.targetTexture = null;
+			Color32[] px = new Color32[onBlack.Length];
+			int seenCount = 0;
+			for (int i = 0; i < px.Length; i++)
+			{
+				Color32 k0 = onBlack[i];
+				Color32 k1 = onWhite[i];
+				int seen = Mathf.Clamp(255 - ((k1.r - k0.r) + (k1.g - k0.g) + (k1.b - k0.b)) / 3, 0, 255);
+				if (seen < 3)
+				{
+					px[i] = new Color32(0, 0, 0, 0);
+					continue;
+				}
+				seenCount++;
+				// A touch brighter: a black bird on a dark disc.
+				float un = 255f / seen * 1.35f;
+				px[i] = new Color32((byte)Mathf.Min(255, k0.r * un + 12), (byte)Mathf.Min(255, k0.g * un + 12), (byte)Mathf.Min(255, k0.b * un + 16), (byte)seen);
+			}
+			tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+			tex.SetPixels32(px);
+			tex.Apply();
+			Plugin.Log.LogInfo($"Raven portrait of {template.name}: {seenCount} of {px.Length} pixels.");
+			if (seenCount < 50)
+			{
+				tex = null;
+			}
 		}
 		catch (System.Exception e)
 		{
@@ -116,6 +145,19 @@ internal static class RavenUi
 		}
 		s_portraits[template] = tex;
 		return tex;
+	}
+
+	private static Color32[] Shot(Camera cam, RenderTexture rt, Color background, int size)
+	{
+		cam.backgroundColor = new Color(background.r, background.g, background.b, 0f);
+		cam.Render();
+		RenderTexture.active = rt;
+		Texture2D read = new Texture2D(size, size, TextureFormat.RGBA32, false);
+		read.ReadPixels(new Rect(0, 0, size, size), 0, 0);
+		read.Apply();
+		Color32[] px = read.GetPixels32();
+		Object.Destroy(read);
+		return px;
 	}
 
 	private static Texture2D Disc(bool ring)

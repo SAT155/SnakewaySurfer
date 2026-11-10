@@ -14,15 +14,17 @@ namespace SnakewaySurfer;
 //   and its exit is the biome's checkpoint.
 internal sealed partial class SurfGame
 {
-	private sealed class CryptFork
+	// 1.16.150 (Sam's sketch: "a 3 branch type maze with only one of the branches having the
+	// correct way out"): at a junction the hall opens three ways, left, ahead and right. Your
+	// lane picks the branch (left lane left, middle ahead, right lane right; at a corner a press
+	// toward the opening still turns). Two of them are dark dead ends: you come back out at the
+	// junction's mouth, and the time it took is the cost. The real way on is lit further in.
+	private sealed class CryptJunction
 	{
-		public float Z0;
-		public float Z1;
-		public int Lane;
-		// A wrong passage that's flooded instead of walled off: you swim through, and come out wet.
-		public int Flood = -1;
+		public float Z;
+		// The corner it's at (its turn is the way on), or -1 in the middle of a hall (ahead is).
+		public int Corner = -1;
 		public bool Built;
-		public bool Turned;
 	}
 
 	private sealed class DigWall
@@ -34,7 +36,10 @@ internal sealed partial class SurfGame
 		public readonly List<GameObject> Pieces = new();
 	}
 
-	private readonly List<CryptFork> m_forks = new();
+	private readonly List<CryptJunction> m_junctions = new();
+	private float m_junctionLastZ;
+	private const float PocketDepth = 14f;
+	private const float SideGap = 8f;
 	private readonly List<DigWall> m_digs = new();
 	private Segment? m_cryptSeg;
 	private float m_cryptExitZ = float.NaN;
@@ -47,7 +52,7 @@ internal sealed partial class SurfGame
 
 	private void PlanCryptExtras(CryptRun c, Segment s)
 	{
-		m_forks.Clear();
+		m_junctions.Clear();
 		m_digs.Clear();
 		m_cryptSeg = s;
 		m_cryptExitZ = c.End;
@@ -60,37 +65,50 @@ internal sealed partial class SurfGame
 			float to = leg.B - (leg.Index == last ? 20f : CryptHalf + 14f);
 			if (sunken && digs < 5 && leg.Index > 0 && to - from > 14f)
 			{
-				// A chamber behind a mud bank; draugr rise behind most of them.
+				// A chamber behind a mud bank; draugr rise behind most of them, well past it
+				// (1.16.150, Sam: they rose right behind the bank, where you couldn't get by).
 				DigWall d = new DigWall { Z = from + 2f, Burst = Random.value < 0.65f };
 				m_digs.Add(d);
 				digs++;
-				if (d.Burst)
+				if (d.Burst && to - d.Z > 30f)
 				{
-					c.Piles.Add(new CryptPile { Z = d.Z + 9f, Side = -1 });
-					c.Piles.Add(new CryptPile { Z = d.Z + 11f, Side = 1 });
+					c.Piles.Add(new CryptPile { Z = d.Z + 22f, Side = -1 });
+					c.Piles.Add(new CryptPile { Z = d.Z + 24f, Side = 1 });
 				}
-				from = d.Z + 16f;
-			}
-			float len = Random.Range(18f, 30f);
-			if (m_forks.Count < 3 && to - from > len + 4f && Random.value < 0.6f)
-			{
-				float z0 = Random.Range(from, to - len);
-				CryptFork f = new CryptFork { Z0 = z0, Z1 = z0 + len, Lane = Random.Range(0, 3) };
-				if (m_waterMaterial != null && Random.value < 0.5f)
-				{
-					f.Flood = (f.Lane + Random.Range(1, 3)) % 3;
-				}
-				m_forks.Add(f);
-				m_dividers.Add((f.Z0, f.Z1, 0));
-				m_dividers.Add((f.Z0, f.Z1, 1));
 			}
 		}
-		Plugin.Log.LogInfo($"Dungeon extras: {m_forks.Count} forks, {m_digs.Count} mud banks.");
+		// Junctions at the first turn of some out-and-back pairs (with room round them for the
+		// dead ends), and in the middle of some long halls.
+		for (int k = 0; k + 1 < c.Corners.Count && m_junctions.Count < 3; k += 2)
+		{
+			float hall = c.Corners[k] - (k == 0 ? c.Start : c.Corners[k - 1]);
+			float side = c.Corners[k + 1] - c.Corners[k];
+			float next = (k + 2 < c.Corners.Count ? c.Corners[k + 2] : c.End) - c.Corners[k + 1];
+			if (hall >= 34f && side >= 26f && next >= 40f && !DigNear(c.Corners[k], 40f) && Random.value < 0.6f)
+			{
+				m_junctions.Add(new CryptJunction { Z = c.Corners[k], Corner = k });
+			}
+		}
+		foreach (CryptLeg leg in c.Legs)
+		{
+			if (m_junctions.Count >= 3)
+			{
+				break;
+			}
+			float mid = Mathf.Round((leg.A + leg.B) * 0.5f);
+			if (leg.Index == 0 || leg.Index == last || leg.B - leg.A < 64f || DigNear(mid, 40f) || Random.value > 0.45f)
+			{
+				continue;
+			}
+			m_junctions.Add(new CryptJunction { Z = mid, Corner = -1 });
+		}
+		m_junctionLastZ = m_z;
+		Plugin.Log.LogInfo($"Dungeon extras: {m_junctions.Count} junctions, {m_digs.Count} mud banks.");
 	}
 
 	private void ResetCryptExtras()
 	{
-		m_forks.Clear();
+		m_junctions.Clear();
 		m_digs.Clear();
 		m_cryptSeg = null;
 		m_cryptExitZ = float.NaN;
@@ -100,9 +118,10 @@ internal sealed partial class SurfGame
 
 	private bool InForkOrDig(float z)
 	{
-		foreach (CryptFork f in m_forks)
+		foreach (CryptJunction j in m_junctions)
 		{
-			if (z > f.Z0 - 6f && z < f.Z1 + 4f)
+			// The lanes clear before it (where a dead end sends you back to) and in its mouth.
+			if (z > j.Z - Mathf.Max(16f, TurnWindow) - 30f && z < j.Z + 14f)
 			{
 				return true;
 			}
@@ -117,52 +136,148 @@ internal sealed partial class SurfGame
 		return false;
 	}
 
-	// While a hall is built: its forks' walls and lights, and its mud banks.
+	private bool DigNear(float z, float within) => m_digs.Exists(d => Mathf.Abs(d.Z - z) < within);
+
+	// A mud bank not yet dug through between two points along the track.
+	private bool DigBetween(float a, float b) => m_digs.Exists(d => d.Hits < DigHits && d.Z > a && d.Z < b);
+
+	private CryptJunction? JunctionAtCorner(int k) => k < 0 ? null : m_junctions.Find(j => j.Corner == k);
+
+	// The middle-of-the-hall junction openings in a hall's walls, if any, as (from, to) along it.
+	private List<(float a, float b)> JunctionGaps(CryptLeg leg)
+	{
+		List<(float a, float b)> gaps = new();
+		foreach (CryptJunction j in m_junctions)
+		{
+			if (j.Corner < 0 && j.Z > leg.A && j.Z < leg.B)
+			{
+				gaps.Add((j.Z - SideGap * 0.5f, j.Z + SideGap * 0.5f));
+			}
+		}
+		return gaps;
+	}
+
+	private bool InJunctionGap(CryptLeg leg, float z, float pad)
+	{
+		foreach ((float a, float b) in JunctionGaps(leg))
+		{
+			if (z > a - pad && z < b + pad)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// A hall wall with the junction openings left out of it.
+	private void WallAlongGaps(CryptLeg leg, Transform root, float x, float z0, float z1, float y)
+	{
+		float from = z0;
+		foreach ((float a, float b) in JunctionGaps(leg))
+		{
+			if (a > from && a < z1)
+			{
+				WallAlong(root, x, from, a, y);
+			}
+			from = Mathf.Max(from, b);
+		}
+		if (z1 > from)
+		{
+			WallAlong(root, x, from, z1, y);
+		}
+	}
+
+	// The floor of a dead end, x0 < x1, z0 < z1.
+	private void PocketFloor(Transform root, float x0, float x1, float z0, float z1, float y)
+	{
+		CryptTheme theme = m_crypt!.Theme;
+		int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) / 3.7f));
+		int nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 3.7f));
+		float tx = (x1 - x0) / nx;
+		float tz = (z1 - z0) / nz;
+		float overlap = theme.Rocky ? 0.6f : 0.03f;
+		bool any = false;
+		for (int i = 0; i < nx; i++)
+		{
+			for (int j = 0; j < nz; j++)
+			{
+				Quaternion turned = theme.Rocky ? Quaternion.Euler(0f, 90f * Random.Range(0, 4), 0f) : Quaternion.identity;
+				any |= CryptPiece(root, theme.Floors, turned, new Vector3(tx + overlap, 0.25f, tz + overlap),
+					new Vector3(x0 + tx * (i + 0.5f), y - 0.25f, z0 + tz * (j + 0.5f))) != null;
+			}
+		}
+		if (!any)
+		{
+			GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+			Destroy(slab.GetComponent<Collider>());
+			slab.layer = m_layer;
+			slab.transform.SetParent(root, false);
+			slab.transform.localPosition = new Vector3((x0 + x1) * 0.5f, y - 0.1f, (z0 + z1) * 0.5f);
+			slab.transform.localScale = new Vector3(x1 - x0, 0.2f, z1 - z0);
+			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
+		}
+	}
+
+	// A dead end out to one side (s = -1 left, +1 right) of the hall, `width` wide round zc.
+	private void SidePocket(Transform root, int s, float zc, float width, float y)
+	{
+		float far = CryptHalf + PocketDepth;
+		float za = zc - width * 0.5f;
+		float zb = zc + width * 0.5f;
+		PocketFloor(root, s < 0 ? -far : CryptHalf, s < 0 ? -CryptHalf : far, za, zb, y);
+		float x0 = s < 0 ? -(far + CryptWall) : CryptHalf;
+		float x1 = s < 0 ? -CryptHalf : far + CryptWall;
+		WallAcross(root, za - CryptWall * 0.5f, x0, x1, y, 1, 0f, -1);
+		WallAcross(root, zb + CryptWall * 0.5f, x0, x1, y, 1, 0f, 1);
+		WallAlong(root, s * (far + CryptWall * 0.5f), za - CryptWall, zb + CryptWall, y);
+		DeadEndDoor(root, new Vector3(s * (far - 0.15f), y, zc), 90f);
+	}
+
+	// A dead end straight on past a corner.
+	private void AheadPocket(Transform root, float from, float y)
+	{
+		float wallX = CryptHalf + CryptWall * 0.5f;
+		float to = from + PocketDepth;
+		PocketFloor(root, -CryptHalf, CryptHalf, from, to, y);
+		WallAlong(root, -wallX, from, to + CryptWall, y);
+		WallAlong(root, wallX, from, to + CryptWall, y);
+		WallAcross(root, to + CryptWall * 0.5f, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, y);
+		DeadEndDoor(root, new Vector3(0f, y, to - 0.15f), 0f);
+	}
+
+	// A burial chamber's dead ends end at a shut wooden door (a sunken crypt's at a grate).
+	private void DeadEndDoor(Transform root, Vector3 at, float yaw)
+	{
+		string door = m_crypt!.Theme.Door;
+		if (door.Length == 0)
+		{
+			return;
+		}
+		CryptPiece(root, door, Quaternion.Euler(0f, yaw, 0f), new Vector3(yaw == 0f ? 2.4f : 0.4f, 2.8f, yaw == 0f ? 0.4f : 2.4f), at, true, 2f);
+	}
+
+	// While a hall is built: the dead ends of its junctions, and its mud banks.
 	private void BuildCryptExtras(CryptLeg leg, Transform root, float y)
 	{
-		foreach (CryptFork f in m_forks)
+		CryptRun c = m_crypt!;
+		foreach (CryptJunction j in m_junctions)
 		{
-			if (f.Built || f.Z0 < leg.A || f.Z0 > leg.B)
+			if (j.Built)
 			{
 				continue;
 			}
-			f.Built = true;
-			foreach (float x in new[] { -LaneWidth * 0.5f, LaneWidth * 0.5f })
+			if (j.Corner >= 0 && j.Corner == leg.Index)
 			{
-				WallAlong(root, x, f.Z0, f.Z1, y);
+				j.Built = true;
+				int turn = c.Dirs[j.Corner];
+				SidePocket(root, -turn, leg.B, CryptHalf * 2f, y);
+				AheadPocket(root, leg.B + CryptHalf + CryptWall, y);
 			}
-			for (int lane = 0; lane < 3; lane++)
+			else if (j.Corner < 0 && j.Z > leg.A && j.Z < leg.B)
 			{
-				if (lane == f.Lane)
-				{
-					// The way on: warm light where the passage opens out again.
-					Light l = new GameObject("ForkLight").AddComponent<Light>();
-					l.gameObject.layer = m_layer;
-					l.transform.SetParent(root, false);
-					l.transform.localPosition = new Vector3(LaneX(lane), y + 2f, f.Z1 + 1.5f);
-					l.type = LightType.Point;
-					l.range = 10f;
-					l.intensity = 2.2f;
-					l.color = new Color(1f, 0.75f, 0.4f);
-					l.shadows = LightShadows.None;
-					l.cullingMask = 1 << m_layer;
-					continue;
-				}
-				if (lane == f.Flood)
-				{
-					// Dark water filling the passage, as in the game's flooded crypts.
-					GameObject water = GameObject.CreatePrimitive(PrimitiveType.Quad);
-					Destroy(water.GetComponent<Collider>());
-					water.layer = m_layer;
-					water.transform.SetParent(root, false);
-					water.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-					water.transform.localScale = new Vector3(LaneWidth - 0.6f, f.Z1 - f.Z0, 1f);
-					water.transform.localPosition = new Vector3(LaneX(lane), y + 0.55f, (f.Z0 + f.Z1) * 0.5f);
-					water.GetComponent<Renderer>().sharedMaterial = m_waterMaterial;
-					continue;
-				}
-				// 1.16.112 (Sam: no damage for a wrong pick): a dead end turns you round instead.
-				WallAcross(root, f.Z1, LaneX(lane) - LaneWidth * 0.5f, LaneX(lane) + LaneWidth * 0.5f, y);
+				j.Built = true;
+				SidePocket(root, -1, j.Z, SideGap, y);
+				SidePocket(root, 1, j.Z, SideGap, y);
 			}
 		}
 		foreach (DigWall d in m_digs)
@@ -190,41 +305,39 @@ internal sealed partial class SurfGame
 	private float WetStaminaRegen => m_wetTime > 0f ? 0.5f : 1f;
 	private float WetStaminaCost => m_wetTime > 0f ? 1.5f : 1f;
 
-	// Each frame on the run: a dead end turns you back to the fork's mouth (the time it took is
-	// the cost); a flooded passage slows you to a swim and leaves you wet for 30 seconds.
+	// Each frame on the run: passing a junction in the middle of a hall in an outer lane takes
+	// that side's dead end. Returns the speed factor (always 1 now; wet stays for later use).
 	private float UpdateForks(float dt)
 	{
 		m_wetTime = Mathf.Max(0f, m_wetTime - dt);
 		m_forkTurnFade = Mathf.Max(0f, m_forkTurnFade - dt);
-		float factor = 1f;
-		foreach (CryptFork f in m_forks)
+		foreach (CryptJunction j in m_junctions)
 		{
-			if (m_z < f.Z0 || m_z > f.Z1 + 0.5f)
+			if (j.Corner < 0 && m_junctionLastZ < j.Z && m_z >= j.Z && m_lane != 1 && m_state == State.Running)
 			{
-				continue;
-			}
-			if (m_lane == f.Flood)
-			{
-				factor = 0.55f;
-				m_wetTime = 30f;
-				if (Random.value < dt * 3f)
-				{
-					Splash(0.4f);
-				}
-				continue;
-			}
-			if (m_lane != f.Lane && m_z > f.Z1 - 1.4f)
-			{
-				// Bump, turn round, and you're back where the passages split.
-				m_z = f.Z0 - 14f;
-				m_forkTurnFade = 0.6f;
-				Flash(new Color(0.02f, 0.01f, 0.05f), 0.95f);
-				m_audio.Play("sfx_unarmed_blocked|sfx_wood_blocked", 0.6f, 0.8f);
-				m_audio.Play("sfx_raven_flap|sfx_dodge", 0.5f);
-				m_hurtTime = Mathf.Max(m_hurtTime, 0.8f);
+				WrongWay(j);
+				break;
 			}
 		}
-		return factor;
+		m_junctionLastZ = m_z;
+		return 1f;
+	}
+
+	// Down a dead end and back: a dark moment, the sound of you turning round, and you're back
+	// before the junction (no life lost).
+	private void WrongWay(CryptJunction j)
+	{
+		m_z = j.Z - Mathf.Max(16f, TurnWindow) - 8f;
+		m_junctionLastZ = m_z;
+		m_lane = 1;
+		m_cryptOver = 0f;
+		m_cryptBonk = -1f;
+		m_forkTurnFade = 0.6f;
+		Flash(new Color(0.02f, 0.01f, 0.05f), 0.95f);
+		m_audio.Play("sfx_unarmed_blocked|sfx_wood_blocked", 0.6f, 0.8f);
+		m_audio.Play("sfx_raven_flap|sfx_dodge", 0.5f);
+		m_hurtTime = Mathf.Max(m_hurtTime, 0.8f);
+		Plugin.Log.LogInfo($"Dead end at the junction at {j.Z:0} m; back to {m_z:0} m.");
 	}
 
 	private void WetGui(float x, float y, float k)
