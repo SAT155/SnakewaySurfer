@@ -2311,7 +2311,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return CryptFlooded(z) ? 1f : 0f;
 		}
 		BiomeBlend(z, out int a, out int b, out float blend);
-		return Mathf.Lerp(m_biomes[a].Water ? 1f : 0f, m_biomes[b].Water ? 1f : 0f, blend);
+		float w = Mathf.Lerp(m_biomes[a].Water ? 1f : 0f, m_biomes[b].Water ? 1f : 0f, blend);
+		// 1.16.150 (Sam: the Swamp should be bits of land and frequent pools, not one long flood):
+		// the water comes and goes along the track, about half of it pools.
+		return w <= 0f ? 0f : w * SwampPool(z);
+	}
+
+	private static float SwampPool(float z)
+	{
+		float n = Mathf.PerlinNoise(z * 0.021f + 5.3f, 2.7f) * 0.75f + Mathf.PerlinNoise(z * 0.07f + 1.1f, 9.4f) * 0.25f;
+		return Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.4f, 0.52f, n));
 	}
 
 	// The road rolls up and down, gently in the Meadows and more with every biome (calmer in the
@@ -2369,7 +2378,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		for (int iz = 0; iz < nz; iz++)
 		{
 			float lz = -GroundTile * 0.5f + GroundTile * iz / (nz - 1);
-			float y = RoadY(centerZ + lz) + lift;
+			// (A water surface sinks under the ground where the Swamp's pools give way to land.)
+			float wet = lift > 0f ? WaterWeight(centerZ + lz) : 1f;
+			float y = RoadY(centerZ + lz) + (lift > 0f ? lift * wet - 0.6f * (1f - wet) : lift);
 			// The track widens where the Elder's maze needs the room; the texture keeps its edges.
 			float widen = trackUv ? (halfWidth + ExtraTrack(centerZ + lz)) / halfWidth : 1f;
 			for (int ix = 0; ix < nx; ix++)

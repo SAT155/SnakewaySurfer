@@ -246,8 +246,10 @@ internal sealed partial class SurfGame
 		Cursor.visible = true;
 		float a = Mathf.SmoothStep(0f, 1f, m_shopTime / 0.35f) * s_guiAlpha;
 		Fill(new Rect(0, 0, w, h), new Color(0.05f, 0.02f, 0.1f, 0.45f * a));
-		float pw = Mathf.Min(760f * k, w * 0.9f);
-		float rowH = 92f * k;
+		// 1.16.150 (Sam: long notes ran over the names): wider, taller rows, notes in smaller type
+		// under the name with room for two lines.
+		float pw = Mathf.Min(900f * k, w * 0.92f);
+		float rowH = 112f * k;
 		float ph = 120f * k + rowH * m_shopStock.Count + 70f * k;
 		Rect p = new Rect((w - pw) * 0.5f, (h - ph) * 0.5f + Mathf.Sin(Time.unscaledTime * 1.3f) * 3f * k, pw, ph);
 		Fill(p, new Color(0.12f, 0.08f, 0.16f, 0.88f * a));
@@ -270,8 +272,10 @@ internal sealed partial class SurfGame
 			Fill(row, new Color(1f, 1f, 1f, (hover && afford ? 0.12f : 0.05f) * a));
 			DrawSprite(new Rect(row.x + 10f * k, row.y + 10f * k, row.height - 20f * k, row.height - 20f * k), IconOf(ab.Icon), afford || owned ? a : a * 0.5f);
 			float tx = row.x + row.height + 6f * k;
-			Shadowed(new Rect(tx, row.y + 6f * k, row.width * 0.6f, 34f * k), $"{i + 1}. {ab.Name}", LeftStyle(m_mid!));
-			Shadowed(new Rect(tx, row.y + 42f * k, row.width * 0.66f, 34f * k), ab.Text, LeftStyle(m_small!));
+			Shadowed(new Rect(tx, row.y + 4f * k, row.xMax - 196f * k - tx, 38f * k), $"{i + 1}. {ab.Name}", LeftStyle(m_mid!));
+			m_shopNote ??= new GUIStyle(m_small!) { alignment = TextAnchor.UpperLeft, wordWrap = true };
+			m_shopNote.fontSize = Mathf.RoundToInt(m_small!.fontSize * 0.8f);
+			Shadowed(new Rect(tx, row.y + 44f * k, row.xMax - 196f * k - tx, rowH - 54f * k), ab.Text, m_shopNote);
 			Shadowed(new Rect(row.xMax - 150f * k, row.y + 20f * k, 140f * k, 40f * k), owned ? "Owned" : ab.Price.ToString(), LeftStyle(m_mid!));
 			if (!owned)
 			{
@@ -292,6 +296,8 @@ internal sealed partial class SurfGame
 		Shadowed(leave, "1-3 or click to buy     Space or click here: run on", m_small!);
 		s_guiAlpha = old;
 	}
+
+	private GUIStyle? m_shopNote;
 
 	private static readonly Dictionary<GUIStyle, GUIStyle> s_left = new();
 
