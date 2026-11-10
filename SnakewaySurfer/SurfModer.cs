@@ -182,7 +182,8 @@ internal sealed partial class SurfGame
 		if (m_landBreaths > 0)
 		{
 			m_landBreaths--;
-			return m_landBreaths % 2 == 0 ? "icebreath" : "claws";
+			// 1.16.102 (Sam: melee shouldn't mix with ranged): down on the track she only claws and bites.
+			return "claws";
 		}
 		foreach (Thing t in m_things)
 		{

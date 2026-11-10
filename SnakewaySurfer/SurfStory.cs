@@ -65,6 +65,10 @@ internal sealed class SurfStory : MonoBehaviour
 		public float Yaw;
 		// A flying clip held mid-flap, so he hovers rather than perching.
 		public string? Fly;
+		// 1.16.102: drawn as flat UI (RavenUi): his portrait, and what he's saying.
+		public Texture2D? Portrait;
+		public string Text = "";
+		public float TextAge;
 	}
 
 	private Bird? m_hugin;
@@ -480,6 +484,17 @@ internal sealed class SurfStory : MonoBehaviour
 
 	private void OnGUI()
 	{
+		if (Event.current.type == EventType.Repaint && m_portalTime < 0f)
+		{
+			GUI.depth = -900;
+			foreach (Bird? b in new[] { m_hugin, m_munin })
+			{
+				if (b != null)
+				{
+					RavenUi.Draw(b.Portrait, b.Leave >= 0f ? "" : b.Text, b.TextAge, b.Age, b.Leave, b.Munin && m_hugin != null ? 1 : 0, b.Munin, 1f);
+				}
+			}
+		}
 		if (m_portalTime < 0f || Event.current.type != EventType.Repaint)
 		{
 			return;
@@ -722,6 +737,12 @@ internal sealed class SurfStory : MonoBehaviour
 			smr.updateWhenOffscreen = true;
 		}
 		Measure(b, main);
+		// The 3D bird stays only to keep the old timings; he's seen as a flat portrait.
+		foreach (Renderer r in go.GetComponentsInChildren<Renderer>(true))
+		{
+			r.enabled = false;
+		}
+		b.Portrait = RavenUi.Portrait(template);
 		b.Fly = b.Anim != null ? FlyClip(b.Anim) : null;
 		if (b.Fly != null)
 		{
@@ -879,19 +900,15 @@ internal sealed class SurfStory : MonoBehaviour
 			SurfGame.SetTrigger(b.Anim, "talk");
 		}
 		m_audio.Play("sfx_raven_talk|sfx_raven_kaw", 0.35f, b.Munin ? 0.85f : 1f);
-		if (Chat.instance != null)
+		foreach (Bird? other in new[] { m_hugin, m_munin })
 		{
-			// 1.16.89 (Sam: his words were still hidden behind the buff icons): below him, and
-			// in from the edge so the lines fit on screen.
-			Camera? cam = Utils.GetMainCamera();
-			Vector3 up = cam != null ? cam.transform.up : Vector3.up;
-			Vector3 right = cam != null ? cam.transform.right : Vector3.zero;
-			float half = cam != null ? Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth : 5f;
-			float aspect = cam != null && cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
-			Vector3 below = b.Go.transform.rotation * (b.Centre * b.Size) - up * (b.Height * b.Size * 0.6f + half * 0.12f)
-				- right * (b.Munin ? 0f : half * aspect * 0.14f);
-			Chat.instance.SetNpcText(b.Go, below, 30f, seconds, "", text, true);
+			if (other != null)
+			{
+				other.Text = "";
+			}
 		}
+		b.Text = text;
+		b.TextAge = 0f;
 	}
 
 	private void Dismiss(Bird? b)
@@ -921,6 +938,7 @@ internal sealed class SurfStory : MonoBehaviour
 				continue;
 			}
 			b.Age += dt;
+			b.TextAge += dt;
 			if (b.Leave >= 0f)
 			{
 				b.Leave += dt;
@@ -930,7 +948,7 @@ internal sealed class SurfStory : MonoBehaviour
 				}
 			}
 		}
-		bool any = m_hugin != null || m_munin != null;
+		bool any = false;
 		if (m_birdCam != null && m_birdCam.enabled != any)
 		{
 			m_birdCam.enabled = any;

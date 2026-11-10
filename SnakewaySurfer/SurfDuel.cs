@@ -171,7 +171,7 @@ internal sealed partial class SurfGame
 		}
 		m_duelTries--;
 		bool inLane = Mathf.Abs(m_x - LaneX(m_duelLane)) < LaneWidth * 0.5f;
-		if (inLane && m_blocking && m_runTime - m_blockPressed <= Plugin.ParryWindow.Value)
+		if (inLane && m_blocking && m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			// Parried: it reels, and you get your blows in.
 			PlayBlock(true);
@@ -356,5 +356,10 @@ internal sealed partial class SurfGame
 		m_comboBlowIn = -1f;
 		m_comboWeapon = null;
 		Unwield();
+		// A short blink of grace afterwards, so a hazard that was already on you can't land the moment it ends.
+		if (m_state == State.Running)
+		{
+			m_hurtTime = Mathf.Max(m_hurtTime, 0.8f);
+		}
 	}
 }

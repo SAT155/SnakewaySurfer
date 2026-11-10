@@ -34,7 +34,7 @@ internal sealed partial class SurfGame
 	// when there isn't enough left.
 	private bool SpendRollStamina()
 	{
-		float cost = Plugin.RollStamina.Value;
+		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		if (cost <= 0f)
 		{
 			return true;
@@ -97,7 +97,7 @@ internal sealed partial class SurfGame
 			m_staminaIdle += dt;
 			if (m_staminaIdle > 1f)
 			{
-				m_stamina = Mathf.Min(MaxStamina, m_stamina + Plugin.StaminaRegen.Value * dt);
+				m_stamina = Mathf.Min(MaxStamina, m_stamina + Plugin.StaminaRegen.Value * WetStaminaRegen * dt);
 			}
 		}
 		AvatarBool("blocking", m_blocking);
@@ -118,7 +118,7 @@ internal sealed partial class SurfGame
 		}
 		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
 		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise;
-		if (m_runTime - m_blockPressed <= Plugin.ParryWindow.Value)
+		if (m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			t.Collidable = false;
 			if (t.Anim != null)
@@ -138,7 +138,7 @@ internal sealed partial class SurfGame
 			Plugin.Log.LogInfo($"Parried {t.Label}.");
 			return true;
 		}
-		float cost = Plugin.BlockStamina.Value;
+		float cost = Plugin.BlockStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		m_staminaIdle = 0f;
 		if (heavy)
 		{
@@ -304,6 +304,10 @@ internal sealed partial class SurfGame
 
 	private void HudGui(float k, float w, float h)
 	{
+		if (Event.current.type == EventType.Repaint)
+		{
+			ParryCueGui(k);
+		}
 		// The hit (or block) flash over the edges of the screen.
 		if (m_flash2 > 0.001f)
 		{

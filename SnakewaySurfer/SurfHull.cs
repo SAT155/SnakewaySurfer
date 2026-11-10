@@ -206,7 +206,7 @@ internal sealed partial class SurfGame
 			m_audio.Play("sfx_build_hammer_wood|sfx_wood_hit", 0.9f, 1.1f);
 			return true;
 		}
-		if (m_lives < Plugin.Lives.Value)
+		if (m_lives < Plugin.StartLives)
 		{
 			m_lives++;
 			Flash(new Color(0.4f, 1f, 0.5f), 0.45f);

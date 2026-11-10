@@ -124,14 +124,15 @@ internal static class Progress
 		new BossDef
 		{
 			Biome = 4, Name = "Yagluth", Prefab = "GoblinKing", Key = "defeated_goblinking", Item = "GoblinTotem", Amount = 5,
-			HitItem = "ArrowFrost|StaffIceShards|FreezeGland", HitVerb = "The frost bites", Mode = "stand", Distance = 50f, MaxHeight = 9f,
+			HitItem = "ArrowFrost|StaffIceShards|FreezeGland", HitVerb = "The frost bites", Mode = "stand", Distance = 50f, MaxHeight = 9f, Aim = true,
 			Location = "GoblinKing", Walls = 3f, Torch = "piece_groundtorch_wood", Tint = new Color(1f, 0.35f, 0.05f),
 			Env = "GoblinKing|Heath clear",
 			Moves = new[]
 			{
-				new[] { "meteors" },
-				new[] { "beam", "meteors" },
-				new[] { "lob2", "meteors", "beam" },
+				// 1.16.124 (Sam): his beam is bounced back with the Fuling totems (SurfTotem.cs).
+				new[] { "meteors", "totembeam" },
+				new[] { "totembeam", "meteors", "beam" },
+				new[] { "lob2", "totembeam", "meteors", "totembeam" },
 			},
 			StarMoves = new[] { "minions:goblin", "firewall", "sweep" },
 		},
