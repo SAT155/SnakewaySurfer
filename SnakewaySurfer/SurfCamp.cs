@@ -351,15 +351,6 @@ internal sealed partial class SurfGame
 		t += 3f;
 		// Sit by it.
 		m_campSteps.Add((t, () => { SetTrigger("emote_sit"); AvatarBool("emote_sit", true); }));
-		t += 1.6f;
-		Bite(ref t, food, 3);
-		t += 1.4f;
-		Sip(ref t, mead, 2);
-		t += 2.2f;
-		Bite(ref t, food, 2);
-		t += 1.2f;
-		Sip(ref t, mead, 3);
-		t += 1.2f;
 		m_campSteps.Add((t, () =>
 		{
 			// Rested: the lives come back, and anything the boss left.
@@ -372,8 +363,18 @@ internal sealed partial class SurfGame
 				m_iconPulse = 1f;
 			}
 		}));
-		t += 1.4f;
+		// The rest menu comes up while you sit; the eating and drinking go on behind it.
+		t += 1.2f;
 		m_campSteps.Add((t, () => { m_campMenu = true; m_campMenuT = 0f; m_audio.Play("sfx_demister_start|sfx_runestone_interact", 0.4f, 0.8f); }));
+		t += 0.6f;
+		Bite(ref t, food, 3);
+		t += 1.4f;
+		Sip(ref t, mead, 2);
+		t += 2.2f;
+		Bite(ref t, food, 2);
+		t += 1.2f;
+		Sip(ref t, mead, 3);
+		t += 1.2f;
 		m_campSteps.Sort((a, b) => a.at.CompareTo(b.at));
 	}
 
@@ -582,6 +583,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		m_campMenu = false;
+		m_campSteps.Clear();
 		Cursor.lockState = CursorLockMode.Locked;
 		Cursor.visible = false;
 		if (pick == 1)

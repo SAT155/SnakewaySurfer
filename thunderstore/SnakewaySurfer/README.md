@@ -286,6 +286,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.NEXT**: the camp rest menu now comes up as soon as you sit by the fire, while you eat and drink behind it, instead of after the whole meal. Your lives and the boss drop come when you sit.
 - **1.16.132**: the Strange Portal now saves as a plain wooden portal for players and servers without the mod, so they no longer flood their log with "Missing prefab hash". With the mod it is still the Strange Portal. Portals built before this switch over the first time a modded player comes near.
 - **1.16.128**: Yagluth's gimmick: as his beam charges, a Fuling totem follows your mouse. Hold it over him when the beam lands to bounce it back and burn him. Miss, and the beam comes down your lane. You have five totems.
 - **1.16.123**: no more smoky corner gust; a dead end turns you back to the split instead of hurting you; some wrong passages are flooded instead, and you swim through and come out Wet (30 s of slower stamina regen and dearer rolls and blocks).
