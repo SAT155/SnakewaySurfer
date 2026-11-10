@@ -89,7 +89,7 @@ internal static class SurfPortalPiece
 
 	// A wooden portal loading in: if its save says it's a Strange Portal, make it one.
 	[HarmonyPatch(typeof(TeleportWorld), "Awake")]
-	private static class TeleportWorldAwake
+	internal static class TeleportWorldAwake
 	{
 		private static void Postfix(TeleportWorld __instance)
 		{
@@ -108,7 +108,7 @@ internal static class SurfPortalPiece
 	private static GameObject? PortalFrom(List<GameObject> prefabs) => prefabs.Find(g => g != null && g.name == "portal_wood");
 
 	[HarmonyPatch(typeof(ZNetScene), "Awake")]
-	private static class ZNetSceneAwake
+	internal static class ZNetSceneAwake
 	{
 		private static void Prefix(ZNetScene __instance)
 		{

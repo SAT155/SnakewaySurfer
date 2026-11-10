@@ -484,6 +484,17 @@ public class Plugin : BaseUnityPlugin
 		Lava = Config.Bind("1 - Run", "Lava", true,
 			"In the open Ashlands some rows are lava instead: a glowing channel across the track (jump it) or a pool along one or two lanes (keep out of it), with glowing cracks in the ash beside the track. Off: none (the charred fortresses keep theirs).");
 
+		// On a dedicated server (batch mode, no graphics) only the Strange Portal is needed: knowing
+		// its old prefab lets the server load portals built before 1.16.132 and re-save them as
+		// vanilla wooden portals, instead of logging "Missing prefab hash" every frame.
+		if (Application.isBatchMode)
+		{
+			Harmony server = new Harmony(PluginGUID);
+			server.PatchAll(typeof(SurfPortalPiece.ZNetSceneAwake));
+			server.PatchAll(typeof(SurfPortalPiece.TeleportWorldAwake));
+			Log.LogInfo("Dedicated server: only the Strange Portal is loaded.");
+			return;
+		}
 		new Harmony(PluginGUID).PatchAll(Assembly.GetExecutingAssembly());
 		GameObject story = new GameObject("SnakewaySurfer_Story");
 		DontDestroyOnLoad(story);
