@@ -113,6 +113,7 @@ internal sealed partial class SurfGame
 					Group = group,
 					Label = def.Name,
 					CrashText = $"{def.Name}'s roots closed that path! (Look ahead, or slide under a torch to burn them.)",
+					Wall = true,
 				});
 				if (Random.value < 0.6f)
 				{
@@ -605,6 +606,7 @@ internal sealed partial class SurfGame
 			HalfLength = 0.6f,
 			Group = group,
 			CrashText = $"{def.Name}'s vines closed that path! (Look ahead for the way on, or roll under a torch to burn them.)",
+			Wall = true,
 		});
 	}
 }

@@ -133,6 +133,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// 1.16.1: an attack (a strike, a blow, a cloud) that Dodge XP is given for getting out of
 		// the way of, once.
 		public bool Threat;
+		// A wall across a path (roots, vines): a roll doesn't get you through it.
+		public bool Wall;
 		public bool Dodged;
 		public float RippleTimer;
 		// 1.16.3: a swimmer's body swinging as it goes (SurfRipples.cs).
@@ -1858,6 +1860,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 					}
 					if (t.JumpOrSlide && (m_y > 0.7f || sliding))
 					{
+						Dodged(t);
+						break;
+					}
+					if (sliding && !t.Wall && !string.IsNullOrEmpty(t.Label))
+					{
+						// Sam: a roll dodges an attack, as in the game. Low foes, logs and walls still get you.
 						Dodged(t);
 						break;
 					}
