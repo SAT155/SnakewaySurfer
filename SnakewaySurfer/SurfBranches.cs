@@ -487,14 +487,14 @@ internal sealed partial class SurfGame
 		marker.transform.SetParent(root.transform, true);
 		marker.transform.localPosition = new Vector3(0f, marker.transform.localPosition.y - root.transform.localPosition.y, 0f);
 		marker.transform.localScale = new Vector3(PathWidth * 0.9f, 1.8f, 1f);
-		GameObject? vine = VinePiece(def, new Vector3(0f, 0f, z), 2.4f, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), false);
-		if (vine != null)
+		GameObject? burst = VinePiece(def, new Vector3(0f, 0f, z), 2.4f, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), false);
+		if (burst != null)
 		{
-			vine.transform.SetParent(root.transform, false);
-			vine.transform.localPosition = Vector3.down * 0.15f;
-			vine.SetActive(false);
+			burst.transform.SetParent(root.transform, false);
+			burst.transform.localPosition = Vector3.down * 0.15f;
+			burst.SetActive(false);
 		}
-		Thing t = new Thing
+		Thing strike = new Thing
 		{
 			Go = root,
 			Kind = Kind.Block,
@@ -504,9 +504,9 @@ internal sealed partial class SurfGame
 			CrashText = $"{def.Name}'s vine caught you in his maze! (Roll through, or step aside where you can.)",
 			Collidable = false,
 		};
-		OnPath(t, m_subLane);
-		m_things.Add(t);
-		m_mazeVines.Add((t, (z - m_z) / Mathf.Max(1f, m_speed) - 0.25f, vine));
+		OnPath(strike, m_subLane);
+		m_things.Add(strike);
+		m_mazeVines.Add((strike, (z - m_z) / Mathf.Max(1f, m_speed) - 0.25f, burst));
 	}
 
 	private bool CanSwitchPath(int from, int to)
