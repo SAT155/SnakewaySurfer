@@ -63,6 +63,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public float BaseY;
 		// Shots fly across lanes toward where you were, so they keep their own x.
 		public bool FreeX;
+		// 1.16.150: a starred creature drifting slowly between lanes, and how much quicker it
+		// strikes again.
+		public bool Meander;
+		public bool Jumped;
+		public float Haste = 1f;
 		public float X;
 		public float TargetX;
 		public float XSpeed;
@@ -1263,6 +1268,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_lastTick = 0;
 		m_lastLandmarkZ = -999f;
 		m_lives = Plugin.StartLives;
+		m_lifeRegen = 0f;
+		m_foodBoost = 0f;
+		m_rollCooldown = 0f;
+		m_coinPop = 0f;
 		m_dividers.Clear();
 		m_nextTorchZ = 0f;
 		ResetSwampSights();
@@ -1616,6 +1625,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_speed *= CryptSpeed();
 		m_speed *= UpdateDig(dt, canInput);
 		m_speed *= UpdateForks(dt);
+		UpdateRegen(dt);
+		UpdateTileCue(dt);
 		UpdateSpears(dt, canInput);
 
 		bool grounded = m_y <= 0.001f;
@@ -1661,8 +1672,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 					m_audio.Play(Sfx.Jump);
 				}
 			}
-			if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C) && SpendRollStamina())
+			// 1.16.150 (Sam: the roll may be too useful now): a short wait before the next one.
+			if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C) && m_rollCooldown <= 0f && SpendRollStamina())
 			{
+				m_rollCooldown = Plugin.SlideTime.Value + 0.45f;
 				if (grounded)
 				{
 					m_slide = Plugin.SlideTime.Value;
@@ -1778,6 +1791,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 			switch (t.Kind)
 			{
 				case Kind.Coin:
+					if (m_y < 2.6f && t.Label == "Food")
+					{
+						m_foodBoost = 20f;
+						m_lifeRegen = Mathf.Min(0.99f, m_lifeRegen + 0.2f);
+						m_audio.Play("sfx_eat|sfx_coins_placed", 1f);
+						Destroy(t.Go);
+						m_things.RemoveAt(i);
+						break;
+					}
 					if (m_y < 2.6f)
 					{
 						if (t.Label == "Chest")
@@ -1799,6 +1821,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 						bool hit = t.Kind == Kind.BossHit;
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
+						if (hit)
+						{
+							// 1.16.150 (Sam): picking up what hurts the boss clears its attacks in flight.
+							ClearBossAttacks();
+						}
 						// These change the run (and the list), so stop looking this frame.
 						if (hit && m_boss != null && Flies(m_boss) && m_bossLanded && m_bossSink < 0f)
 						{
@@ -1856,11 +1883,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 				case Kind.Block:
 					if (t.ClearHeight > 0f && m_y > t.ClearHeight)
 					{
+						JumpBonus(t);
 						break;
 					}
 					if (t.JumpOrSlide && (m_y > 0.7f || sliding))
 					{
 						Dodged(t);
+						if (m_y > 0.7f)
+						{
+							JumpBonus(t);
+						}
 						break;
 					}
 					if (sliding && !t.Wall && !string.IsNullOrEmpty(t.Label))
@@ -1873,7 +1905,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
 				case Kind.Low:
-					if (m_y < 0.75f)
+					if (m_y < (t.ClearHeight > 0f ? t.ClearHeight : 0.75f))
 					{
 						m_audio.Play(t.CrashText.Length > 0 ? Sfx.HitMonster : Sfx.HitLog);
 						Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
@@ -1921,6 +1953,29 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 		}
 	}
+
+	// 1.16.150 (Sam): jumping clean over a creature is worth 1 to 5 coins, once per creature,
+	// with a little shower of coin sounds.
+	private void JumpBonus(Thing t)
+	{
+		if (t.Jumped || t.Info == null)
+		{
+			return;
+		}
+		t.Jumped = true;
+		int bonus = Random.Range(1, 6);
+		m_coins += bonus;
+		for (int i = 0; i < bonus; i++)
+		{
+			m_audio.Play(Sfx.Coin, 0.7f, 1.1f + 0.06f * i);
+		}
+		m_coinPop = 0.8f;
+		m_coinPopAmount = bonus;
+	}
+
+	private float m_coinPop;
+	private int m_coinPopAmount;
+	private GUIStyle? m_smallGold;
 
 	// Got out of the way of an attack: Dodge XP, once for it (the game gives 1 for each).
 	private void Dodged(Thing t)
@@ -2516,6 +2571,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void SpawnRow(float z)
 	{
+		if (m_quietToBoss)
+		{
+			if (!SegAt(z).Boss)
+			{
+				return;
+			}
+			m_quietToBoss = false;
+		}
 		bool crypt = InCrypt(z);
 		if (crypt && CryptNoRow(z))
 		{
@@ -2572,6 +2635,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 					continue;
 				}
 				if (crypt && Random.value < 0.08f && SpawnChest(lane, z))
+				{
+					continue;
+				}
+				if (m_lives < Plugin.StartLives && Random.value < 0.07f && SpawnFood(lane, z))
 				{
 					continue;
 				}
@@ -2650,10 +2717,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 					GameObject log = b.Logs[Random.Range(0, b.Logs.Count)];
 					// A sunken crypt's mud piles stand as they are (any way round); logs and pillars lie across.
 					GameObject go = crypt && m_crypt!.Theme.LowUpright
-						? Fitted(Picture(log), Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(LaneWidth * 0.85f, 0.72f, 1.3f), false)
+						? Fitted(Picture(log), Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(LaneWidth * 0.85f, 0.5f, 0.9f), false)
 						: Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
 					go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
-					m_things.Add(new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, HalfLength = 0.35f });
+					// 1.16.150 (Sam: the swamp crypt's rocks were almost impossible to jump): the mounds
+					// are lower, shallower, and cleared by any jump that's off the ground.
+					bool mound = crypt && m_crypt!.Theme.LowUpright;
+					m_things.Add(new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, HalfLength = mound ? 0.25f : 0.35f, ClearHeight = mound ? 0.45f : 0f });
 					if (m_coinTemplate != null && Random.value < 0.35f)
 					{
 						for (int k = -2; k <= 2; k++)
@@ -3109,8 +3179,52 @@ internal sealed partial class SurfGame : MonoBehaviour
 			thing.SwitchTimer = Random.Range(0.4f, 1.2f);
 		}
 		m_things.Add(thing);
-		ApplyStars(thing, StarsAt(z));
+		int lap = StarsAt(z);
+		int stars = MixStars(lap);
+		ApplyStars(thing, stars);
+		StarTraits(thing, lap, stars, gait, prefab.name);
 		return thing;
+	}
+
+	// 1.16.150 (Sam): a starred lap has a mix of its own star level and those below it.
+	private static int MixStars(int lap)
+	{
+		if (lap <= 0)
+		{
+			return 0;
+		}
+		float r = Random.value;
+		return r < 0.55f ? lap : r < 0.85f ? lap - 1 : Mathf.Max(0, lap - 2);
+	}
+
+	// What stars change in how a creature moves (Sam's notes): from 1 star some necks, draugr
+	// and the like drift slowly from lane to lane; on a starred lap the plain greydwarfs swarm
+	// across the lanes; from 2 stars they move and strike a little quicker.
+	private void StarTraits(Thing t, int lap, int stars, string gait, string prefab)
+	{
+		if (t.Swoop || t.Info == null || t.Info.Flying || t.Kind != Kind.Block || t.Schema == null)
+		{
+			return;
+		}
+		bool ranged = t.Attack != null && t.Attack.Ranged;
+		if (lap >= 1 && stars == 0 && !t.Switcher && !ranged && prefab == "Greydwarf")
+		{
+			t.Switcher = true;
+			t.FreeX = true;
+			t.SwitchTimer = Random.Range(0.2f, 0.8f);
+		}
+		else if (stars >= 1 && !t.Switcher && gait != "charger" && Random.value < 0.25f + 0.15f * stars)
+		{
+			t.Switcher = true;
+			t.Meander = true;
+			t.FreeX = true;
+			t.SwitchTimer = Random.Range(0.6f, 1.6f);
+		}
+		if (stars >= 2)
+		{
+			t.Haste = 1f + 0.15f * (stars - 1);
+			t.MoveSpeed *= 1f + 0.1f * (stars - 1);
+		}
 	}
 
 	private readonly HashSet<GameObject> m_loggedTriggers = new();
@@ -3252,7 +3366,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		t.Cooldown -= dt;
+		t.Cooldown -= dt * t.Haste;
 		if (t.FireIn >= 0f)
 		{
 			t.FireIn -= dt;
@@ -3490,6 +3604,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
+		// 1.16.150 (Sam: draugr shot through the walls): never round a corner or through a mud bank.
+		if (m_crypt != null && shooter.Z > m_z && (CornerBetween(m_z + 1f, shooter.Z) || DigBetween(m_z, shooter.Z)))
+		{
+			return;
+		}
 		float speed = shooter.ShotSpeed > 0f ? shooter.ShotSpeed : 9f + 0.6f * BiomeAt(shooter.Z);
 		// (Archers beside the track shoot from where they stand.)
 		float startX = shooter.FreeX ? shooter.X : LaneX(shooter.Lane);
@@ -3562,6 +3681,93 @@ internal sealed partial class SurfGame : MonoBehaviour
 		glow.color = new Color(1f, 0.75f, 0.45f);
 		glow.cullingMask = 1 << m_layer;
 		return wrapper;
+	}
+
+	// 1.16.150 (Sam: a health bar that slowly recharges, faster after food): now and then, while
+	// you're hurt, one of the biome's foods lies in a lane. Eating it speeds your healing up.
+	private bool SpawnFood(int lane, float z)
+	{
+		List<string> foods = Pictures.SplitList(m_biomes[BiomeAt(z)].Def.Foods);
+		if (foods.Count == 0)
+		{
+			return false;
+		}
+		GameObject? template = ItemTemplate(foods[Random.Range(0, foods.Count)]);
+		if (template == null)
+		{
+			return false;
+		}
+		GameObject go = Fitted(template, Quaternion.identity, new Vector3(0.6f, 0.6f, 0.6f), true, 3f);
+		const float y = 0.8f;
+		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + y, z);
+		Light glow = new GameObject("Glow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(go.transform, false);
+		glow.type = LightType.Point;
+		glow.range = 3f;
+		glow.intensity = 1.3f;
+		glow.color = new Color(1f, 0.55f, 0.45f);
+		glow.cullingMask = 1 << m_layer;
+		m_things.Add(new Thing { Go = go, Kind = Kind.Coin, Label = "Food", Lane = lane, Z = z, Y = y, HalfLength = 0.4f });
+		return true;
+	}
+
+	private float m_lifeRegen;
+	private float m_foodBoost;
+	private float m_rollCooldown;
+
+	// Seconds to heal one life back, by difficulty.
+	private static float RegenSeconds => Plugin.Level == 0 ? 30f : Plugin.Level == 1 ? 45f : 70f;
+
+	private void UpdateRegen(float dt)
+	{
+		m_foodBoost = Mathf.Max(0f, m_foodBoost - dt);
+		m_rollCooldown = Mathf.Max(0f, m_rollCooldown - dt);
+		if (m_state != State.Running || m_lives >= Plugin.StartLives || m_atSea)
+		{
+			m_lifeRegen = 0f;
+			return;
+		}
+		m_lifeRegen += dt / RegenSeconds * (m_foodBoost > 0f ? 3f : 1f);
+		if (m_lifeRegen >= 1f)
+		{
+			m_lifeRegen = 0f;
+			m_lives++;
+			m_livesFlash = 1f;
+			m_audio.Play("sfx_eat|sfx_coins_placed", 0.5f, 1.2f);
+		}
+	}
+
+	// The health bar under the run's numbers: a segment per life, the next one filling up.
+	private void HealthBarGui(float x, float y, float k)
+	{
+		int max = Mathf.Max(Plugin.StartLives, m_lives);
+		if (max <= 1)
+		{
+			return;
+		}
+		float w = 44f * k;
+		float h = 11f * k;
+		float gap = 5f * k;
+		Color old = GUI.color;
+		for (int i = 0; i < max; i++)
+		{
+			Rect r = new Rect(x + i * (w + gap), y, w, h);
+			GUI.color = new Color(0f, 0f, 0f, 0.55f * s_guiAlpha);
+			GUI.DrawTexture(new Rect(r.x - 1.5f * k, r.y - 1.5f * k, r.width + 3f * k, r.height + 3f * k), Texture2D.whiteTexture);
+			float fill = i < m_lives ? 1f : i == m_lives ? m_lifeRegen : 0f;
+			if (fill <= 0f)
+			{
+				continue;
+			}
+			bool growing = i >= m_lives;
+			Color c = growing
+				? (m_foodBoost > 0f ? new Color(1f, 0.75f, 0.3f) : new Color(0.75f, 0.3f, 0.25f))
+				: Color.Lerp(new Color(0.85f, 0.12f, 0.08f), new Color(1f, 0.8f, 0.25f), Mathf.Clamp01(m_livesFlash * 1.5f));
+			GUI.color = new Color(c.r, c.g, c.b, (growing ? 0.75f : 0.95f) * s_guiAlpha);
+			GUI.DrawTexture(new Rect(r.x, r.y, r.width * fill, r.height), Texture2D.whiteTexture);
+		}
+		GUI.color = old;
 	}
 
 	private void SpawnCoin(int lane, float z, float y)
@@ -3875,6 +4081,19 @@ internal sealed partial class SurfGame : MonoBehaviour
 		else
 		{
 			Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k), top + lives, m_small);
+		}
+		HealthBarGui(26 * k, 18 * k + m_small!.CalcHeight(new GUIContent(top + lives), 1400 * k) + 8 * k, k);
+		if (m_coinPop > 0f)
+		{
+			// The jump bonus rising off the coin count.
+			m_coinPop -= Time.deltaTime;
+			float a = s_guiAlpha;
+			s_guiAlpha = a * Mathf.Clamp01(m_coinPop / 0.4f);
+			m_smallGold ??= new GUIStyle(m_small!) { richText = true };
+			m_smallGold.fontSize = m_small!.fontSize;
+			string plus = $"+{m_coinPopAmount}";
+			ShadowedRich(new Rect(24 * k + 160 * k, 18 * k + 2 * k - (0.8f - m_coinPop) * 30f * k, 200 * k, 60 * k), plus, $"<color=#FFD24A>{plus}</color>", m_smallGold);
+			s_guiAlpha = a;
 		}
 
 		float w = Screen.width;

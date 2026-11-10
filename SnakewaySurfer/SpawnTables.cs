@@ -109,6 +109,13 @@ internal static class SpawnTables
 				{
 					continue;
 				}
+				// 1.16.150 (Sam: a greydwarf shaman's poison in the 0-star Meadows): forest folk that
+				// stray to the Meadows' edge in the game don't belong to the Meadows here.
+				if (biome == Heightmap.Biome.Meadows
+					&& (d.m_prefab.name.StartsWith("Greydwarf") || d.m_prefab.name.StartsWith("Skeleton") || d.m_prefab.name.StartsWith("Troll")))
+				{
+					continue;
+				}
 				// How many of it are around on average: the cap times the chance per try,
 				// tries per minute.
 				// How many of it are around: mostly its cap (spawners refill up to it), a little

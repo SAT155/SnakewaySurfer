@@ -24,7 +24,10 @@ internal sealed partial class SurfGame
 {
 	// 1.16.79 (Sam: "Dungeon hallways can be much much larger"): 5 m of floor beside the lanes
 	// (was 1.2), taller walls (WallH) and the camera higher to take it in.
-	private const float CryptHalf = TrackHalf + 5f;
+	// 1.16.150 (Sam: the high camera in dungeons was disorienting, and the floor's three tiles
+	// didn't match the three lanes): one flagstone per lane and a strip beside them, and the
+	// camera stays behind you as on the open track.
+	private const float CryptHalf = TrackHalf + 1.2f;
 	private const float CryptWall = 0.6f;
 	// How far before a corner the turn can be pressed, and where you wait if you haven't.
 	// 1.16.20 (Sam pressed D at a corner and hit the wall): a press a little early was taken as a
@@ -153,7 +156,8 @@ internal sealed partial class SurfGame
 	}
 
 	// Round a corner from you: it can't see you yet, and waits.
-	private bool CryptHidden(Thing t) => m_crypt != null && t.Z > m_z && CornerBetween(m_z + 1f, t.Z);
+	// (1.16.150: behind a mud bank you haven't dug through counts too, so nothing shoots through it.)
+	private bool CryptHidden(Thing t) => m_crypt != null && t.Z > m_z && (CornerBetween(m_z + 1f, t.Z) || DigBetween(m_z, t.Z));
 
 	// No rows by the entrance and exit or around a corner (the turn wants the lanes clear).
 	private bool CryptNoRow(float z)
@@ -168,7 +172,9 @@ internal sealed partial class SurfGame
 		}
 		foreach (float c in m_crypt.Corners)
 		{
-			if (z > c - Mathf.Max(16f, TurnWindow + 4f) && z < c + 9f)
+			// 1.16.150 (Sam: monsters right round a corner aren't fair): a second or so of clear
+			// hall after each turn.
+			if (z > c - Mathf.Max(16f, TurnWindow + 4f) && z < c + Mathf.Max(12f, m_speed * 1.4f + 6f))
 			{
 				return true;
 			}
@@ -375,7 +381,7 @@ internal sealed partial class SurfGame
 			}
 			for (int tries = 0; tries < 6; tries++)
 			{
-				float pz = Random.Range(leg.A + 8f, leg.B - 18f);
+				float pz = Random.Range(leg.A + (leg.Index == 0 ? 8f : CryptHalf + 16f), leg.B - 18f);
 				if (!CryptNoRow(pz))
 				{
 					c.Piles.Add(new CryptPile { Z = pz, Side = Random.value < 0.5f ? -1 : 1 });
@@ -599,6 +605,11 @@ internal sealed partial class SurfGame
 			GlowCrystal(root, at, yaw, range);
 			return;
 		}
+		if (m_crypt.Theme.StandingSconce)
+		{
+			StandingTorch(root, at, yaw, Mathf.Max(range, m_crypt.Theme.SconceRange));
+			return;
+		}
 		GameObject? prefab = Pictures.Prefab("piece_walltorch");
 		GameObject? go = null;
 		if (prefab != null)
@@ -627,6 +638,35 @@ internal sealed partial class SurfGame
 		m_crypt!.Glows.Add((glow, at.z));
 	}
 
+	// 1.16.150: a standing torch (the Swamp's green ones) at the foot of the wall, with its light.
+	private void StandingTorch(Transform root, Vector3 at, float yaw, float range)
+	{
+		CryptTheme theme = m_crypt!.Theme;
+		Vector3 facing = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+		Vector3 foot = new Vector3(at.x, m_crypt.Floor, at.z) + facing * 0.55f;
+		GameObject? go = CryptPiece(root, theme.Sconce, Quaternion.identity, theme.SconceSize, foot, true, 2.2f);
+		if (go != null)
+		{
+			LightUp(go);
+			foreach (Light own in go.GetComponentsInChildren<Light>(true))
+			{
+				own.enabled = false;
+			}
+		}
+		Light glow = new GameObject("CryptGlow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(root, false);
+		glow.transform.localPosition = foot + new Vector3(0f, theme.SconceSize.y + 0.2f, 0f) + facing * 0.3f;
+		glow.type = LightType.Point;
+		glow.range = range;
+		glow.intensity = theme.SconceIntensity;
+		glow.color = theme.SconceColor;
+		glow.shadows = LightShadows.None;
+		glow.cullingMask = 1 << m_layer;
+		glow.enabled = false;
+		m_crypt.Glows.Add((glow, at.z));
+	}
+
 	private void BuildLeg(CryptLeg leg)
 	{
 		CryptRun c = m_crypt!;
@@ -650,19 +690,23 @@ internal sealed partial class SurfGame
 
 		CryptTheme theme = c.Theme;
 		// The floor: big flagstones, three across.
-		int along = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 3.7f));
+		int along = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / LaneWidth));
 		float tileZ = (z1 - z0) / along;
-		float tileX = CryptHalf * 2f / 3f;
+		float strip = CryptHalf - LaneWidth * 1.5f;
 		bool floored = false;
 		// (A cave's rock overlaps, each piece turned any way.)
 		float overlap = theme.Rocky ? 0.6f : 0.03f;
 		for (int i = 0; i < along; i++)
 		{
-			for (int j = 0; j < 3; j++)
+			for (int j = -1; j < 4; j++)
 			{
+				// A flagstone under each lane, and a narrow strip along each wall.
+				bool edge = j < 0 || j > 2;
+				float tileX = edge ? strip : LaneWidth;
+				float x = edge ? (j < 0 ? -1f : 1f) * (CryptHalf - strip * 0.5f) : LaneX(j);
 				Quaternion turned = theme.Rocky ? Quaternion.Euler(0f, 90f * Random.Range(0, 4), 0f) : Quaternion.identity;
 				floored |= CryptPiece(root, theme.Floors, turned, new Vector3(tileX + overlap, 0.25f, tileZ + overlap),
-					new Vector3(-CryptHalf + tileX * (j + 0.5f), y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
+					new Vector3(x, y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
 			}
 		}
 		if (!floored)
@@ -679,29 +723,46 @@ internal sealed partial class SurfGame
 		// The walls: the one on the outside of the corner ahead runs on to the end wall, the
 		// inside one stops where the way on opens.
 		int turn = exit ? 0 : c.Dirs[leg.Index];
+		// 1.16.150: at a junction the outside wall opens too, and the end wall, onto dead ends.
+		CryptJunction? junction = exit ? null : JunctionAtCorner(leg.Index);
 		foreach (int side in new[] { -1, 1 })
 		{
-			float b = exit ? c.End : side == -turn ? leg.B + CryptHalf + CryptWall : leg.B - CryptHalf;
-			WallAlong(root, side * wallX, z0, b, y);
+			float b = exit ? c.End : side == -turn && junction == null ? leg.B + CryptHalf + CryptWall : leg.B - CryptHalf;
+			WallAlongGaps(leg, root, side * wallX, z0, b, y);
 			// Pillars along it, every 8 m.
 			for (float pz = z0 + 4f; pz < b - 2f; pz += 8f)
 			{
-				CryptPiece(root, theme.Pillars, Quaternion.identity, new Vector3(0.75f, WallH + 0.35f, 0.75f), new Vector3(side * wallX, y, pz));
+				if (!InJunctionGap(leg, pz, 1.5f))
+				{
+					CryptPiece(root, theme.Pillars, Quaternion.identity, new Vector3(0.75f, WallH + 0.35f, 0.75f), new Vector3(side * wallX, y, pz));
+				}
 			}
 		}
 		if (!exit)
 		{
-			WallAcross(root, leg.B + CryptHalf + CryptWall * 0.5f, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, y);
 			// A taller pillar on the inside of the corner, and a torch on the wall ahead to say
-			// "turn here".
+			// "turn here" (at a junction, a pillar on each side and no torch: the way on is lit
+			// further in, the dead ends aren't).
 			CryptPiece(root, theme.TallPillar, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(turn * wallX, y, leg.B - wallX));
-			Sconce(root, new Vector3(turn * 1.6f, y + 1.7f, leg.B + CryptHalf), 180f, 9f);
+			if (junction == null)
+			{
+				WallAcross(root, leg.B + CryptHalf + CryptWall * 0.5f, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, y);
+				Sconce(root, new Vector3(turn * 1.6f, y + 1.7f, leg.B + CryptHalf), 180f, 9f);
+			}
+			else
+			{
+				CryptPiece(root, theme.TallPillar, Quaternion.identity, new Vector3(0.95f, WallH + 1.1f, 0.95f), new Vector3(-turn * wallX, y, leg.B - wallX));
+			}
 		}
 
 		// Sconces along the walls, every 13 m or so on alternating sides (fewer in a sunken crypt).
 		int sconceSide = Random.value < 0.5f ? -1 : 1;
 		for (float sz = z0 + 6f; sz < (exit ? c.End - 6f : leg.B - CryptHalf - 3f); sz += Random.Range(theme.SconceGap - 2f, theme.SconceGap + 2f))
 		{
+			if (InJunctionGap(leg, sz, 2f))
+			{
+				continue;
+			}
 			Sconce(root, new Vector3(sconceSide * CryptHalf, y + 1.7f, sz), sconceSide < 0 ? 90f : -90f);
 			sconceSide = -sconceSide;
 		}
@@ -717,8 +778,8 @@ internal sealed partial class SurfGame
 					continue;
 				}
 				string name = theme.Decor[Random.Range(0, theme.Decor.Length)];
-				CryptPiece(root, name, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.1f, 1.2f, 1.6f),
-					new Vector3(side * (CryptHalf - 0.6f), y, dz), true, 1.3f);
+				CryptPiece(root, name, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(0.9f, 1.1f, 1.3f),
+					new Vector3(side * (CryptHalf - 0.5f), y, dz), true, 1.3f);
 			}
 		}
 
@@ -727,8 +788,8 @@ internal sealed partial class SurfGame
 		{
 			if (pile.Z >= leg.A && pile.Z < leg.B)
 			{
-				pile.Go = CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.9f, 1.4f, 1.9f),
-					new Vector3(pile.Side * (CryptHalf - 0.95f), y, pile.Z), true, 2f);
+				pile.Go = CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.4f, 1.2f, 1.6f),
+					new Vector3(pile.Side * (CryptHalf - 0.75f), y, pile.Z), true, 2f);
 			}
 		}
 
@@ -861,7 +922,7 @@ internal sealed partial class SurfGame
 		// Bone piles raise their dead as you come down the hall.
 		foreach (CryptPile pile in c.Piles)
 		{
-			if (pile.Woken || pile.Z - m_z > m_speed * 2.2f + 8f || pile.Z - m_z < 9f || CornerBetween(m_z + 1f, pile.Z))
+			if (pile.Woken || pile.Z - m_z > m_speed * 2.2f + 8f || pile.Z - m_z < Mathf.Max(9f, m_speed * 1.1f + 4f) || CornerBetween(m_z + 1f, pile.Z) || DigBetween(m_z, pile.Z))
 			{
 				continue;
 			}
@@ -974,7 +1035,7 @@ internal sealed partial class SurfGame
 			GameObject? burst = FindFx(theme.BurstFx);
 			if (burst != null)
 			{
-				PlayFx(burst, new Vector3(pile.Side * (CryptHalf - 0.95f), RoadY(pile.Z) + 0.6f, pile.Z), Quaternion.identity, 3f);
+				PlayFx(burst, new Vector3(pile.Side * (CryptHalf - 0.75f), RoadY(pile.Z) + 0.6f, pile.Z), Quaternion.identity, 3f);
 			}
 			m_audio.Play(theme.BurstSound, 0.9f);
 			Destroy(pile.Go);
@@ -1106,6 +1167,12 @@ internal sealed partial class SurfGame
 				return;
 			}
 		}
+		if (m_cryptBonk < 0f && m_z > zc - TurnPoint && JunctionAtCorner(k) is CryptJunction junction)
+		{
+			// Not turned at a junction: off down one of its dead ends (whichever lane you're in).
+			WrongWay(junction);
+			return;
+		}
 		if (m_z > zc - TurnPoint)
 		{
 			float over = m_z - (zc - TurnPoint);
@@ -1199,7 +1266,7 @@ internal sealed partial class SurfGame
 		}
 		// 1.16.112 (Sam: the smoke cue isn't working out): the corner gust is gone.
 		RemoveGust();
-		Vector3 focus = StagePoint(new Vector3(0f, c.Floor + 1f, m_z + 6f));
+		Vector3 focus = StagePoint(new Vector3(m_x * 0.6f, c.Floor + m_y * 0.4f, m_z));
 		if (!m_cryptFocusSet)
 		{
 			m_cryptFocus = focus;
@@ -1207,12 +1274,13 @@ internal sealed partial class SurfGame
 		}
 		else
 		{
-			m_cryptFocus = Vector3.Lerp(m_cryptFocus, focus, 1f - Mathf.Exp(-6f * dt));
+			m_cryptFocus = Vector3.Lerp(m_cryptFocus, focus, 1f - Mathf.Exp(-14f * dt));
 		}
-		const float height = 18f;
+		// Behind you and a little closer than outside, turning with you at each corner.
 		Quaternion turn = m_stage.rotation * Quaternion.Euler(0f, yaw, 0f);
-		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, height, -height * 0.6f);
-		Quaternion rot = Quaternion.LookRotation(m_cryptFocus - pos);
+		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, Plugin.CameraHeight.Value + 0.6f, -Plugin.CameraDistance.Value * 0.85f);
+		Vector3 look = m_cryptFocus + turn * new Vector3(0f, 1f, 7f);
+		Quaternion rot = Quaternion.LookRotation(look - pos);
 		float b = Mathf.SmoothStep(0f, 1f, m_cryptView);
 		m_camera.transform.position = Vector3.Lerp(m_camera.transform.position, pos, b) + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake * b : Vector3.zero);
 		m_camera.transform.rotation = Quaternion.Slerp(m_camera.transform.rotation, rot, b);

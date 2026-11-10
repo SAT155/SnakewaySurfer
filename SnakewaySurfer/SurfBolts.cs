@@ -140,6 +140,41 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// A bolt lying across a lane that keeps re-striking (Eikthyr's ground shockwave).
+	private sealed class Crackle : MonoBehaviour
+	{
+		public LineRenderer? Glow;
+		public LineRenderer? Core;
+		public Light? Light;
+		public Vector3 From;
+		public Vector3 To;
+		private float m_next;
+
+		private void Update()
+		{
+			if (Core == null || Glow == null)
+			{
+				return;
+			}
+			m_next -= Time.deltaTime;
+			if (m_next > 0f)
+			{
+				return;
+			}
+			m_next = Random.Range(0.05f, 0.09f);
+			JaggedLine(Core, From, To, 9, 0.22f);
+			Glow.positionCount = Core.positionCount;
+			for (int i = 0; i < Core.positionCount; i++)
+			{
+				Glow.SetPosition(i, Core.GetPosition(i));
+			}
+			if (Light != null)
+			{
+				Light.intensity = Random.Range(1.4f, 2.8f);
+			}
+		}
+	}
+
 	// A fresh zig-zag: real bolts flicker as they re-strike along slightly different paths.
 	private static void Rejag(Bolt b)
 	{

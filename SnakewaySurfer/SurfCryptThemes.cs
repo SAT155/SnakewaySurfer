@@ -52,6 +52,11 @@ internal sealed partial class SurfGame
 		public bool Rocky;
 		public bool Crystals;
 		public string Sconce = "piece_walltorch";
+		// 1.16.150: a standing torch at the foot of the wall instead of one on it (the Swamp's green
+		// torches), and the door that shuts a dead end.
+		public bool StandingSconce;
+		public float SconceRange = 8f;
+		public string Door = "";
 		public Color SconceColor = new Color(1f, 0.6f, 0.28f);
 		public bool Icicles;
 		public string Icicle = "";
@@ -94,12 +99,16 @@ internal sealed partial class SurfGame
 	{
 		Name = "burial chamber",
 		Biome = "Black Forest",
-		// (Its walls are the game's own stone building pieces; no rooms to load.)
+		// 1.16.150 (Sam: burial chambers are caves with wooden doors, not stone halls): rough rock
+		// walls and floor, timber props along the walls, shut wooden doors at the dead ends.
 		Rooms = 0,
-		Walls = "stone_wall_4x2|stone_wall_2x1",
-		Floors = "stone_floor_2x2|stone_floor",
-		Pillars = "stone_pillar",
-		WallHeight = 2.4f,
+		Rocky = true,
+		Walls = "Rock_3|rock4_forest|Rock_4|rock1_mountain|stone_wall_4x2",
+		Floors = "rock4_forest|Rock_3|stone_floor_2x2",
+		Pillars = "wood_pole_log|wood_pole2|wood_pole",
+		TallPillar = "wood_pole_log_4|wood_pole_log|wood_pole2",
+		Door = "dungeon_forestcrypt_door|wood_door",
+		WallHeight = 2.6f,
 		Monsters = "Skeleton:3:3, Skeleton_NoArcher:2:2, Skeleton_Poison:0.6",
 		Flyers = "Ghost:1",
 		Raised = "Skeleton:2, Skeleton_NoArcher:1",
@@ -107,7 +116,7 @@ internal sealed partial class SurfGame
 		RiseSound = "sfx_skeleton_rise|sfx_skeleton_alerted",
 		RiseFx = "vfx_skeleton_rise|vfx_RockHit|vfx_Place_stone_floor",
 		Chest = "TreasureChest_forestcrypt",
-		Low = "stone_pillar",
+		Low = "wood_log_26|stone_pillar",
 		Decor = new[]
 		{
 			"crypt_skeleton_pile01", "crypt_skeleton_pile02", "crypt_skeleton_pile03", "crypt_skeleton_laying",
@@ -147,11 +156,19 @@ internal sealed partial class SurfGame
 		},
 		GateTorch = "piece_groundtorch_green|piece_groundtorch_wood",
 		GateLight = new Color(0.45f, 1f, 0.5f),
-		Ambient = new Color(0.08f, 0.11f, 0.09f),
+		Ambient = new Color(0.13f, 0.17f, 0.13f),
 		Fog = new Color(0.01f, 0.02f, 0.012f),
 		Idle = "sfx_draugr_idle",
 		IdleRare = "sfx_blob_idle",
-		SconceGap = 19f,
+		// 1.16.150 (Sam: hard to see in the swamp crypt): the game's green torches every 9 m or so.
+		SconceGap = 9f,
+		StandingSconce = true,
+		Sconce = "piece_groundtorch_green|piece_groundtorch_wood",
+		SconceColor = new Color(0.45f, 1f, 0.5f),
+		SconceRange = 11f,
+		SconceIntensity = 1.6f,
+		SconceSize = new Vector3(0.6f, 1.7f, 0.6f),
+		Door = "dungeon_sunkencrypt_irongate",
 		Flooded = 0.5f,
 		IronGates = true,
 	};

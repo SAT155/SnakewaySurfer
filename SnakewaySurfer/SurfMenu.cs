@@ -32,6 +32,8 @@ internal sealed partial class SurfGame
 	private const float MenuOpenTime = 1.1f;
 	private const float MenuCloseTime = 0.85f;
 
+	private GUIStyle? m_midLine;
+
 	private void EnterMenu()
 	{
 		m_unlocked.Clear();
@@ -336,8 +338,20 @@ internal sealed partial class SurfGame
 				Plugin.Difficulty.Value = d;
 				MenuHoverSound();
 			}
+			// 1.16.150 (Sam: the chosen one wrapped onto three lines round its marks): one line,
+			// the chosen word gold and bright.
 			s_guiAlpha = baseAlpha * shown * (chosen ? 0.85f + 0.15f * Mathf.Sin(t * 2f) : 0.35f);
-			Shadowed(dr, chosen ? $"~ {Plugin.DifficultyNames[d]} ~" : Plugin.DifficultyNames[d], m_mid!);
+			m_midLine ??= new GUIStyle(m_mid!) { wordWrap = false, richText = true, clipping = TextClipping.Overflow };
+			m_midLine.fontSize = m_mid!.fontSize;
+			string word = Plugin.DifficultyNames[d];
+			if (chosen)
+			{
+				ShadowedRich(dr, word, $"<color=#FFD24A>{word}</color>", m_midLine);
+			}
+			else
+			{
+				Shadowed(dr, word, m_midLine);
+			}
 		}
 		s_guiAlpha = baseAlpha * shown;
 		Shadowed(new Rect(0, Mathf.Min(h - 70 * k, dy + 48 * k), w, 50 * k),

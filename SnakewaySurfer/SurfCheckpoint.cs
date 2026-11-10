@@ -61,6 +61,7 @@ internal sealed partial class SurfGame
 		m_itemsPlanned = null;
 		bool want = m_resumeNext;
 		m_resumeNext = false;
+		m_quietToBoss = false;
 		if (!want || m_player == null || m_segments.Count == 0 || !Progress.Resume(m_player, out int biome, out int stars, out bool sea, out int items, out float along))
 		{
 			return;
@@ -97,9 +98,13 @@ internal sealed partial class SurfGame
 		if (items > 0 && BossFor(first) is BossDef boss && items >= boss.Amount)
 		{
 			m_itemsPlanned = first;
+			// 1.16.150 (Sam): a retry at the boss is straight to the boss, no new monsters on the way.
+			m_quietToBoss = true;
 		}
 		Plugin.Log.LogInfo($"From the checkpoint: {Progress.Describe(biome, stars)}, {along:0} m in, {items} item(s).");
 	}
+
+	private bool m_quietToBoss;
 
 	private bool StoneStretch(Segment s) => !s.Boss && !s.Sea && !s.Shore && !s.Rush && !s.Repeat;
 

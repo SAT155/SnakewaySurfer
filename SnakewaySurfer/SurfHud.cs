@@ -304,10 +304,6 @@ internal sealed partial class SurfGame
 
 	private void HudGui(float k, float w, float h)
 	{
-		if (Event.current.type == EventType.Repaint)
-		{
-			ParryCueGui(k);
-		}
 		// The hit (or block) flash over the edges of the screen.
 		if (m_flash2 > 0.001f)
 		{

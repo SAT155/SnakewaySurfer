@@ -529,6 +529,51 @@ internal sealed partial class SurfGame
 		s.Hazards.Clear();
 	}
 
+	// Its strikes, charges, shots and minions under way go, with a soft whoosh, and it waits a
+	// moment before the next.
+	private void ClearBossAttacks()
+	{
+		if (m_boss == null)
+		{
+			return;
+		}
+		foreach (ChaseStrike s in m_chaseStrikes)
+		{
+			ClearStrike(s);
+		}
+		m_chaseStrikes.Clear();
+		string name = m_boss.Name;
+		string label = m_bossThing?.Label ?? name;
+		for (int i = m_things.Count - 1; i >= 0; i--)
+		{
+			Thing t = m_things[i];
+			if (t == m_bossThing || t.Kind == Kind.Item || t.Kind == Kind.BossHit || t.Kind == Kind.Coin || t.Kind == Kind.Scenery || t.Kind == Kind.Ground)
+			{
+				continue;
+			}
+			if (t.Label == name || t.Label == label || t.Z > m_z - 2f && t.Info != null)
+			{
+				if (t.Go != null)
+				{
+					PlayPoof(t);
+					Destroy(t.Go);
+				}
+				m_things.RemoveAt(i);
+			}
+		}
+		m_dash = null;
+		m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, 1.6f);
+		m_audio.Play("sfx_dodge|sfx_raven_flap", 0.5f, 0.9f);
+	}
+
+	private void PlayPoof(Thing t)
+	{
+		if (FindFx("vfx_ghost_death|vfx_odin_despawn|vfx_spawn_small") is GameObject fx)
+		{
+			PlayFx(fx, t.Go.transform.localPosition + Vector3.up * 0.6f, Quaternion.identity, 2f);
+		}
+	}
+
 	private void ClearChase()
 	{
 		foreach (ChaseStrike s in m_chaseStrikes)
@@ -603,16 +648,26 @@ internal sealed partial class SurfGame
 		Thing boss = m_bossThing!;
 		m_bossIntro = Mathf.Min(1f, m_bossIntro + dt * 0.8f);
 		float dist = ChaseDistance(def);
-		m_bossOff = Mathf.MoveTowards(m_bossOff, -dist, dt * 4f);
-		m_bossZ = m_z + m_bossOff;
+		bool dashing = UpdateDash(dt, def);
+		if (!dashing)
+		{
+			// (Dropping back after a charge, it falls behind you beside the lanes, not through you.)
+			m_dashBack = m_bossOff > -dist + 0.5f ? m_dashBack : 0f;
+			m_bossOff = Mathf.MoveTowards(m_bossOff, -dist, dt * (m_dashBack > 0f ? 6f : 4f));
+			m_bossZ = m_z + m_bossOff;
+		}
 		boss.Z = m_bossZ;
 		// It follows you across the lanes a little; the side bosses keep to their side.
 		// One you throw spears at weaves between the lanes instead (time your throw).
 		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 2.5f)
+			: m_dashBack > 0f ? (m_x > 0f ? -1f : 1f) * (TrackHalf + 1.5f)
 			: def.Throw ? Mathf.Sin(m_runTime * 0.9f) * LaneWidth * 1.05f
 			: m_x * 0.5f;
 		Vector3 p = m_bossGo!.transform.localPosition;
-		m_bossGo.transform.localPosition = new Vector3(Mathf.MoveTowards(p.x, x, dt * 5f), RoadY(m_bossZ) + def.Fly, m_bossZ);
+		if (!dashing)
+		{
+			m_bossGo.transform.localPosition = new Vector3(Mathf.MoveTowards(p.x, x, dt * (m_dashBack > 0f ? 8f : 5f)), RoadY(m_bossZ) + def.Fly, m_bossZ);
+		}
 		m_bossGo.transform.localRotation = Quaternion.RotateTowards(m_bossGo.transform.localRotation, Quaternion.identity, 360f * dt);
 		if (m_bossAnim != null)
 		{
@@ -637,8 +692,9 @@ internal sealed partial class SurfGame
 		if (m_bossAttackTimer <= 0f)
 		{
 			ChaseMove(def, NextMove(def, phase));
-			float interval = (phase == 0 ? 2.4f : phase == 1 ? 1.95f : 1.55f) / (1f + 0.1f * stars);
+			float interval = (phase == 0 ? 2.4f : phase == 1 ? 1.95f : 1.55f) / (1f + 0.18f * stars);
 			m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, interval);
+			StarFollowUp(stars, interval);
 		}
 		m_bossHitTimer -= dt;
 		if (m_bossHitTimer <= 0f)
@@ -895,44 +951,43 @@ internal sealed partial class SurfGame
 	}
 
 	// The charge Sam loves: the boss lowers its head behind you, then charges up your lane,
-	// past you, and drops back in.
+	// past you, and drops back in. 1.16.150 (Sam: it jumped to a new place as the charge began
+	// and ended): the boss itself does it, no stand-in. It eases into your lane during the
+	// wind-up, runs past, then falls back beside the lanes to its usual place behind you.
+	private Thing? m_dash;
+	private float m_dashBack;
+
 	private void ChaseDash(BossDef def)
 	{
-		if (m_bossGo == null || m_bossHidden > 0f || m_bossInfo == null)
-		{
-			return;
-		}
-		GameObject? prefab = Pictures.Prefab(def.Prefab);
-		if (prefab == null)
+		if (m_bossGo == null || m_bossHidden > 0f || m_bossInfo == null || m_dash != null)
 		{
 			return;
 		}
 		int lane = m_lane;
 		float z = m_bossZ;
-		float scale = m_bossInfo.Height > 0.3f ? Mathf.Min(1f, Mathf.Min(def.MaxHeight, 4.5f) / m_bossInfo.Height) : 1f;
-		GameObject copy = Creature(prefab, Quaternion.identity, scale);
-		copy.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
-		Animator anim = copy.GetComponentInChildren<Animator>();
 		CreatureAttack? charge = BossAttackFor("charge|dash|attack");
-		if (anim != null)
+		if (m_bossAnim != null)
 		{
-			SetParam(anim, "forward_speed", 12f);
-			SetParam(anim, "onGround", true);
+			SetParam(m_bossAnim, "forward_speed", 12f);
 			if (charge != null)
 			{
-				SetTrigger(anim, charge.Animation);
+				SetTrigger(m_bossAnim, charge.Animation);
 			}
 		}
 		const float windup = 0.7f;
 		const float relative = 12f;
 		float travel = m_z - z + 8f;
-		// The lane it will charge up glows the whole way, ahead of it.
+		// What you collide with: an empty that runs the lane, with the glowing mark ahead of it.
+		GameObject runner = new GameObject("BossDash");
+		runner.layer = m_layer;
+		runner.transform.SetParent(m_stage, false);
+		runner.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
 		GameObject marker = MakeMarker(lane, z + travel * 0.5f, travel, m_markerMaterial);
-		marker.transform.SetParent(copy.transform, true);
+		marker.transform.SetParent(runner.transform, true);
 		float seconds = windup + travel / relative;
-		m_things.Add(new Thing
+		m_dash = new Thing
 		{
-			Go = copy,
+			Go = runner,
 			Kind = Kind.Block,
 			Lane = lane,
 			Z = z,
@@ -943,15 +998,42 @@ internal sealed partial class SurfGame
 			Label = def.Name,
 			CrashText = $"{def.Name} ran you down! (Get out of the glowing lane.)",
 			Life = seconds + 2f,
-		});
-		m_bossGo.SetActive(false);
-		m_bossHidden = seconds + 0.8f;
-		// It comes back from further behind.
-		m_bossOff = -(ChaseDistance(def) + 10f);
-		m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, m_bossHidden + 1f);
+		};
+		m_things.Add(m_dash);
+		m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, seconds + 2.5f);
 		AttackSound(charge, false, 1f);
 		m_banner = $"{def.Name} charges!";
 		m_bannerTime = 1.2f;
+	}
+
+	// Each frame of the chase: the boss rides its charge, then drops back. Returns true while it
+	// has the boss's place in hand.
+	private bool UpdateDash(float dt, BossDef def)
+	{
+		if (m_dash != null)
+		{
+			if (m_dash.Go == null || m_dash.Z > m_z + 8f)
+			{
+				if (m_dash.Go != null)
+				{
+					Destroy(m_dash.Go);
+				}
+				m_dash = null;
+				m_dashBack = 1f;
+				m_bossOff = m_bossZ - m_z;
+				return false;
+			}
+			m_bossZ = m_dash.Z;
+			m_bossOff = m_bossZ - m_z;
+			Vector3 p = m_bossGo!.transform.localPosition;
+			m_bossGo.transform.localPosition = new Vector3(Mathf.MoveTowards(p.x, LaneX(m_dash.Lane), dt * 9f), RoadY(m_bossZ) + def.Fly, m_bossZ);
+			if (m_bossAnim != null)
+			{
+				SetParam(m_bossAnim, "forward_speed", m_dash.ChargeIn > 0f ? m_speed : m_speed + 12f);
+			}
+			return true;
+		}
+		return false;
 	}
 
 	// ---------------------------------------------------------------- the roots split the path

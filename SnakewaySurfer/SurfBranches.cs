@@ -220,6 +220,11 @@ internal sealed partial class SurfGame
 	// Slid under a torch: the root wall at the end of this branch burns away.
 	private void BurnBranch(Thing torch)
 	{
+		if (m_mazeEnd > m_z && m_z >= m_mazeStart - 6f)
+		{
+			BurnMaze();
+			return;
+		}
 		bool burned = false;
 		for (int i = m_things.Count - 1; i >= 0; i--)
 		{
@@ -312,6 +317,9 @@ internal sealed partial class SurfGame
 
 	private void ResetMaze()
 	{
+		m_burning.Clear();
+		m_mazeVineTimer = 1.5f;
+		m_mazeVines.Clear();
 		m_mazeWalls.Clear();
 		m_mazeStart = m_mazeEnd = 0f;
 		m_subLane = -1;
@@ -338,7 +346,167 @@ internal sealed partial class SurfGame
 		{
 			m_lane = Mathf.Clamp(m_subLane / 2, 0, 2);
 		}
+		UpdateMazeVines(Time.deltaTime);
+		UpdateBurning(Time.deltaTime);
 		UpdateMazeGuide();
+	}
+
+	// 1.16.150 (Sam: the Elder stopped attacking in his maze; now the paths are wide enough, bring
+	// the vines back): now and then a vine bursts up on your path a little ahead, its tile red
+	// first. Roll through it, or step to a path beside it where the walls let you.
+	// 1.16.150 (Sam: grabbing the torch should burn away the rest of the root maze): a wall of
+	// fire races ahead down every path, the walls and thickets catching one after another, and
+	// you run on through the ash.
+	private readonly List<(Thing t, float wait)> m_burning = new();
+
+	private void BurnMaze()
+	{
+		float from = m_z;
+		foreach (Thing t in m_things)
+		{
+			if (t.Go == null || t.Z < from - 1f || t.Z > m_mazeEnd + 1.5f || t.Kind == Kind.BossHit || t.Kind == Kind.Item || t.Kind == Kind.Coin || t.Kind == Kind.Ground)
+			{
+				continue;
+			}
+			bool root = t.Kind == Kind.Scenery ? t.Go.name.Contains("Root") || t.Go.name.Contains("Vine") || t.Go.name.Contains("TentaRoot") || t.Go.name.Contains("_Fit") : t.Kind == Kind.Block || t.Kind == Kind.High || t.Kind == Kind.Low;
+			if (!root || Mathf.Abs(t.Go.transform.localPosition.x) > MazePaths * PathWidth * 0.5f + 0.5f)
+			{
+				continue;
+			}
+			t.Collidable = false;
+			m_burning.Add((t, (t.Z - from) / 26f + Random.Range(0f, 0.12f)));
+		}
+		foreach ((Thing t, float wait, GameObject? vine) in m_mazeVines)
+		{
+			t.Collidable = false;
+		}
+		m_mazeVines.Clear();
+		m_mazeVineTimer = 99f;
+		// The paths' walls are gone: step across anywhere.
+		for (int i = 0; i < m_mazeWalls.Count; i++)
+		{
+			(float z0, float z1, int b) = m_mazeWalls[i];
+			m_mazeWalls[i] = (z0, Mathf.Min(z1, from), b);
+		}
+		m_audio.Play("sfx_fireball_hit|sfx_FireAddFuel|fx_fireball_staff_explosion|sfx_torch_ignite", 1f, 0.8f);
+		m_audio.Play("sfx_bonfire_ignite|sfx_fireplace_ignite|sfx_torch_ignite", 0.9f);
+		Flash(new Color(1f, 0.55f, 0.15f), 0.45f);
+		m_shake = Mathf.Max(m_shake, 0.2f);
+		Plugin.Log.LogInfo($"The torch burns the maze: {m_burning.Count} pieces from {from:0} to {m_mazeEnd:0} m.");
+	}
+
+	private void UpdateBurning(float dt)
+	{
+		GameObject? fire = m_burning.Count > 0 ? FindFx("vfx_FireAddFuel|vfx_fireball_hit|fx_fireball_staff_explosion") : null;
+		int sounds = 0;
+		for (int i = m_burning.Count - 1; i >= 0; i--)
+		{
+			(Thing t, float wait) = m_burning[i];
+			wait -= dt;
+			if (t.Go == null)
+			{
+				m_burning.RemoveAt(i);
+				continue;
+			}
+			if (wait > 0f)
+			{
+				m_burning[i] = (t, wait);
+				continue;
+			}
+			if (fire != null)
+			{
+				GameObject f = Instantiate(Picture(fire), m_stage, false);
+				f.transform.localPosition = t.Go.transform.localPosition + Vector3.up * 0.5f;
+				LightUp(f);
+				m_things.Add(new Thing { Go = f, Kind = Kind.Scenery, Z = t.Z, HalfLength = 1f, Life = 2.5f });
+			}
+			if (sounds++ < 2 && Random.value < 0.35f)
+			{
+				m_audio.Play("sfx_fire_crackle|sfx_FireAddFuel|sfx_torch_ignite", 0.45f, Random.Range(0.8f, 1.2f));
+			}
+			int at = m_things.IndexOf(t);
+			DestroyThing(t);
+			if (at >= 0)
+			{
+				m_things.RemoveAt(at);
+			}
+			m_burning.RemoveAt(i);
+		}
+	}
+
+	private readonly List<(Thing t, float wait, GameObject? vine)> m_mazeVines = new();
+	private float m_mazeVineTimer = 1.5f;
+
+	private void UpdateMazeVines(float dt)
+	{
+		for (int i = m_mazeVines.Count - 1; i >= 0; i--)
+		{
+			(Thing t, float wait, GameObject? vine) = m_mazeVines[i];
+			if (t.Go == null)
+			{
+				m_mazeVines.RemoveAt(i);
+				continue;
+			}
+			wait -= dt;
+			if (wait <= 0f)
+			{
+				t.Collidable = true;
+				if (vine != null)
+				{
+					vine.SetActive(true);
+				}
+				if (m_boss != null)
+				{
+					m_audio.Play(m_boss.StrikeSfx.Length > 0 ? m_boss.StrikeSfx : Sfx.HitLog, 0.8f, 0.9f);
+				}
+				m_shake = Mathf.Max(m_shake, 0.12f);
+				m_mazeVines.RemoveAt(i);
+				continue;
+			}
+			m_mazeVines[i] = (t, wait, vine);
+		}
+		if (m_subLane < 0 || m_boss == null || m_state != State.Running)
+		{
+			m_mazeVineTimer = 1.5f;
+			return;
+		}
+		m_mazeVineTimer -= dt;
+		float z = m_z + m_speed * 1.3f + 5f;
+		if (m_mazeVineTimer > 0f || z > m_mazeEnd - 3f)
+		{
+			return;
+		}
+		int stars = m_bossSeg?.Stars ?? 0;
+		m_mazeVineTimer = Random.Range(2.4f, 3.4f) / (1f + 0.15f * stars);
+		BossDef def = m_boss;
+		GameObject root = new GameObject("MazeVine");
+		root.layer = m_layer;
+		root.transform.SetParent(m_stage, false);
+		root.transform.localPosition = new Vector3(SubX(m_subLane), RoadY(z), z);
+		GameObject marker = MakeMarker(1, z, 1.8f, m_markerMaterial);
+		marker.transform.SetParent(root.transform, true);
+		marker.transform.localPosition = new Vector3(0f, marker.transform.localPosition.y - root.transform.localPosition.y, 0f);
+		marker.transform.localScale = new Vector3(PathWidth * 0.9f, 1.8f, 1f);
+		GameObject? vine = VinePiece(def, new Vector3(0f, 0f, z), 2.4f, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), false);
+		if (vine != null)
+		{
+			vine.transform.SetParent(root.transform, false);
+			vine.transform.localPosition = Vector3.down * 0.15f;
+			vine.SetActive(false);
+		}
+		Thing t = new Thing
+		{
+			Go = root,
+			Kind = Kind.Block,
+			Z = z,
+			HalfLength = 0.6f,
+			Label = def.Name,
+			CrashText = $"{def.Name}'s vine caught you in his maze! (Roll through, or step aside where you can.)",
+			Collidable = false,
+		};
+		OnPath(t, m_subLane);
+		m_things.Add(t);
+		m_mazeVines.Add((t, (z - m_z) / Mathf.Max(1f, m_speed) - 0.25f, vine));
 	}
 
 	private bool CanSwitchPath(int from, int to)

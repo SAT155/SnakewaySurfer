@@ -22,6 +22,7 @@ internal sealed partial class SurfGame
 		public string Trade = "";
 		public string Bye = "";
 		public int MinStars;
+		public int MaxStars = 99;
 		public Color Lamp = new Color(1f, 0.75f, 0.4f);
 	}
 
@@ -32,6 +33,14 @@ internal sealed partial class SurfGame
 			Biome = "Meadows", Prefab = "Hildir", Camp = "Hildir_camp", MinStars = 1,
 			Greet = "sfx_hildir_hello", Trade = "sfx_hildir_trade|sfx_hildir_talk", Bye = "sfx_hildir_bye",
 			Lamp = new Color(1f, 0.72f, 0.5f),
+		},
+		// 1.16.150 (Sam never met a trader to try the shop): Haldor also keeps a stall in the
+		// 0-star Meadows, until Hildir takes over from 1 star.
+		new TraderDef
+		{
+			Biome = "Meadows", Prefab = "Haldor", Camp = "Vendor_BlackForest", MaxStars = 0,
+			Greet = "sfx_haldor_greet", Trade = "sfx_haldor_yea|sfx_haldor_laugh", Bye = "sfx_haldor_laugh",
+			Lamp = new Color(1f, 0.7f, 0.35f),
 		},
 		new TraderDef
 		{
@@ -67,7 +76,8 @@ internal sealed partial class SurfGame
 	// The lives on the HUD glow gold for a moment after a trade.
 	private float m_livesFlash;
 	// The odds that a stretch with a trader has one standing by the track.
-	private const float TraderChance = 0.4f;
+	// 1.16.150: every open stretch of a biome with a trader has one (was 0.4).
+	private const float TraderChance = 1f;
 	// The lanes kept clear around one, either way.
 	private const float TraderClear = 14f;
 
@@ -123,14 +133,15 @@ internal sealed partial class SurfGame
 				return;
 			}
 			s.TraderChecked = true;
-			TraderDef? def = System.Array.Find(s_traders, d => d.Biome == biome);
-			if (def == null || !open || s.Stars < def.MinStars || Random.value > TraderChance)
+			TraderDef? def = System.Array.Find(s_traders, d => d.Biome == biome && s.Stars >= d.MinStars && s.Stars <= d.MaxStars);
+			if (def == null || !open || Random.value > TraderChance)
 			{
 				continue;
 			}
+			// In the first half of the stretch, so a short run still meets them.
 			float end = s.End < float.MaxValue ? s.End : s.Start + Plugin.BiomeLength.Value;
 			float lo = Mathf.Max(s.Start + 40f, horizon + 50f);
-			float hi = end - 60f;
+			float hi = Mathf.Min(end - 60f, Mathf.Max(lo + 60f, s.Start + (end - s.Start) * 0.5f));
 			// Not in or near its dungeon.
 			List<(float a, float b)> spans = new() { (lo, hi) };
 			if (m_crypt != null && m_crypt.End > lo && m_crypt.Start < hi)
