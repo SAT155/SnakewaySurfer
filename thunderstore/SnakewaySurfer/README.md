@@ -543,3 +543,7 @@ and for players without the mod.
 - **1.1**: sounds; food wearing off no longer counts as being hit (the game stopped after a
   few seconds); no more "Can't remove Humanoid" errors in the log.
 - **1.0**: first version.
+
+## Feedback
+
+Feedback, bug reports and requests are welcome at [feedback@snakesquad.net](mailto:feedback@snakesquad.net).
