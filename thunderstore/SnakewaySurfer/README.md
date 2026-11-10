@@ -268,6 +268,9 @@ At the end of each run:
 - **One food from each biome you ran through** (a random one of that biome's foods), if the run lasted at least 30 seconds
   and you haven't had food from the minigame in the last 30 minutes (real time, saved on your
   character). With full bags, it drops at your feet.
+Unfortunately, even in a dream, you can't dual wield spears. You'll throw spears at Eikthyr,
+fire a ballista and parry trolls, but this mod never puts a spear in each hand.
+
 
 ## Config
 
