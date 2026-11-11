@@ -13,12 +13,70 @@ internal static class RavenUi
 	private static Texture2D? s_disc;
 	private static Texture2D? s_ring;
 	private static GUIStyle? s_bubble;
+	private static readonly Dictionary<GameObject, int> s_tries = new();
+	private static readonly Texture2D?[] s_fallback = new Texture2D?[2];
+	private static readonly bool[] s_fallbackLooked = new bool[2];
+
+	// 1.16.164: a drawn picture of each raven ships inside the mod, so his circle is never empty
+	// when the picture taken from his model fails.
+	public static Texture2D? Fallback(bool munin)
+	{
+		int i = munin ? 1 : 0;
+		if (s_fallbackLooked[i])
+		{
+			return s_fallback[i];
+		}
+		s_fallbackLooked[i] = true;
+		try
+		{
+			System.Reflection.Assembly asm = typeof(RavenUi).Assembly;
+			string want = munin ? "munin.png" : "hugin.png";
+			foreach (string name in asm.GetManifestResourceNames())
+			{
+				if (!name.EndsWith(want, System.StringComparison.OrdinalIgnoreCase))
+				{
+					continue;
+				}
+				using System.IO.Stream stream = asm.GetManifestResourceStream(name)!;
+				byte[] bytes = new byte[stream.Length];
+				int read = 0;
+				while (read < bytes.Length)
+				{
+					int n = stream.Read(bytes, read, bytes.Length - read);
+					if (n <= 0)
+					{
+						break;
+					}
+					read += n;
+				}
+				Texture2D t = new Texture2D(2, 2, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+				if (ImageConversion.LoadImage(t, bytes))
+				{
+					s_fallback[i] = t;
+				}
+				break;
+			}
+		}
+		catch (System.Exception e)
+		{
+			Plugin.Log.LogWarning($"Raven drawn picture failed: {e.Message}");
+		}
+		return s_fallback[i];
+	}
+
+	// For the self-test (SurfTest.cs): which picture a raven's circle shows.
+	public static string PortraitState(Texture2D? portrait, bool munin) =>
+		portrait != null ? "picture from the model" : Fallback(munin) != null ? "drawn picture" : "EMPTY";
 	private static Texture2D? s_bubbleTex;
 
 	// Call from Update or LateUpdate, never from OnGUI (it renders a camera).
 	public static Texture2D? Portrait(GameObject? template)
 	{
 		if (template == null)
+		{
+			return null;
+		}
+		if (Plugin.DrawnRaven.Value)
 		{
 			return null;
 		}
@@ -65,6 +123,36 @@ internal static class RavenUi
 			cam.fieldOfView = 24f;
 			cam.allowHDR = false;
 			float radius = Mathf.Max(b.extents.y, b.extents.x, b.extents.z);
+			// 1.16.164: a raven is under a metre across. If the model claims far more, frame its
+			// skeleton instead (the reported size has been wrong before).
+			if (radius > 2.5f)
+			{
+				Vector3 sum = Vector3.zero;
+				List<Vector3> joints = new();
+				foreach (SkinnedMeshRenderer smr in copy.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+				{
+					foreach (Transform bone in smr.bones)
+					{
+						if (bone != null)
+						{
+							joints.Add(bone.position);
+							sum += bone.position;
+						}
+					}
+				}
+				if (joints.Count > 0)
+				{
+					Vector3 mid = sum / joints.Count;
+					float far = 0.2f;
+					foreach (Vector3 j in joints)
+					{
+						far = Mathf.Max(far, Vector3.Distance(j, mid));
+					}
+					Plugin.Log.LogInfo($"Raven portrait of {template.name}: model claims a radius of {radius:0.0} m; framing its skeleton instead ({Mathf.Min(far, 2f):0.00} m).");
+					b = new Bounds(mid, Vector3.one * Mathf.Min(far, 2f) * 2f);
+					radius = Mathf.Min(far, 2f);
+				}
+			}
 			float dist = radius / Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 1.05f;
 			cam.nearClipPlane = 0.05f;
 			cam.farClipPlane = dist + radius * 4f;
@@ -92,34 +180,57 @@ internal static class RavenUi
 			cam.targetTexture = rt;
 			bool fog = RenderSettings.fog;
 			RenderSettings.fog = false;
-			Color32[] onBlack = Shot(cam, rt, Color.black, size);
-			Color32[] onWhite = Shot(cam, rt, Color.white, size);
+			Color32[] px = new Color32[size * size];
+			int seenCount = 0;
+			float fill = 0f;
+			// 1.16.164: the model's reported size can't be trusted (it has claimed to be 35 m tall, which
+			// left the bird a speck that was then thrown away). So look at what was actually drawn and
+			// zoom in on it until the bird fills the picture.
+			for (int pass = 0; pass < 4; pass++)
+			{
+				Color32[] onBlack = Shot(cam, rt, Color.black, size);
+				Color32[] onWhite = Shot(cam, rt, Color.white, size);
+				seenCount = 0;
+				int minX = size, minY = size, maxX = -1, maxY = -1;
+				for (int i = 0; i < px.Length; i++)
+				{
+					Color32 k0 = onBlack[i];
+					Color32 k1 = onWhite[i];
+					int seen = Mathf.Clamp(255 - ((k1.r - k0.r) + (k1.g - k0.g) + (k1.b - k0.b)) / 3, 0, 255);
+					if (seen < 3)
+					{
+						px[i] = new Color32(0, 0, 0, 0);
+						continue;
+					}
+					seenCount++;
+					int x = i % size, y = i / size;
+					minX = Mathf.Min(minX, x);
+					maxX = Mathf.Max(maxX, x);
+					minY = Mathf.Min(minY, y);
+					maxY = Mathf.Max(maxY, y);
+					// A touch brighter: a black bird on a dark disc.
+					float un = 255f / seen * 1.35f;
+					px[i] = new Color32((byte)Mathf.Min(255, k0.r * un + 12), (byte)Mathf.Min(255, k0.g * un + 12), (byte)Mathf.Min(255, k0.b * un + 16), (byte)seen);
+				}
+				fill = seenCount > 0 ? Mathf.Max(maxX - minX + 1, maxY - minY + 1) / (float)size : 0f;
+				Plugin.Log.LogInfo($"Raven portrait of {template.name}, pass {pass}: {seenCount} of {px.Length} pixels, fills {fill:0.00} of the picture, view angle {cam.fieldOfView:0.0}.");
+				if (seenCount == 0 || (fill >= 0.6f && fill <= 0.97f) || pass == 3)
+				{
+					break;
+				}
+				// Turn to the middle of what was drawn and narrow (or widen) the view to fit it.
+				Vector3 aim = new Vector3((minX + maxX + 1) * 0.5f / size, (minY + maxY + 1) * 0.5f / size, 0f);
+				Ray ray = cam.ViewportPointToRay(aim);
+				rig.transform.rotation = Quaternion.LookRotation(ray.direction, Vector3.up);
+				cam.fieldOfView = Mathf.Clamp(cam.fieldOfView * (fill > 0.97f ? 1.5f : fill / 0.8f), 0.5f, 60f);
+			}
 			RenderSettings.fog = fog;
 			cam.targetTexture = null;
-			Color32[] px = new Color32[onBlack.Length];
-			int seenCount = 0;
-			for (int i = 0; i < px.Length; i++)
+			if (seenCount >= 400 && fill >= 0.3f)
 			{
-				Color32 k0 = onBlack[i];
-				Color32 k1 = onWhite[i];
-				int seen = Mathf.Clamp(255 - ((k1.r - k0.r) + (k1.g - k0.g) + (k1.b - k0.b)) / 3, 0, 255);
-				if (seen < 3)
-				{
-					px[i] = new Color32(0, 0, 0, 0);
-					continue;
-				}
-				seenCount++;
-				// A touch brighter: a black bird on a dark disc.
-				float un = 255f / seen * 1.35f;
-				px[i] = new Color32((byte)Mathf.Min(255, k0.r * un + 12), (byte)Mathf.Min(255, k0.g * un + 12), (byte)Mathf.Min(255, k0.b * un + 16), (byte)seen);
-			}
-			tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
-			tex.SetPixels32(px);
-			tex.Apply();
-			Plugin.Log.LogInfo($"Raven portrait of {template.name}: {seenCount} of {px.Length} pixels.");
-			if (seenCount < 50)
-			{
-				tex = null;
+				tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+				tex.SetPixels32(px);
+				tex.Apply();
 			}
 		}
 		catch (System.Exception e)
@@ -142,6 +253,18 @@ internal static class RavenUi
 			{
 				Object.DestroyImmediate(rig);
 			}
+		}
+		if (tex == null)
+		{
+			// Try again on the next two calls (the model may not have been ready), then settle for
+			// the drawn picture (Fallback).
+			s_tries.TryGetValue(template, out int tries);
+			s_tries[template] = ++tries;
+			if (tries < 3)
+			{
+				return null;
+			}
+			Plugin.Log.LogWarning($"Raven portrait of {template.name}: no usable picture after {tries} tries; using the drawn one.");
 		}
 		s_portraits[template] = tex;
 		return tex;
@@ -252,6 +375,7 @@ internal static class RavenUi
 		Rect pr = new Rect(x, y, size, size);
 		GUI.color = new Color(0.1f, 0.1f, 0.14f, 0.78f * a);
 		GUI.DrawTexture(pr, Disc(false));
+		portrait ??= Fallback(munin);
 		if (portrait != null)
 		{
 			GUI.color = new Color(1f, 1f, 1f, a);

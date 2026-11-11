@@ -55,6 +55,8 @@ public class Plugin : BaseUnityPlugin
 
 	internal static ConfigEntry<bool> DebugLog = null!;
 	internal static ConfigEntry<bool> Invincible = null!;
+	internal static ConfigEntry<bool> Autopilot = null!;
+	internal static ConfigEntry<bool> DrawnRaven = null!;
 	internal static ConfigEntry<bool> AllowPause = null!;
 	internal static ConfigEntry<bool> GameLighting = null!;
 	internal static ConfigEntry<bool> UseGameCamera = null!;
@@ -339,6 +341,10 @@ public class Plugin : BaseUnityPlugin
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
 		Invincible = Config.Bind("9 - Debug", "Invincible", false,
 			"Testing: run through everything instead of crashing (a banner says what would have got you).");
+		Autopilot = Config.Bind("9 - Debug", "Autopilot", false,
+			"Testing: the run plays itself (lanes, jumps, rolls, dungeon corners and digging; no blocking, bosses or sailing). The surftest command turns this on by itself.");
+		DrawnRaven = Config.Bind("3 - Look", "Drawn Raven Picture", false,
+			"Show the ravens as the drawn picture that ships with the mod instead of a picture taken from their model in your game. (The drawn one is also used whenever the other can't be made.)");
 		GameTerrainShader = Config.Bind("3 - Look", "Game Terrain Shader", false,
 			"Testing: draw the land with the game's own terrain shader. It doesn't draw on the minigame's stage (the ground shows the sky), so by default the land uses the game's ground textures on a plain shader (Game Ground Textures).");
 		GameTerrainShape = Config.Bind("3 - Look", "Game Terrain Shape", true,
@@ -560,6 +566,34 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				args.Context.AddString(SurfStory.Command(player, new[] { "surfstory", "portal" }));
+			});
+			new Terminal.ConsoleCommand("surftest", "surftest [quick] [biome] | stop - testing: the run plays itself through the menu, every biome, dungeon, boss and the crossing, saving screenshots and a report to BepInEx/SnakewaySurferTest (about 20 minutes; \"quick\" is open track only, a biome's name does just that biome)", args =>
+			{
+				Player player = Player.m_localPlayer;
+				if (player == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				if (args.Args.Length > 1 && args.Args[1].ToLowerInvariant() == "stop")
+				{
+					SurfGame.Stop();
+					args.Context.AddString("Self-test stopped. Its report so far is in BepInEx/SnakewaySurferTest.");
+					return;
+				}
+				if (SurfGame.Active != null)
+				{
+					args.Context.AddString("Stop the run first.");
+					return;
+				}
+				SurfGame.TourRequest = args.Args;
+				SurfGame.Begin(player, args.Context);
+				if (SurfGame.Active == null)
+				{
+					SurfGame.TourRequest = null;
+					return;
+				}
+				args.Context.AddString("Self-test started: hands off the keyboard until it says it's finished. Close this console (F5) so it can run.");
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{

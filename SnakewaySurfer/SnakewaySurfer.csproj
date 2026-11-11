@@ -91,4 +91,8 @@
     <Target Name="Copy" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' AND Exists('$(GamePath)')">
         <Exec Command="copy /Y &quot;$(TargetDir)$(AssemblyName).dll&quot; &quot;$(GamePath)\BepInEx\plugins\$(AssemblyName).dll&quot;"/>
     </Target>
+    <ItemGroup>
+        <EmbeddedResource Include="Assets\hugin.png"/>
+        <EmbeddedResource Include="Assets\munin.png"/>
+    </ItemGroup>
 </Project>

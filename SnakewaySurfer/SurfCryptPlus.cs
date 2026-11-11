@@ -381,7 +381,7 @@ internal sealed partial class SurfGame
 			m_digWielded = Wield("PickaxeAntler|PickaxeBronze|PickaxeIron|PickaxeBlackMetal");
 		}
 		m_z = Mathf.Min(m_z, at.Z - 2.2f);
-		bool press = canInput && (Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(Plugin.ThrowKey.Value));
+		bool press = canInput && (Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.E) || BotKey(KeyCode.E) || Input.GetKeyDown(Plugin.ThrowKey.Value));
 		if (press && m_digCooldown <= 0f)
 		{
 			m_digCooldown = 0.35f;

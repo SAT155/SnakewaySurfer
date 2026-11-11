@@ -52,6 +52,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public string Label = "";
 		public string CrashText = "";
 		public bool Collidable = true;
+		// 1.16.164: when it was first seen (SurfTest.cs), for the hit log.
+		public float Born = -1f;
 		// Set pieces (trolls): what moves when the player gets close.
 		public Special Special;
 		public Transform? Moving;
@@ -486,6 +488,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			Active = null;
 		}
+		EndTour(false);
 		RemoveRaven();
 		EndLoadScreen();
 		OnDestroyWave();
@@ -1301,19 +1304,24 @@ internal sealed partial class SurfGame : MonoBehaviour
 		ResetSegments();
 		ResetShop(m_resumeNext);
 		ApplyResume();
+		ApplyTourStage();
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
 
 	private void Crash(string why)
 	{
+		m_crashReason = why;
 		if (m_state != State.Running)
 		{
 			return;
 		}
 		m_state = State.Crashed;
 		m_stateTime = 0f;
-		DepositCoins();
+		if (!m_tourRan)
+		{
+			DepositCoins();
+		}
 		m_crashText = why;
 		if (m_atSea && m_seaPhase == 2)
 		{
@@ -1321,7 +1329,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		SetTrigger("stagger");
 		// Run XP for the running: time at sea is sailing.
-		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
+		// (A self-test earns nothing: SurfTest.cs.)
+		m_rewardText = m_tourRan ? "" : Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
 			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f, m_runBiomes);
 		if (m_lootText.Length > 0)
 		{
@@ -1351,7 +1360,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		foreach (KeyCode k in keys)
 		{
-			if (Input.GetKeyDown(k))
+			// (The autopilot presses keys too: SurfTest.cs.)
+			if (Input.GetKeyDown(k) || BotKey(k))
 			{
 				return true;
 			}
@@ -1403,6 +1413,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			PlaceCamera(0f);
 			return;
 		}
+		// 1.16.164: the self-test drives the run from here (SurfTest.cs).
+		UpdateTour();
+		if (this == null || Active != this)
+		{
+			return;
+		}
 
 		if (canInput && Plugin.AllowPause.Value && Input.GetKeyDown(Plugin.PauseKey.Value))
 		{
@@ -1428,6 +1444,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 
 		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
+		m_clock += dt;
 		m_stateTime += dt;
 		m_bannerTime -= dt;
 		if (m_bannerTime <= 0f)
@@ -1612,6 +1629,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void UpdateRun(float dt, bool canInput)
 	{
 		m_runTime += dt;
+		BotThink(dt);
 		float biomeProgress = SpeedProgressAt(m_z);
 		m_speed = Mathf.Min(Plugin.StartSpeed.Value + Plugin.SpeedPerBiome.Value * biomeProgress, Plugin.MaxSpeed.Value) * Plugin.SpeedScale;
 		if (m_slowTime > 0f)
@@ -2006,6 +2024,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
+		if (m_hurtTime <= 0f || Plugin.Invincible.Value)
+		{
+			LogHit(t, why);
+		}
 		if (Plugin.Invincible.Value)
 		{
 			t.Collidable = false;
@@ -2082,6 +2104,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				m_things.RemoveAt(i);
 				continue;
+			}
+			if (t.Born < 0f)
+			{
+				NoteNewThing(t);
 			}
 			if (m_state == State.Running && i == m_things.Count - 1)
 			{
