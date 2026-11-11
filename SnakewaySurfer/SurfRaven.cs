@@ -47,7 +47,7 @@ internal sealed partial class SurfGame
 			if (hugin != null)
 			{
 				m_ravenTemplate = Pictures.MakePicture(hugin.m_visual, m_templates, m_layer);
-				// 1.16.179: Hugin waits hidden in the world, so the copy came with its model
+				// 1.16.183: Hugin waits hidden in the world, so the copy came with its model
 				// switched off: nothing to see on the track and nothing to take a picture of.
 				int woken = 0;
 				int meshes = 0;
