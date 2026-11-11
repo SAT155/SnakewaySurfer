@@ -53,6 +53,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> MonsterHeight = null!;
 	internal static ConfigEntry<float> SceneryDensity = null!;
 	internal static ConfigEntry<bool> GameVegetation = null!;
+	internal static ConfigEntry<bool> FairPlacement = null!;
 	internal static ConfigEntry<float> MistAmount = null!;
 	internal static ConfigEntry<float> AmbienceVolume = null!;
 	internal static ConfigEntry<string> TrackPiece = null!;
@@ -243,6 +244,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How much of the game's own mist drifts over the Mistlands (thick beside the track, thin over the lanes). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
 		AmbienceVolume = Config.Bind("4 - Sound", "Biome Ambience", 1f,
 			new ConfigDescription("How loud each biome's own background sound is (its wind and weather, its birds and night noises, and distant creatures such as a Gjall in the Mistlands). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		FairPlacement = Config.Bind("1 - Run", "Fair Placement", true,
+			"Every row of creatures and obstacles is checked before you reach it: if no runner could get through it with the jumps, rolls and lane changes the game allows, the piece that closes the way is taken out. Off = rows are left exactly as they were laid out.");
 		GameVegetation = Config.Bind("3 - Look", "Game Vegetation", true,
 			"Line the track with what the game itself grows in each biome (its trees, bushes, rocks, cliffs and roots, in the game's own proportions), instead of each biome's short Scenery list.");
 		TrackPiece = Config.Bind("3 - Look", "Track Piece", "stone_floor_2x2",

@@ -1265,6 +1265,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_runBiomes.Clear();
 		m_shownBiome = -1;
 		m_nextRowZ = 45f;
+		m_placeChecked = 0;
 		m_nextSceneryZ = -20f;
 		m_nextGroundZ = -GroundTile;
 		m_crashText = "";
@@ -2254,6 +2255,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				CryptClearRows(before);
 			}
+			GateRow(before);
 			float difficulty = Mathf.Clamp01(ProgressAt(m_nextRowZ) / m_biomes.Count);
 			// Closer together down the crypt's halls (1.16.4, SAT: lots of skeletons).
 			m_nextRowZ += (Mathf.Lerp(30f, 16f, difficulty) + Random.Range(0f, 9f)) * (InCrypt(m_nextRowZ) ? 0.65f : 1f);
@@ -3149,7 +3151,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		if (schema != null && schema.Has("hurdle") && kind == Kind.Block)
 		{
 			// Short enough to jump, whatever its collider says.
-			clear = Mathf.Min(height * 0.85f, Plugin.JumpHeight.Value * 0.6f);
+			clear = Mathf.Min(height * 0.85f, Plugin.JumpHeight.Value * 0.45f);
 		}
 		string gait = role.Length > 0 ? role : schema?.PickOf("charger", "waiter", "switcher") ?? "";
 		float speed = 0f;

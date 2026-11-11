@@ -29,6 +29,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # The mod's Unity-free rules (placement), checked without the game. First, so a broken
+      # rule fails the build before the long download.
+      - name: Rule checks
+        run: dotnet run -c Release --project SnakewaySurfer.Tests/SnakewaySurfer.Tests.csproj
+
       - name: Install SteamCMD
         run: |
           sudo apt-get update
