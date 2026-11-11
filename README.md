@@ -38,3 +38,7 @@ and BepInExPack, packages `thunderstore/SnakewaySurfer`, and releases `v{MAJOR.M
 the r2modman-ready zip attached on every default-branch push that changes the mod, or on any
 manual run. `decompile.yml` prints game types for reference. Never published to Thunderstore
 by CI.
+
+## License
+
+Copyright (c) 2026 SnakeSquad (SAT155). Licensed under the GNU General Public License v3.0, see [LICENSE](LICENSE).
