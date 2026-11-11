@@ -174,7 +174,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public readonly List<SpawnEntry> Monsters = new();
 		public readonly List<SpawnEntry> Flyers = new();
 		public readonly List<GameObject> Scenery = new();
-		// 1.16.185: what the game itself grows in this biome (SurfVegetation.cs), and how many of
+		// 1.16.189: what the game itself grows in this biome (SurfVegetation.cs), and how many of
 		// them line a metre of track.
 		public readonly List<VegEntry> Veg = new();
 		public float VegWeight;

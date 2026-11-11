@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.185 (SAT: the Black Forest was missing its dense trees, the Mistlands its cliffs, rocks,
+// 1.16.189 (SAT: the Black Forest was missing its dense trees, the Mistlands its cliffs, rocks,
 // Yggdrasil shoots and giant roots): what lines the track is read from the game's own vegetation
 // list (ZoneSystem.m_vegetation), the table the world generator plants each zone from. Every
 // biome gets its real trees, bushes, rocks and cliffs in the game's own proportions, in the
