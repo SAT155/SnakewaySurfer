@@ -434,7 +434,15 @@ internal sealed partial class SurfGame
 			small.Apply();
 			RenderTexture.active = prev;
 			RenderTexture.ReleaseTemporary(rt);
-			File.WriteAllBytes(file, ImageConversion.EncodeToJPG(small, 80));
+			byte[]? jpg = Img.Jpg(small, 80);
+			if (jpg != null)
+			{
+				File.WriteAllBytes(file, jpg);
+			}
+			else
+			{
+				Plugin.Log.LogWarning("Self-test: the game's image encoder wasn't found; no screenshot saved.");
+			}
 			Destroy(full);
 			Destroy(small);
 		}
@@ -451,7 +459,11 @@ internal sealed partial class SurfGame
 			TourLine($"  Hugin's circle shows: {RavenUi.PortraitState(m_ravenPortrait, false)}");
 			if (m_ravenPortrait != null)
 			{
-				File.WriteAllBytes(Path.Combine(m_tourDir, "hugin_from_model.png"), ImageConversion.EncodeToPNG(m_ravenPortrait));
+				byte[]? png = Img.Png(m_ravenPortrait);
+				if (png != null)
+				{
+					File.WriteAllBytes(Path.Combine(m_tourDir, "hugin_from_model.png"), png);
+				}
 			}
 		}
 		catch (System.Exception e)

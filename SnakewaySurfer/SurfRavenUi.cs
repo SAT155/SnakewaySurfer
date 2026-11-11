@@ -7,6 +7,31 @@ namespace SnakewaySurfer;
 // ravens are a still portrait taken once from their own model, drawn as flat UI in a fixed
 // spot at the top right, with a speech bubble under it. Nothing follows the camera, so
 // nothing hitches. Used in the run (SurfRaven.cs) and in the world (SurfStory.cs).
+// The game's image module is built against a newer netstandard than the mod compiles with, so
+// its PNG and JPG calls are made by name (1.16.164).
+internal static class Img
+{
+	private static readonly System.Type? s_type = System.Type.GetType("UnityEngine.ImageConversion, UnityEngine.ImageConversionModule");
+
+	public static bool Load(Texture2D tex, byte[] bytes)
+	{
+		System.Reflection.MethodInfo? m = s_type?.GetMethod("LoadImage", new[] { typeof(Texture2D), typeof(byte[]) });
+		return m != null && m.Invoke(null, new object[] { tex, bytes }) is bool ok && ok;
+	}
+
+	public static byte[]? Jpg(Texture2D tex, int quality)
+	{
+		System.Reflection.MethodInfo? m = s_type?.GetMethod("EncodeToJPG", new[] { typeof(Texture2D), typeof(int) });
+		return m?.Invoke(null, new object[] { tex, quality }) as byte[];
+	}
+
+	public static byte[]? Png(Texture2D tex)
+	{
+		System.Reflection.MethodInfo? m = s_type?.GetMethod("EncodeToPNG", new[] { typeof(Texture2D) });
+		return m?.Invoke(null, new object[] { tex }) as byte[];
+	}
+}
+
 internal static class RavenUi
 {
 	private static readonly Dictionary<GameObject, Texture2D?> s_portraits = new();
@@ -50,7 +75,7 @@ internal static class RavenUi
 					read += n;
 				}
 				Texture2D t = new Texture2D(2, 2, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-				if (ImageConversion.LoadImage(t, bytes))
+				if (Img.Load(t, bytes))
 				{
 					s_fallback[i] = t;
 				}
