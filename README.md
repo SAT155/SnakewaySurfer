@@ -41,4 +41,4 @@ by CI.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+Copyright (c) 2026 SnakeSquad (SAT155). Licensed under the GNU General Public License v3.0, see [LICENSE](LICENSE).
