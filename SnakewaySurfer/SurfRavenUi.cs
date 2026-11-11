@@ -95,6 +95,8 @@ internal static class RavenUi
 	private static Texture2D? s_bubbleTex;
 
 	// Call from Update or LateUpdate, never from OnGUI (it renders a camera).
+	private static readonly HashSet<GameObject> s_noMeshLogged = new();
+
 	public static Texture2D? Portrait(GameObject? template)
 	{
 		if (template == null)
@@ -137,6 +139,11 @@ internal static class RavenUi
 			}
 			if (!Pictures.MeshBounds(copy, out Bounds b) || b.size.y < 0.01f)
 			{
+				if (s_noMeshLogged.Add(template))
+				{
+					Plugin.Log.LogWarning($"Raven portrait of {template.name}: no visible mesh to picture ({copy.GetComponentsInChildren<Renderer>(true).Length} renderers, {copy.GetComponentsInChildren<Renderer>(false).Length} active); using the drawn one.");
+				}
+				s_portraits[template] = null;
 				return null;
 			}
 			rig = new GameObject("RavenPortraitRig");

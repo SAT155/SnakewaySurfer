@@ -91,7 +91,8 @@ internal sealed partial class SurfGame
 		int stars = Plugin.LoopBiomes.Value <= 0 ? 0 : m_startStars;
 		// A start past the Mountains begins with the crossing, until you've made it this lap
 		// (or picked the Ocean).
-		bool sea = Crossing && biome == SeaTo && (m_startSea || m_player == null || !Progress.Landed(m_player, stars, SeaTo));
+		// The self-test picks its stops itself: only its crossing stop starts at sea.
+		bool sea = Crossing && biome == SeaTo && (m_startSea || (!Touring && (m_player == null || !Progress.Landed(m_player, stars, SeaTo))));
 		Segment first = sea ? ShoreSegment(stars) : NewSegment(0f, biome, stars, false, false);
 		first.PrevBiome = first.Biome;
 		first.PrevLevel = first.Level;
