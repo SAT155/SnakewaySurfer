@@ -267,7 +267,7 @@ internal sealed partial class SurfGame
 		GameObject? fx = FindFx(Sfx.LightningFx);
 		if (fx != null)
 		{
-			// 1.16.172: at double size with its own lights it whited out the whole screen, hiding
+			// 1.16.178: at double size with its own lights it whited out the whole screen, hiding
 			// the red lanes of the next blow.
 			GameObject go = PlayFx(fx, at, Quaternion.identity, 3f, null, 1.3f);
 			foreach (Light l in go.GetComponentsInChildren<Light>(true))
