@@ -959,6 +959,7 @@ internal sealed partial class SurfGame
 		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 		r.receiveShadows = false;
 		PlaceMarker(quad, lane, z);
+		NoteMarker(quad, material == SlideMaterial && material != null);
 		return quad;
 	}
 

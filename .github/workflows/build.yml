@@ -73,6 +73,7 @@ jobs:
           # Errors are re-emitted as annotations so they're readable from the run's
           # summary/API without downloading the full log.
           set -o pipefail
+          sed -i "s/BuildNumber = 0;/BuildNumber = ${{ github.run_number }};/" ${{ matrix.mod }}/Plugin.cs
           dotnet build ${{ matrix.mod }}/${{ matrix.mod }}.csproj -c Release \
             -p:ManagedDir="$MANAGED_DIR" -p:BepInExDir="$BEPINEX_DIR" 2>&1 | tee build.log \
             || { grep -E ": error |error [A-Z]+[0-9]+" build.log | sort -u | head -20 | sed 's/^/::error::/'; exit 1; }

@@ -70,7 +70,7 @@ internal sealed partial class SurfGame
 	private float UpdateMoves(float dt, bool canInput)
 	{
 		m_guardDown = Mathf.Max(0f, m_guardDown - dt);
-		bool block = canInput && Input.GetKey(Plugin.BlockKey.Value) && m_guardDown <= 0f;
+		bool block = canInput && (Input.GetKey(Plugin.BlockKey.Value) || m_botBlock) && m_guardDown <= 0f;
 		if (block && !m_blocking)
 		{
 			m_blockPressed = m_runTime;

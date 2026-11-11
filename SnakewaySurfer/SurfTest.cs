@@ -120,7 +120,7 @@ internal sealed partial class SurfGame
 		m_tourAt = -1;
 		m_tourShotNo = 0;
 		Plugin.Log.LogInfo($"Self-test: {stages.Count} stops, saving to {m_tourDir}");
-		TourLine($"SnakewaySurfer {Plugin.PluginVersion} self-test, {System.DateTime.Now:yyyy-MM-dd HH:mm}, screen {Screen.width}x{Screen.height}, {stages.Count} stops");
+		TourLine($"SnakewaySurfer {Plugin.BuildVersion} self-test, {System.DateTime.Now:yyyy-MM-dd HH:mm}, screen {Screen.width}x{Screen.height}, {stages.Count} stops");
 	}
 
 	private void TourLine(string text)
@@ -320,7 +320,7 @@ internal sealed partial class SurfGame
 		try
 		{
 			StringBuilder r = new();
-			r.AppendLine($"SnakewaySurfer {Plugin.PluginVersion} self-test report ({(finished ? "finished" : "stopped early")})");
+			r.AppendLine($"SnakewaySurfer {Plugin.BuildVersion} self-test report ({(finished ? "finished" : "stopped early")})");
 			r.AppendLine();
 			r.AppendLine($"Ravens' pictures: Hugin = {RavenUi.PortraitState(m_ravenPortrait, false)}");
 			r.AppendLine();
@@ -483,7 +483,7 @@ internal sealed partial class SurfGame
 		string line = $"{(t.Label.Length > 0 ? t.Label : "(obstacle)")} [{t.Kind}{(t.Wall ? ", wall" : "")}{(t.Heavy ? ", heavy" : "")}{(t.Move.Length > 0 ? ", " + t.Move : "")}] in {biome}"
 			+ $"{(InCrypt(m_z) ? " dungeon" : "")}{(m_bossSeg != null ? " boss fight" : "")}{(m_atSea ? " at sea" : "")}, {m_z:0} m, lane {m_lane} (its lane {t.Lane}), "
 			+ $"you were {(m_y > 0.3f ? $"in the air ({m_y:0.0} m)" : m_slide > 0f ? "rolling" : "running")}, in view for {(seen >= 0f ? seen.ToString("0.0") + " s" : "?")}"
-			+ $"{(BotOn ? "; autopilot: " + m_botNote : "")}; \"{why}\"";
+			+ $", {WarnedFor()}{(BotOn ? "; autopilot: " + m_botNote : "")}; \"{why}\"";
 		Plugin.Log.LogInfo("Hit: " + line);
 		if (!Touring)
 		{
@@ -507,7 +507,8 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		bool threat = t.Collidable && (t.Kind == Kind.Block || t.Kind == Kind.Low || t.Kind == Kind.High);
+		// Attack zones (clouds, sweeps, boss strikes) are short-lived and warned by lane markers.
+		bool threat = t.Collidable && (t.Kind == Kind.Block || t.Kind == Kind.Low || t.Kind == Kind.High) && !(t.Threat && t.Life > 0f && t.Info == null);
 		if (Touring && t.Info != null && t.Label.Length > 0)
 		{
 			string biome = m_biomes[Mathf.Clamp(BiomeAt(t.Z), 0, m_biomes.Count - 1)].Def.Name + (InCrypt(t.Z) ? " dungeon" : "") + (SegAt(t.Z).Boss ? " boss" : "");
@@ -542,6 +543,52 @@ internal sealed partial class SurfGame
 	// ---------------------------------------------------------------- the autopilot
 
 	private readonly HashSet<KeyCode> m_botKeys = new();
+	private bool m_botBlock;
+
+	// Every lane marker on the track: what the player is shown before a blow lands. The
+	// autopilot reads these as a player would, and each hit is logged with how long the lane
+	// under the player had been marked.
+	private sealed class MarkerNote
+	{
+		public GameObject Go = null!;
+		public float Born;
+		public bool Blue;
+	}
+
+	private readonly List<MarkerNote> m_markerNotes = new();
+
+	private void NoteMarker(GameObject go, bool blue)
+	{
+		m_markerNotes.RemoveAll(m => m.Go == null);
+		m_markerNotes.Add(new MarkerNote { Go = go, Born = m_clock, Blue = blue });
+	}
+
+	// The marker lying on a lane at the player's spot (or up to `ahead` metres on), oldest first.
+	private MarkerNote? MarkerOn(int lane, float ahead)
+	{
+		MarkerNote? found = null;
+		foreach (MarkerNote m in m_markerNotes)
+		{
+			if (m.Go == null || !m.Go.activeInHierarchy)
+			{
+				continue;
+			}
+			Vector3 p = m.Go.transform.localPosition;
+			float half = m.Go.transform.localScale.y * 0.5f;
+			if (Mathf.Abs(p.x - LaneX(lane)) < LaneWidth * 0.5f && p.z + half > m_z - 0.5f && p.z - half < m_z + ahead
+				&& (found == null || m.Born < found.Born))
+			{
+				found = m;
+			}
+		}
+		return found;
+	}
+
+	private string WarnedFor()
+	{
+		MarkerNote? m = MarkerOn(m_lane, 1.5f);
+		return m == null ? "no marker on your lane" : $"your lane was marked {(m.Blue ? "blue" : "red")} for {m_clock - m.Born:0.0} s";
+	}
 	private float m_botLaneWait;
 	private string m_botNote = "";
 
@@ -558,6 +605,7 @@ internal sealed partial class SurfGame
 	private void BotThink(float dt)
 	{
 		m_botKeys.Clear();
+		m_botBlock = false;
 		if (!BotOn || m_state != State.Running || m_atSea || m_camping || m_shopOpen || m_aimTime > 0f)
 		{
 			return;
@@ -599,6 +647,12 @@ internal sealed partial class SurfGame
 			}
 		}
 
+		// A boss's swing at you: parry it, a touch before it lands.
+		if (m_duelLand > 0f && m_duelLand <= ParryWindowNow * 0.6f)
+		{
+			m_botBlock = true;
+			m_botNote = $"parrying {m_duelLand:0.00} s ahead";
+		}
 		float look = Mathf.Max(12f, m_speed * 1.3f);
 		float jumpHeight = Plugin.JumpHeight.Value;
 		float jumpLead = Mathf.Sqrt(2f * jumpHeight / Gravity) * 0.8f;
@@ -674,6 +728,31 @@ internal sealed partial class SurfGame
 			}
 		}
 
+		// Marked lanes, as the player sees them: leave red, roll under blue. A parry swing's
+		// marker follows the player, so that one is stood in and blocked.
+		bool rollMarked = false;
+		bool[] red = new bool[3];
+		if (m_duelLand <= 0f)
+		{
+			for (int l = 0; l < 3; l++)
+			{
+				MarkerNote? m = MarkerOn(l, Mathf.Max(4f, m_speed * 0.45f));
+				if (m == null)
+				{
+					continue;
+				}
+				if (m.Blue)
+				{
+					rollMarked |= l == m_lane && MarkerOn(l, m_speed * 0.2f) is { Blue: true };
+				}
+				else
+				{
+					red[l] = true;
+					cost[l] = Mathf.Max(cost[l], 5f);
+				}
+			}
+		}
+
 		int best = m_lane;
 		float bestCost = cost[m_lane] + (mustLane >= 0 && m_lane != mustLane ? 20f : 0f);
 		for (int l = 0; l < 3; l++)
@@ -703,7 +782,18 @@ internal sealed partial class SurfGame
 				return;
 			}
 		}
-		if (act[m_lane] == 1 && when[m_lane] <= jumpLead && grounded)
+		if (red[m_lane] && red[0] && red[1] && red[2] && grounded && act[m_lane] != 2)
+		{
+			// Every lane marked: a shockwave or a fire patch, jumped.
+			m_botKeys.Add(KeyCode.W);
+			m_botNote = "jumped: every lane marked red";
+		}
+		else if (rollMarked && m_slide <= 0f && m_rollCooldown <= 0f && grounded)
+		{
+			m_botKeys.Add(KeyCode.S);
+			m_botNote = "rolled under a blue lane";
+		}
+		else if (act[m_lane] == 1 && when[m_lane] <= jumpLead && grounded)
 		{
 			m_botKeys.Add(KeyCode.W);
 			m_botNote = $"jumped {when[m_lane]:0.00} s ahead";
@@ -711,7 +801,7 @@ internal sealed partial class SurfGame
 		else if (act[m_lane] == 2 && when[m_lane] <= rollLead && m_slide <= 0f && m_rollCooldown <= 0f)
 		{
 			m_botKeys.Add(KeyCode.S);
-			m_botNote = $"rolled {when[m_lane]:0.00} s ahead{(m_stamina < Plugin.RollStamina.Value ? " (out of stamina)" : "")}";
+			m_botNote = $"rolled {when[m_lane]:0.00} s ahead (clear of it in {reach[m_lane]:0.00} s, a roll lasts {Plugin.SlideTime.Value:0.00} s){(m_stamina < Plugin.RollStamina.Value ? " (out of stamina)" : "")}";
 		}
 		else if (act[m_lane] == 3 || cost[m_lane] >= 6f)
 		{

@@ -13,6 +13,9 @@ public class Plugin : BaseUnityPlugin
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
 	public const string PluginVersion = "1.16.0";
+	// Filled in by the build with its run number, so logs and the self-test name the real release.
+	public static readonly int BuildNumber = 0;
+	public static string BuildVersion => BuildNumber > 0 ? PluginVersion.Substring(0, PluginVersion.LastIndexOf('.') + 1) + BuildNumber : PluginVersion + " (local build)";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;

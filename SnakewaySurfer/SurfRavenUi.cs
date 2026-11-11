@@ -370,7 +370,7 @@ internal static class RavenUi
 		s_bubble.normal.background = s_bubbleTex;
 		s_bubble.border = new RectOffset(12, 12, 12, 12);
 		s_bubble.padding = new RectOffset(Mathf.RoundToInt(16 * k), Mathf.RoundToInt(16 * k), Mathf.RoundToInt(10 * k), Mathf.RoundToInt(12 * k));
-		s_bubble.fontSize = Mathf.RoundToInt(19 * k);
+		s_bubble.fontSize = Mathf.RoundToInt(23 * k);
 		s_bubble.normal.textColor = new Color(0.16f, 0.11f, 0.06f);
 		return s_bubble;
 	}
@@ -391,16 +391,18 @@ internal static class RavenUi
 		{
 			return;
 		}
-		float size = 120f * k;
+		float size = 150f * k;
 		float gap = 18f * k;
 		// Fixed, under the minimap's corner, whatever status effects are showing.
 		float x = Screen.width - size - 28f * k - slot * (size + gap) + (1f - inA) * 50f * k;
 		float y = Screen.height * 0.27f + Mathf.Sin(Time.unscaledTime * 1.8f + slot) * 3f * k;
 		Color old = GUI.color;
 		Rect pr = new Rect(x, y, size, size);
-		GUI.color = new Color(0.1f, 0.1f, 0.14f, 0.78f * a);
-		GUI.DrawTexture(pr, Disc(false));
+		bool drawn = portrait == null;
 		portrait ??= Fallback(munin);
+		// The drawn Hugin is black, so his disc is pale; everything else sits on a dark one.
+		GUI.color = drawn && !munin && portrait != null ? new Color(0.66f, 0.72f, 0.82f, 0.92f * a) : new Color(0.1f, 0.1f, 0.14f, 0.78f * a);
+		GUI.DrawTexture(pr, Disc(false));
 		if (portrait != null)
 		{
 			GUI.color = new Color(1f, 1f, 1f, a);
