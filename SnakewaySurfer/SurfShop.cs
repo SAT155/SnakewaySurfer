@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.110 (Sam: "build the shop and make use of coins"; design in the trader abilities doc):
+// 1.16.110 (SAT: "build the shop and make use of coins"; design in the trader abilities doc):
 // coins you pick up go into a bank kept on your character. The traders by the track (any lane
 // now) stop the run and open a dreamy store window with three of their abilities. An ability
 // lasts until you beat that biome's boss or the run ends; a checkpoint retry keeps it. Its item
@@ -246,7 +246,7 @@ internal sealed partial class SurfGame
 		Cursor.visible = true;
 		float a = Mathf.SmoothStep(0f, 1f, m_shopTime / 0.35f) * s_guiAlpha;
 		Fill(new Rect(0, 0, w, h), new Color(0.05f, 0.02f, 0.1f, 0.45f * a));
-		// 1.16.150 (Sam: long notes ran over the names): wider, taller rows, notes in smaller type
+		// 1.16.150 (SAT: long notes ran over the names): wider, taller rows, notes in smaller type
 		// under the name with room for two lines.
 		float pw = Mathf.Min(900f * k, w * 0.92f);
 		float rowH = 112f * k;

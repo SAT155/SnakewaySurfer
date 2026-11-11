@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.94 (Sam: "Character deaths can make a dreamy tombstone, mimicking the regular game"):
+// 1.16.94 (SAT: "Character deaths can make a dreamy tombstone, mimicking the regular game"):
 // when a run ends on land, the game's own Player_tombstone rises out of the track where you
 // fell, pale and glowing like the rest of the dream, with a soft wisp of spirit smoke.
 internal sealed partial class SurfGame

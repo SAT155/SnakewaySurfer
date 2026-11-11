@@ -2,12 +2,12 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14.2 (Sam): fighting back by parrying. Grabbing the boss's weapon arms you; the boss closes
+// 1.14.2 (SAT): fighting back by parrying. Grabbing the boss's weapon arms you; the boss closes
 // in and swings at your lane, up to three times, each swing marked red before it lands. Parry
 // one (block just before it lands) and it staggers. Blocking or dodging keeps you safe but does
 // no harm; after three swings the weapon is spent. Eikthyr's spear and Moder's bow work their
 // own way (SurfThrow.cs, SurfBow.cs).
-// 1.16.2 (Sam): the parry staggers it (its own reeling clip, as a parried creature in the game),
+// 1.16.2 (SAT): the parry staggers it (its own reeling clip, as a parried creature in the game),
 // you get a chain of blows in with the weapon in your hands (the weapon's own clips: the
 // atgeir's three thrusts, the mace's swings), then dodge roll back away and it backs off to
 // its distance. Moder down on the track is fought this way with a silver atgeir.

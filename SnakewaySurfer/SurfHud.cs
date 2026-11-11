@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14 (Sam): the run speaks through sounds, flashes and the HUD instead of pop-up text.
+// 1.14 (SAT): the run speaks through sounds, flashes and the HUD instead of pop-up text.
 // Stamina for sprinting and blocking, parries, the red hit flash, the summoning item's icon with
 // its count, and the boss's health bar.
 internal sealed partial class SurfGame
@@ -16,7 +16,7 @@ internal sealed partial class SurfGame
 	private bool m_blocking;
 	private float m_blockPressed = -99f;
 	private float m_sprintLook;
-	// 1.16.1 (Sam): a bat in the face knocks the guard down for this long.
+	// 1.16.1 (SAT): a bat in the face knocks the guard down for this long.
 	private float m_guardDown;
 	// How far the block's slow-down has eased in (0..1).
 	private float m_blockSlow;
@@ -30,7 +30,7 @@ internal sealed partial class SurfGame
 	// When a roll was refused for want of stamina (the bar flashes red a moment).
 	private float m_staminaShort = -99f;
 
-	// 1.16.69 (Sam: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
+	// 1.16.69 (SAT: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
 	// when there isn't enough left.
 	private bool SpendRollStamina()
 	{
@@ -78,7 +78,7 @@ internal sealed partial class SurfGame
 		m_blocking = block;
 		if (m_blocking)
 		{
-			// 1.16.1 (Sam): holding the shield up tires you.
+			// 1.16.1 (SAT): holding the shield up tires you.
 			m_stamina = Mathf.Max(0f, m_stamina - Plugin.BlockHoldStamina.Value * dt);
 		}
 		bool sprint = canInput && !block && Input.GetKey(Plugin.SprintKey.Value);
@@ -102,7 +102,7 @@ internal sealed partial class SurfGame
 		}
 		AvatarBool("blocking", m_blocking);
 		m_sprintLook = Mathf.MoveTowards(m_sprintLook, m_sprinting ? 1f : 0f, dt * 4f);
-		// Slower behind the shield (1.16.1, Sam: it helps to pick a way through), easing in and
+		// Slower behind the shield (1.16.1, SAT: it helps to pick a way through), easing in and
 		// out over a quarter of a second.
 		m_blockSlow = Mathf.MoveTowards(m_blockSlow, m_blocking ? 1f : 0f, dt * 4f);
 		return m_sprinting ? Plugin.SprintSpeed.Value : Mathf.Lerp(1f, Plugin.BlockSpeed.Value, m_blockSlow);

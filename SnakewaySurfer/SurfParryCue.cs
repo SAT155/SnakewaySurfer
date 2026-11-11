@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.102 (Sam: "Just a red highlight does not give any timing information ... partial fill to
+// 1.16.102 (SAT: "Just a red highlight does not give any timing information ... partial fill to
 // full fill or similar"): in a boss fight, a ring over your head for the next blow that can be
 // parried. A faint outer ring closes in on a fixed inner ring and arrives exactly when the
 // parry window opens. Then the inner ring flashes gold until the blow lands. No text.
@@ -71,7 +71,7 @@ internal sealed partial class SurfGame
 		return best;
 	}
 
-	// 1.16.150 (Sam: the ring over your head distracted more than it helped; put the circle on
+	// 1.16.150 (SAT: the ring over your head distracted more than it helped; put the circle on
 	// the red tiles, and turn them yellow when a parry would work): a ring lying on the ground in
 	// your lane closes in on you as the blow comes, and every red warning tile turns yellow while
 	// the parry window is open.

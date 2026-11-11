@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 namespace SnakewaySurfer;
 
-// 1.16.3 (Sam: a wind gauge like the game's): a ring round the ship's wheel with a dark arc on
+// 1.16.3 (SAT: a wind gauge like the game's): a ring round the ship's wheel with a dark arc on
 // the side the wind comes from: the no-go zone, the headings a sail can't drive on
 // (Ship.GetWindAngleFactor gives no drive once the bow is within about 37 to 41 degrees of the
 // wind; WindAngleFactor here is the same). The wind's icon rides the ring in the middle of it,
@@ -77,7 +77,7 @@ internal sealed partial class SurfGame
 		float pulse = 1f + 0.25f * m_windShift * Mathf.Abs(Mathf.Sin(Time.time * 10f));
 		Color tint = Color.Lerp(new Color(0.25f, 0.25f, 0.25f), Color.white, factor);
 		float from = (m_windAngle + 180f) * Mathf.Deg2Rad;
-		// 1.16.80 (Sam): it circles just outside the ring, not on it.
+		// 1.16.80 (SAT): it circles just outside the ring, not on it.
 		Vector2 at = rose.center + new Vector2(Mathf.Sin(from), -Mathf.Cos(from)) * (rose.width * 0.5f * 1.22f);
 		float ws = rose.width * 0.27f * pulse;
 		Rect icon = new Rect(at.x - ws * 0.5f, at.y - ws * 0.5f, ws, ws);

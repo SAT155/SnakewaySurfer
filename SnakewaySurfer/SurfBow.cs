@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.2 (Sam): Moder is shot down with the Draugr Fang and obsidian arrows, aimed with the
+// 1.16.2 (SAT): Moder is shot down with the Draugr Fang and obsidian arrows, aimed with the
 // mouse through the game's own crosshair, instead of a ballista. Grabbing the arrows stops the
 // run for a few seconds: the bow is in your hand, she weaves over the track, and you hold to
 // draw (the bow's own draw clip; the circle closes in and turns yellow as in Hud.UpdateCrosshair)

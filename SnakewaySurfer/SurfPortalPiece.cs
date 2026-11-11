@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.84 (Sam): "add a portal building that you can build and place with hammer that only costs
+// 1.16.84 (SAT): "add a portal building that you can build and place with hammer that only costs
 // ectoplasm and feathers. Be sure to set it's category appropriately. ... these can be set for
 // the different biomes if a user just wants to go straight to running, reset them to make em
 // revert back to sleep required to start dream."
@@ -17,7 +17,7 @@ namespace SnakewaySurfer;
 internal static class SurfPortalPiece
 {
 	public const string PrefabName = "piece_surf_strangeportal";
-	// 1.16.x (Sam: "It needs to work for some players without any mods"): a built Strange Portal
+	// 1.16.x (SAT: "It needs to work for some players without any mods"): a built Strange Portal
 	// is saved as the vanilla wooden portal plus this ZDO flag. Players and servers without the
 	// mod see a plain wooden portal instead of logging "Missing prefab hash" every frame; modded
 	// players turn it back into the Strange Portal as it loads (TeleportWorldAwake below).

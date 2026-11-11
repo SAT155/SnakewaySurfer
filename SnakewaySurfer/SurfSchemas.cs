@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// The creature schemas Sam picked (Schemas.cs): formations, lane markers, sweeps, gas lanes,
+// The creature schemas SAT picked (Schemas.cs): formations, lane markers, sweeps, gas lanes,
 // leaps, crossings, chasers from behind, lobbed rocks and patches, helpers, and star looks.
 internal sealed partial class SurfGame
 {
@@ -84,14 +84,14 @@ internal sealed partial class SurfGame
 		}
 		if (s.Has("chaser") || (s.Has("behind") && Random.value < 0.35f))
 		{
-			// (1.16.1, Sam: leeches also swim up from behind.)
+			// (1.16.1, SAT: leeches also swim up from behind.)
 			Thing c = SpawnCreature(e, lane, z, Kind.Block, 0f, biomeIndex, "still");
 			MakeChaser(c, false);
 			return true;
 		}
 		if (s.Has("sideline") && Random.value < 0.45f && CreatureInfo.Of(e.Prefab).Ranged.Count > 0 && Plugin.RangedAttacks.Value)
 		{
-			// 1.16.1 (Sam): draugr shoot arrows from the swamp's sidelines: one or two on a bank
+			// 1.16.1 (SAT): draugr shoot arrows from the swamp's sidelines: one or two on a bank
 			// beside the track, loosing at your lane as you come (roll under, or change lanes).
 			int bank = Random.value < 0.5f ? -1 : 1;
 			int count = Random.value < 0.4f ? 2 : 1;
@@ -216,7 +216,7 @@ internal sealed partial class SurfGame
 		}
 		if (s.Has("chaser") && Random.value < 0.5f)
 		{
-			// 1.16.1 (Sam): a wraith drifts up behind you, low, and swipes your lane (step aside
+			// 1.16.1 (SAT): a wraith drifts up behind you, low, and swipes your lane (step aside
 			// or jump); its marked lane shows where.
 			MakeChaser(t, false);
 			t.BaseY = 0.4f;
@@ -312,7 +312,7 @@ internal sealed partial class SurfGame
 				t.HitLanes = ChooseLanes(t);
 				foreach (int lane in t.HitLanes)
 				{
-					// 1.16.1 (Sam: it wasn't clear what to do with slime gas): gas over every
+					// 1.16.1 (SAT: it wasn't clear what to do with slime gas): gas over every
 					// lane is marked blue, the colour that means roll under it.
 					t.Markers.Add(MakeMarker(lane, t.Z - 2f, 3.6f, t.Move == "gas3" ? SlideMaterial : m_markerMaterial));
 				}
@@ -680,7 +680,7 @@ internal sealed partial class SurfGame
 					to = nearest == 0 ? 1 : 1;
 				}
 				t.TargetX = LaneX(to);
-				// 1.16.1 (Sam): slow swimmers (leeches) weave more slowly than wolves.
+				// 1.16.1 (SAT): slow swimmers (leeches) weave more slowly than wolves.
 				float pace = Mathf.Clamp((t.Info?.RunSpeed ?? 6f) / 6f, 0.45f, 1f);
 				t.XSpeed = t.Meander ? 1.3f : 4.5f * pace;
 				t.SwitchTimer = t.Meander ? Random.Range(1.6f, 3f) : Random.Range(0.8f, 1.4f) / pace;
@@ -708,7 +708,7 @@ internal sealed partial class SurfGame
 		{
 			// Timed so the herd is on the track as you get there: the first one just past the
 			// middle, so the lane on the side they came from clears and the others don't.
-			// 1.14 (Sam: deer appeared out of nowhere, sideswiping at the perfect moment): they
+			// 1.14 (SAT: deer appeared out of nowhere, sideswiping at the perfect moment): they
 			// cross slower, and first they startle (a sound, and the lanes they'll cross light
 			// up) about a second and a half before they bolt.
 			float speed = (2f * TrackHalf + 11f) / 2.3f;
@@ -755,7 +755,7 @@ internal sealed partial class SurfGame
 	{
 		if (t.Phase == 0)
 		{
-			// 1.14 (Sam): it waits longer, then leaps further than you'd expect (up to 14 m).
+			// 1.14 (SAT): it waits longer, then leaps further than you'd expect (up to 14 m).
 			if (distance < m_speed * 1.35f + 8f && distance > 4f)
 			{
 				t.Phase = 1;
@@ -969,7 +969,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		float slope = Mathf.Atan2(RoadY(z + 1f) - RoadY(z - 1f), 2f) * Mathf.Rad2Deg;
-		// 1.16.2 (Sam: abominations showed no lane markers): in the Swamp the water lies above the
+		// 1.16.2 (SAT: abominations showed no lane markers): in the Swamp the water lies above the
 		// road, so markers there sit on its surface instead of under it.
 		marker.transform.localPosition = new Vector3(LaneX(lane), RoadY(z) + 0.08f + WaterWeight(z) * WaterDepth, z);
 		marker.transform.localRotation = Quaternion.Euler(90f - slope, 0f, 0f);
@@ -1012,7 +1012,7 @@ internal sealed partial class SurfGame
 		return tex;
 	}
 
-	// 1.14.2 (Sam: the gas was a green see-through ball): a drifting, churning cloud of soft
+	// 1.14.2 (SAT: the gas was a green see-through ball): a drifting, churning cloud of soft
 	// green puffs filling the lane, over a faint green patch on the ground. Scaling the returned
 	// object stretches the cloud (only its shape, not the puffs).
 	private GameObject MakeCloud(int lane, float z, bool high = false)

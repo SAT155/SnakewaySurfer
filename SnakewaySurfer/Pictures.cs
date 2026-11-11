@@ -138,7 +138,7 @@ internal static class Pictures
 
 	public static void Strip(GameObject go)
 	{
-		// 1.16.70 (Sam: "These birds are stuck in the sky"): a place's own birds (gulls, crows)
+		// 1.16.70 (SAT: "These birds are stuck in the sky"): a place's own birds (gulls, crows)
 		// fly by their RandomFlyingBird script; stripped of it they hang frozen, so they go.
 		foreach (MonoBehaviour mb in go.GetComponentsInChildren<MonoBehaviour>(true))
 		{

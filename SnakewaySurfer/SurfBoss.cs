@@ -333,7 +333,7 @@ internal sealed partial class SurfGame
 		UpdateBoss(dt);
 	}
 
-	// 1.16.1 (Sam): where the first summoning item of a stretch may come up: 30 to 50 seconds
+	// 1.16.1 (SAT): where the first summoning item of a stretch may come up: 30 to 50 seconds
 	// into it, never right as the biome begins.
 	private Segment? m_itemStartSeg;
 	private float m_itemStartZ;
@@ -348,7 +348,7 @@ internal sealed partial class SurfGame
 			m_itemStartSeg = s;
 			m_itemStartZ = s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
 		}
-		// 1.16.109 (Sam): with a dungeon in the biome, not before you're out the far end of it.
+		// 1.16.109 (SAT): with a dungeon in the biome, not before you're out the far end of it.
 		if (boss != null && !float.IsNaN(CryptExitFor(s)) && z < CryptExitFor(s) + 10f)
 		{
 			return false;
@@ -363,7 +363,7 @@ internal sealed partial class SurfGame
 		{
 			return false;
 		}
-		// 1.16.1 (Sam): the fewer a boss needs, the rarer each one is (two deer trophies are far
+		// 1.16.1 (SAT): the fewer a boss needs, the rarer each one is (two deer trophies are far
 		// apart; ten withered bones come as before).
 		float spacing = Mathf.Max(16f, Plugin.BiomeLength.Value / (boss.Amount * 1.7f)) * Mathf.Clamp(6f / Mathf.Max(1, boss.Amount), 1f, 3f);
 		if (z > s.Start + Plugin.BiomeLength.Value)
@@ -417,7 +417,7 @@ internal sealed partial class SurfGame
 	private Thing SpawnPickup(GameObject template, int lane, float z, Kind kind)
 	{
 		bool weapon = kind == Kind.BossHit;
-		// 1.16.150 (Sam: hard to see in the Eikthyr fight): what you hurt a boss with is bigger,
+		// 1.16.150 (SAT: hard to see in the Eikthyr fight): what you hurt a boss with is bigger,
 		// stands in a pillar of light, and glows brighter.
 		GameObject go = Fitted(template, weapon ? Quaternion.Euler(0f, 0f, 35f) : Quaternion.identity, Vector3.one * (weapon ? 1.5f : 0.9f), true, 3f);
 		const float y = 1.0f;
@@ -584,7 +584,7 @@ internal sealed partial class SurfGame
 
 	private static string Localize(string text) => Localization.instance != null ? Localization.instance.Localize(text) : text;
 
-	// 1.16.150 (Sam: little difference between star levels): from 2 stars a boss sometimes
+	// 1.16.150 (SAT: little difference between star levels): from 2 stars a boss sometimes
 	// follows one move straight up with another (unless the move held the next one back).
 	private void StarFollowUp(int stars, float interval)
 	{
@@ -792,7 +792,7 @@ internal sealed partial class SurfGame
 	}
 
 	// Where a move lands: this far ahead of you, so you see the marks for about `seconds`.
-	// 1.16.2 (Sam: boss attacks popped into existence too close): BossLead metres further down
+	// 1.16.2 (SAT: boss attacks popped into existence too close): BossLead metres further down
 	// the track, so they show well before you reach them. A boss standing on the track still
 	// lands its blows between you and it.
 	private const float BossLead = 10f;
@@ -1029,7 +1029,7 @@ internal sealed partial class SurfGame
 				break;
 			}
 			case "branches":
-				// 1.16.1 (Sam): the Elder's maze of six paths, longer as the fight goes on.
+				// 1.16.1 (SAT): the Elder's maze of six paths, longer as the fight goes on.
 				SpawnMaze(def, b, m_bossHits >= 2 ? 8 : 6);
 				break;
 			case "grab":
@@ -1088,7 +1088,7 @@ internal sealed partial class SurfGame
 			}
 			else if (look == "meteor")
 			{
-				// 1.16.102 (Sam: meteors didn't look like the game's): the game's own meteor falls
+				// 1.16.102 (SAT: meteors didn't look like the game's): the game's own meteor falls
 				// out of the sky onto the marked spot and bursts with its own impact.
 				strike = new GameObject("MeteorStrike");
 				strike.layer = m_layer;
@@ -1138,7 +1138,7 @@ internal sealed partial class SurfGame
 				Label = def.Name,
 				CrashText = $"{def.Name} got you in the {biome}! (Watch the marked lanes.)",
 				Life = arrive + 1.5f + (length > 3f ? length / Mathf.Max(1f, m_speed) : 0f),
-				// 1.16.1 (Sam: Bonemass's gas clouds appeared much too close): gas billows up
+				// 1.16.1 (SAT: Bonemass's gas clouds appeared much too close): gas billows up
 				// where it's marked, well down the track, and hangs there as you come; other
 				// strikes still show as you arrive.
 				FireIn = look == "gas" ? 0.05f : Mathf.Max(0.05f, arrive - 0.5f),
@@ -1258,7 +1258,7 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// Something low across a lane to jump. 1.16.102 (Sam: no unnatural cut logs in boss fights):
+	// Something low across a lane to jump. 1.16.102 (SAT: no unnatural cut logs in boss fights):
 	// the boss's own shockwave rolling along the ground, glowing in its colour with its attack's
 	// impact effect. The Elder, a tree, still sends a root across.
 	private Thing BossLow(BiomeRuntime b, int lane, float z, BossDef def)
@@ -1292,7 +1292,7 @@ internal sealed partial class SurfGame
 		root.transform.SetParent(m_stage, false);
 		if (def.Prefab == "Eikthyr")
 		{
-			// 1.16.150 (Sam: the yellow-marked bars looked like odd logs): Eikthyr's is a crackle
+			// 1.16.150 (SAT: the yellow-marked bars looked like odd logs): Eikthyr's is a crackle
 			// of his lightning running along the ground across the lane.
 			Crackle crackle = root.AddComponent<Crackle>();
 			crackle.Glow = BoltLine(root, false, "Glow");
@@ -1556,7 +1556,7 @@ internal sealed partial class SurfGame
 	private Quaternion m_bossDeathRot;
 	private float m_bossDeathSide = 1f;
 
-	// 1.14.2 (Sam: bosses just sank away): its own death, from the game: the death effects and
+	// 1.14.2 (SAT: bosses just sank away): its own death, from the game: the death effects and
 	// sounds (Character.m_deathEffects, minus the ragdoll, which needs physics), a last stagger,
 	// and it topples over before the ground takes it.
 	private void BossDeath(BossDef def)

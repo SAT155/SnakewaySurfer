@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 namespace SnakewaySurfer;
 
-// 1.16.16 (Sam): runs load behind the game's own portal loading screen (the black screen with the
+// 1.16.16 (SAT): runs load behind the game's own portal loading screen (the black screen with the
 // swirling portal you see when you teleport), and the very first run starts with a dream instead
 // of the start menu: lines of vague dream text fading in and out on the black, in the game's own
 // dream-text look (the one you see when you sleep), before the run fades in.
@@ -40,7 +40,7 @@ internal sealed partial class SurfGame
 	private const float DreamStay = 3.2f;
 	private const float DreamOut = 1.5f;
 	private const float DreamGap = 0.5f;
-	// 1.16.69 (Sam): the portal's swirl first, then the dream (seconds of swirl left).
+	// 1.16.69 (SAT): the portal's swirl first, then the dream (seconds of swirl left).
 	private float m_dreamPortal;
 	private const float DreamPortalTime = 2.2f;
 
@@ -57,7 +57,7 @@ internal sealed partial class SurfGame
 	private bool Loading => m_loadTime >= 0f;
 
 	// Black, then `action` once nothing shows, then the run fades in.
-	// 1.16.79 (Sam: "The loading screen should not be after the dream menu. Only before it. We
+	// 1.16.79 (SAT: "The loading screen should not be after the dream menu. Only before it. We
 	// need a different screen effect to transition from menu to ingame"): from the menu (or a
 	// retry) into the run the screen ripples like water into a warm haze and back (DrawWave).
 	// The portal's loading screen is only for coming in (CoverNow).
@@ -188,7 +188,7 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// 1.16.79 (Sam: "During the loading screen, the background flickers between the loaded world
+	// 1.16.79 (SAT: "During the loading screen, the background flickers between the loaded world
 	// and a black screen"): the game's own screen lets the world through now and then, so a
 	// black sheet of our own sits just under it on a canvas of its own.
 	private GameObject? m_loadBack;
@@ -483,7 +483,7 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// 1.16.79 (Sam: "Something dreamy that maybe distorts the entire screen in a wave-like
+	// 1.16.79 (SAT: "Something dreamy that maybe distorts the entire screen in a wave-like
 	// manner"): the view is drawn again into a texture and laid back on the screen in thin rows,
 	// each pushed sideways by rolling waves, so the whole picture ripples like water while a warm
 	// haze rises over it; the run is set up behind the haze and ripples back in as it calms.
@@ -491,11 +491,11 @@ internal sealed partial class SurfGame
 
 	private bool DrawWave(float cover) => DrawWaveFrom(m_waveRt, cover);
 
-	// Also the strange portals' way through (1.16.92, Sam: "The dream screen transition/sound is
+	// Also the strange portals' way through (1.16.92, SAT: "The dream screen transition/sound is
 	// what you should use instead of the portal loading screens").
 	internal const string WaveSound = "sfx_demister_start|sfx_runestone_interact";
 
-	// 1.16.93 (Sam had a crash to desktop): the view is copied in LateUpdate, at half size, not
+	// 1.16.93 (SAT had a crash to desktop): the view is copied in LateUpdate, at half size, not
 	// from inside OnGUI, which only lays the copy back down.
 	internal static void CaptureWave(Camera? cam, ref RenderTexture? rt)
 	{

@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.124 (Sam: Yagluth needs a gimmick; "you have to aim it back at him"): when Yagluth
+// 1.16.124 (SAT: Yagluth needs a gimmick; "you have to aim it back at him"): when Yagluth
 // charges his beam, the Fuling totems you gathered to summon him come up in your hand. Move the
 // mouse to hold a totem over him as the beam lands: it bounces back and burns him (a boss hit).
 // Aim off him and the beam comes down your lane (get out of it). Five totems, one per bounce.

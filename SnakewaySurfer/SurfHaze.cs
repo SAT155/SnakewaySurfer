@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.69 (Sam: "The fog doesn't work"): through the game's camera its own fog doesn't always
+// 1.16.69 (SAT: "The fog doesn't work"): through the game's camera its own fog doesn't always
 // reach our track (the game's shaders and post effects keep their own idea of it), so the far
 // end of the track stopped crisply against the sky. Layers of thin haze now stand across the
 // view towards the end of the track, each a sheet of fog colour that fades out upwards, so

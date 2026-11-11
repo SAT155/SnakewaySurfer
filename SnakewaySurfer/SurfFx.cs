@@ -79,7 +79,7 @@ internal sealed partial class SurfGame
 	}
 
 	// A torch or fire copy burning: a fireplace keeps its flames on inactive children (its
-	// "enabled" objects, switched by fuel), which a lifeless copy never turns on (1.14.2, Sam:
+	// "enabled" objects, switched by fuel), which a lifeless copy never turns on (1.14.2, SAT:
 	// the torches weren't lit).
 	private void LightUp(GameObject go)
 	{
@@ -222,7 +222,7 @@ internal sealed partial class SurfGame
 			Plugin.Log.LogInfo($"No weather found for {def.Name}'s arena (tried '{(m_locationEnv.TryGetValue(def.Location, out string z) ? z : "")}', '{def.Env}').");
 			return;
 		}
-		// Its rain, snow or ash, following our camera. 1.14 (Sam saw no rain at Eikthyr): when
+		// Its rain, snow or ash, following our camera. 1.14 (SAT saw no rain at Eikthyr): when
 		// its own place's weather has none, the first of its fallback weathers that has some.
 		GameObject[] systems = m_bossEnv.m_psystems ?? new GameObject[0];
 		if (systems.Length == 0 && EnvMan.instance != null)

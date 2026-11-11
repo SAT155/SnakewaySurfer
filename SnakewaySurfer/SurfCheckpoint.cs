@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.79 (Sam: "Island's are kind of like sub-checkpoints if you think about it. Maybe we can
+// 1.16.79 (SAT: "Island's are kind of like sub-checkpoints if you think about it. Maybe we can
 // introduce checkpoints now to all of the biomes. Ofcourse only one checkpoint should ever be
 // saved since it is just an ad hoc save to reload to in the middle of a biome ... When you die
 // you have the option to restart from last checkpoint in a biome"):
@@ -98,7 +98,7 @@ internal sealed partial class SurfGame
 		if (items > 0 && BossFor(first) is BossDef boss && items >= boss.Amount)
 		{
 			m_itemsPlanned = first;
-			// 1.16.150 (Sam): a retry at the boss is straight to the boss, no new monsters on the way.
+			// 1.16.150 (SAT): a retry at the boss is straight to the boss, no new monsters on the way.
 			m_quietToBoss = true;
 		}
 		Plugin.Log.LogInfo($"From the checkpoint: {Progress.Describe(biome, stars)}, {along:0} m in, {items} item(s).");
@@ -118,7 +118,7 @@ internal sealed partial class SurfGame
 		Segment here = SegAt(m_z);
 		if (StoneStretch(here) && !m_halfPlanned.Contains(here))
 		{
-			// 1.16.109 (Sam): a biome's dungeon exit is its checkpoint, when it has one.
+			// 1.16.109 (SAT): a biome's dungeon exit is its checkpoint, when it has one.
 			float half = !float.IsNaN(CryptExitFor(here)) ? CryptExitFor(here) + 12f : here.Start + Plugin.BiomeLength.Value * 0.5f;
 			if (half < m_z + 15f || here.End < half + 20f)
 			{

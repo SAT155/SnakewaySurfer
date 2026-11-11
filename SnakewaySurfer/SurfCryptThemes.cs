@@ -99,7 +99,7 @@ internal sealed partial class SurfGame
 	{
 		Name = "burial chamber",
 		Biome = "Black Forest",
-		// 1.16.150 (Sam: burial chambers are caves with wooden doors, not stone halls): rough rock
+		// 1.16.150 (SAT: burial chambers are caves with wooden doors, not stone halls): rough rock
 		// walls and floor, timber props along the walls, shut wooden doors at the dead ends.
 		Rooms = 0,
 		Rocky = true,
@@ -160,7 +160,7 @@ internal sealed partial class SurfGame
 		Fog = new Color(0.01f, 0.02f, 0.012f),
 		Idle = "sfx_draugr_idle",
 		IdleRare = "sfx_blob_idle",
-		// 1.16.150 (Sam: hard to see in the swamp crypt): the game's green torches every 9 m or so.
+		// 1.16.150 (SAT: hard to see in the swamp crypt): the game's green torches every 9 m or so.
 		SconceGap = 9f,
 		StandingSconce = true,
 		Sconce = "piece_groundtorch_green|piece_groundtorch_wood",

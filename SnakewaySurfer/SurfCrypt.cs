@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.4 (Sam: "The burial chamber dungeon could include like 90 degree turns or something like
+// 1.16.4 (SAT: "The burial chamber dungeon could include like 90 degree turns or something like
 // moving around tight corners in the dark hallway. with lots of skeletons in a hallway and such.
 // Maybe a ghost or skeleton spawner every now and then. Perhaps the dungeons could all be
 // top-down. Similar to the sailing one. A torch would definitely be used in the burial
@@ -22,15 +22,15 @@ namespace SnakewaySurfer;
 // unchanged. After the exit the last frame becomes the stage again.
 internal sealed partial class SurfGame
 {
-	// 1.16.79 (Sam: "Dungeon hallways can be much much larger"): 5 m of floor beside the lanes
+	// 1.16.79 (SAT: "Dungeon hallways can be much much larger"): 5 m of floor beside the lanes
 	// (was 1.2), taller walls (WallH) and the camera higher to take it in.
-	// 1.16.150 (Sam: the high camera in dungeons was disorienting, and the floor's three tiles
+	// 1.16.150 (SAT: the high camera in dungeons was disorienting, and the floor's three tiles
 	// didn't match the three lanes): one flagstone per lane and a strip beside them, and the
 	// camera stays behind you as on the open track.
 	private const float CryptHalf = TrackHalf + 1.2f;
 	private const float CryptWall = 0.6f;
 	// How far before a corner the turn can be pressed, and where you wait if you haven't.
-	// 1.16.20 (Sam pressed D at a corner and hit the wall): a press a little early was taken as a
+	// 1.16.20 (SAT pressed D at a corner and hit the wall): a press a little early was taken as a
 	// lane change, and the window was under a second at speed. Now it's about 1.6 s, a press
 	// toward the opening just before it still counts, and being in the lane on the opening's side
 	// when you reach the corner takes the turn too.
@@ -70,7 +70,7 @@ internal sealed partial class SurfGame
 		// +1 turns right, -1 left.
 		public readonly List<int> Dirs = new();
 		public readonly List<bool> Armed = new();
-		// 1.16.22 (Sam): the camera turns once you've pressed for the corner (0 to 1 each), and a
+		// 1.16.22 (SAT): the camera turns once you've pressed for the corner (0 to 1 each), and a
 		// gust of wind ahead of you beckons the way until you do (SurfGust.cs).
 		public readonly List<float> CamTurn = new();
 		public float NextWhoosh;
@@ -172,7 +172,7 @@ internal sealed partial class SurfGame
 		}
 		foreach (float c in m_crypt.Corners)
 		{
-			// 1.16.150 (Sam: monsters right round a corner aren't fair): a second or so of clear
+			// 1.16.150 (SAT: monsters right round a corner aren't fair): a second or so of clear
 			// hall after each turn.
 			if (z > c - Mathf.Max(16f, TurnWindow + 4f) && z < c + Mathf.Max(12f, m_speed * 1.4f + 6f))
 			{
@@ -257,7 +257,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			float len = Plugin.BiomeLength.Value;
-			// 1.16.109 (Sam: dungeons too short): about twice as long; a biome with a boss waits for
+			// 1.16.109 (SAT: dungeons too short): about twice as long; a biome with a boss waits for
 			// its dungeon (its items only come after it), so it may run past the biome's usual end.
 			float length = Mathf.Clamp(Mathf.Round(len * 0.9f / GroundTile) * GroundTile, theme.MinLength * 1.8f, theme.MaxLength * 1.8f);
 			float start = Mathf.Ceil((s.Start + Mathf.Max(120f, len * 0.25f)) / GroundTile) * GroundTile;
@@ -310,7 +310,7 @@ internal sealed partial class SurfGame
 			c.Dirs.Add(-d);
 			net += d;
 			z += side;
-			// 1.16.109 (Sam: halls too alike, could be much longer): short and long ones mixed.
+			// 1.16.109 (SAT: halls too alike, could be much longer): short and long ones mixed.
 			float north = Random.value < 0.3f ? Random.Range(14f, 24f) : Random.Range(30f, 80f);
 			if (z + north + 14f + 30f > end)
 			{
@@ -1264,7 +1264,7 @@ internal sealed partial class SurfGame
 			}
 			yaw += c.Dirs[i] * 90f * Mathf.SmoothStep(0f, 1f, c.CamTurn[i]);
 		}
-		// 1.16.112 (Sam: the smoke cue isn't working out): the corner gust is gone.
+		// 1.16.112 (SAT: the smoke cue isn't working out): the corner gust is gone.
 		RemoveGust();
 		Vector3 focus = StagePoint(new Vector3(m_x * 0.6f, c.Floor + m_y * 0.4f, m_z));
 		if (!m_cryptFocusSet)

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14 (Sam): running through the swamp's water leaves ripples, and your steps splash.
+// 1.14 (SAT): running through the swamp's water leaves ripples, and your steps splash.
 internal sealed partial class SurfGame
 {
 	private sealed class Ripple
@@ -62,7 +62,7 @@ internal sealed partial class SurfGame
 		AddRipple(m_x + Random.Range(-0.2f, 0.2f), surface, m_z, strength);
 	}
 
-	// 1.16.1 (Sam): creatures in the swamp's water ripple it too (leeches swimming, draugr wading).
+	// 1.16.1 (SAT): creatures in the swamp's water ripple it too (leeches swimming, draugr wading).
 	private void CreatureRipples(Thing t, float dt)
 	{
 		if (t.Go == null || !t.Go.activeInHierarchy || m_biomes.Count == 0 || WaterWeight(t.Z) < 0.5f || Mathf.Abs(t.Z - m_z) > 45f)
@@ -85,7 +85,7 @@ internal sealed partial class SurfGame
 		AddRipple(p.x + Random.Range(-0.3f, 0.3f), RoadY(t.Z) + WaterDepth, p.z + Random.Range(-0.3f, 0.3f), moving ? 0.6f : 0.35f);
 	}
 
-	// 1.16.3 (Sam: the serpent "should squiggle along, not straight-line it like the leech"):
+	// 1.16.3 (SAT: the serpent "should squiggle along, not straight-line it like the leech"):
 	// a leech's body swings from side to side as it swims and turns into the way it's going
 	// when it changes lanes, instead of sliding over sideways. The swing is on the creature
 	// inside its wrapper, so whatever else turns the wrapper still does.

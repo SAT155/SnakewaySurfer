@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.15 (Sam): the run's messages come from Hugin, the tutorial raven. He flies in at the top
+// 1.16.15 (SAT): the run's messages come from Hugin, the tutorial raven. He flies in at the top
 // right of the screen, out of the way, with the game's own animation, says it in the game's own
 // speech popup (the one he uses in the world), and flies off the game's way once it's said. A
 // new message while he's there just replaces what he's saying.

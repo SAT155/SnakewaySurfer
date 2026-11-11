@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.10 (Sam's notes in the gap doc): the game's traders as rare stops along the track. Haldor
+// 1.16.10 (SAT's notes in the gap doc): the game's traders as rare stops along the track. Haldor
 // in the Black Forest, the Bog Witch in the Swamp, and Hildir in the Meadows once you're on the
 // 1-star lap or later. One stands at the edge of the track in front of their camp, lit by a
 // lantern, with a line of coins and a gold mark along the lane on their side. They greet you as
@@ -34,7 +34,7 @@ internal sealed partial class SurfGame
 			Greet = "sfx_hildir_hello", Trade = "sfx_hildir_trade|sfx_hildir_talk", Bye = "sfx_hildir_bye",
 			Lamp = new Color(1f, 0.72f, 0.5f),
 		},
-		// 1.16.150 (Sam never met a trader to try the shop): Haldor also keeps a stall in the
+		// 1.16.150 (SAT never met a trader to try the shop): Haldor also keeps a stall in the
 		// 0-star Meadows, until Hildir takes over from 1 star.
 		new TraderDef
 		{
@@ -346,7 +346,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			t.Done = true;
-			// 1.16.110 (Sam: the shop should work from all 3 lanes): passing them in any lane stops
+			// 1.16.110 (SAT: the shop should work from all 3 lanes): passing them in any lane stops
 			// the run at their store.
 			Trade(t);
 		}

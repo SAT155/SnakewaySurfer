@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14.2 (Sam): `surfsup` opens a grid of the places you can start from, one button per biome
+// 1.14.2 (SAT): `surfsup` opens a grid of the places you can start from, one button per biome
 // (across) and star lap (down), each in its biome's colours with its boss's summoning item and
 // its stars. After a crash: run again from the same start, retry the biome you fell in, or
 // go back to the grid.
@@ -20,7 +20,7 @@ internal sealed partial class SurfGame
 	// Every IMGUI colour is multiplied by this (menu fades, the loading screen fading out).
 	private static float s_guiAlpha = 1f;
 
-	// 1.16.16 (Sam): the menu comes and goes like a dream. It drifts in out of a slow swirl, its
+	// 1.16.16 (SAT): the menu comes and goes like a dream. It drifts in out of a slow swirl, its
 	// buttons float and sway, the one you're on swells with a soft glow, and when you pick one it
 	// brightens while the others drift apart and fade.
 	private float m_menuOpen;
@@ -338,7 +338,7 @@ internal sealed partial class SurfGame
 				Plugin.Difficulty.Value = d;
 				MenuHoverSound();
 			}
-			// 1.16.150 (Sam: the chosen one wrapped onto three lines round its marks): one line,
+			// 1.16.150 (SAT: the chosen one wrapped onto three lines round its marks): one line,
 			// the chosen word gold and bright.
 			s_guiAlpha = baseAlpha * shown * (chosen ? 0.85f + 0.15f * Mathf.Sin(t * 2f) : 0.35f);
 			m_midLine ??= new GUIStyle(m_mid!) { wordWrap = false, richText = true, clipping = TextClipping.Overflow };
@@ -398,7 +398,7 @@ internal sealed partial class SurfGame
 		pos.x += Mathf.Sin(t * 0.7f + seed) * 2f * k * a;
 		float tilt = Mathf.Sin(t * 0.8f + seed * 1.3f) * 1.4f * a + swirl * 0.3f;
 		// The one you're on swells and rises, then keeps breathing and swaying gently
-		// (1.16.78, Sam: the hover should be animated too), with a little overshoot as it comes.
+		// (1.16.78, SAT: the hover should be animated too), with a little overshoot as it comes.
 		float ease = Smooth(hv);
 		float pop = Mathf.Sin(hv * Mathf.PI) * 0.04f;
 		scale *= 1f + 0.08f * ease + pop + 0.025f * ease * Mathf.Sin(t * 3.2f + seed);

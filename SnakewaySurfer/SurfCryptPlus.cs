@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.109 (Sam's dungeon notes):
+// 1.16.109 (SAT's dungeon notes):
 // - Forks: in some long halls the way splits into three walled passages, one per lane, and only
 //   one goes on. The other two end in a wall in the dark. Pick your lane before the split, by
 //   the warm light at the far end of the open passage.
@@ -14,7 +14,7 @@ namespace SnakewaySurfer;
 //   and its exit is the biome's checkpoint.
 internal sealed partial class SurfGame
 {
-	// 1.16.150 (Sam's sketch: "a 3 branch type maze with only one of the branches having the
+	// 1.16.150 (SAT's sketch: "a 3 branch type maze with only one of the branches having the
 	// correct way out"): at a junction the hall opens three ways, left, ahead and right. Your
 	// lane picks the branch (left lane left, middle ahead, right lane right; at a corner a press
 	// toward the opening still turns). Two of them are dark dead ends: you come back out at the
@@ -66,7 +66,7 @@ internal sealed partial class SurfGame
 			if (sunken && digs < 5 && leg.Index > 0 && to - from > 14f)
 			{
 				// A chamber behind a mud bank; draugr rise behind most of them, well past it
-				// (1.16.150, Sam: they rose right behind the bank, where you couldn't get by).
+				// (1.16.150, SAT: they rose right behind the bank, where you couldn't get by).
 				DigWall d = new DigWall { Z = from + 2f, Burst = Random.value < 0.65f };
 				m_digs.Add(d);
 				digs++;

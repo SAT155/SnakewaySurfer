@@ -5,7 +5,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16 (Sam): before the Plains you cross the ocean. The track runs down a beach to a longship;
+// 1.16 (SAT): before the Plains you cross the ocean. The track runs down a beach to a longship;
 // you leap aboard and the camera rises above it. Steer with the rudder (A/D), set the sail
 // (W/S: oars, half or full, as in the game) and fire the bow ballista (Throw Key) at what comes
 // out of the sea. The wind never stops and turns now and then; the ship's speed follows the
@@ -24,7 +24,7 @@ internal sealed partial class SurfGame
 
 	// The biome the crossing leads to.
 	private const int SeaTo = 4;
-	// 1.16.79 (Sam: "The ocean play area should be much bigger"): twice as wide (was 24).
+	// 1.16.79 (SAT: "The ocean play area should be much bigger"): twice as wide (was 24).
 	private const float SeaHalfWidth = 48f;
 	private const float ShoreRamp = 70f;
 	private const float MaxHeading = 75f;
@@ -136,7 +136,7 @@ internal sealed partial class SurfGame
 
 	// The land near a shore sinks toward the sea floor: a sandy bay where the track runs down,
 	// the land beside it holding up longer and dropping steeply, like headlands either side.
-	// 1.16.3 (Sam: open water around the beached ship): the land beside the track goes under
+	// 1.16.3 (SAT: open water around the beached ship): the land beside the track goes under
 	// sooner than the track, so the beach runs out as a spit with the sea on both sides of the
 	// ship (it used to hold up longer, like headlands). At sea the islands rise from the floor.
 	private float ShoreLand(float y, float x, float z, ref float veg)
@@ -288,7 +288,7 @@ internal sealed partial class SurfGame
 		}
 		Transform? helm = ship != null && ship.m_shipControlls != null ? Find(ship.m_shipControlls.m_attachPoint) : null;
 		m_helmLocal = helm != null ? go.transform.InverseTransformPoint(helm.position) : new Vector3(0f, m_keelLocalY + 1.6f, m_centerLocalZ - m_shipLength * 0.36f);
-		// Once a crossing, for tuning from Sam's logs.
+		// Once a crossing, for tuning from SAT's logs.
 		Plugin.Log.LogInfo($"Ship: {prefab?.name} length {m_shipLength:0.0}, beam {m_shipBeam:0.0}, keel {m_keelLocalY:0.0}, helm {m_helmLocal}, mast {m_mast != null}, sail {m_sailBottom != null}, rudder {m_rudderObj != null}, attach '{m_attachAnim}'.");
 		m_ship = go;
 		m_shipSeg = sea;
@@ -601,7 +601,7 @@ internal sealed partial class SurfGame
 		{
 			float gust = Mathf.Lerp(0.25f, 1f, m_windStrength) * (1f + 0.4f * m_storm);
 			float sail = Plugin.SailSpeed.Value * WindAngleFactor() * gust * (m_sail == Sail.Full ? 1f : 0.62f);
-			// 1.16.79 (Sam: "Paddle boat speed can be much slower"): 3 under oars (was 6).
+			// 1.16.79 (SAT: "Paddle boat speed can be much slower"): 3 under oars (was 6).
 			target = m_sail == Sail.Oars ? 3f : Mathf.Max(3.5f, sail);
 			target *= moves;
 			if (m_moored != null && m_hull < HullMax)
@@ -894,7 +894,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Vector2 c = ShipCenter();
-		// 1.16.3 (Sam: a shallower, lower camera, so the rolling waves read): about 42 degrees
+		// 1.16.3 (SAT: a shallower, lower camera, so the rolling waves read): about 42 degrees
 		// down instead of 66, and closer, looking a little further ahead of the bow.
 		float height = 13f + 0.75f * m_shipLength;
 		Vector3 focus = new Vector3(m_x * 0.9f, SeaY, c.y + 13f);
@@ -941,7 +941,7 @@ internal sealed partial class SurfGame
 				next = r;
 			}
 		}
-		// 1.16.73 (Sam: "it follows the ship perfectly ... I don't understand how it is supposed to
+		// 1.16.73 (SAT: "it follows the ship perfectly ... I don't understand how it is supposed to
 		// help"): only shown while you're side on to the wave, when it matters; lined up with it
 		// (bow or stern to the wave) it goes away.
 		if (next == null || m_seaPhase != 2 || !Plugin.WaveGuide.Value || !SideOn(next.Dir))
@@ -1009,7 +1009,7 @@ internal sealed partial class SurfGame
 				SpawnSplash(boat, 2f);
 				m_audio.Play("sfx_ship_impact|sfx_wood_hit", 1f, 0.75f);
 				m_shake = Mathf.Max(m_shake, 0.5f);
-				// 1.16.74 (Sam: "we don't need to worry about wave damage ... too confusing"):
+				// 1.16.74 (SAT: "we don't need to worry about wave damage ... too confusing"):
 				// side on, a wave only rocks her.
 			}
 			else

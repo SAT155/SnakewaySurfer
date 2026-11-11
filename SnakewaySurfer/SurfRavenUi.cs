@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.102 (Sam: "Hugin doesn't need to be a 3d object or use the in game chat bubbles"): the
+// 1.16.102 (SAT: "Hugin doesn't need to be a 3d object or use the in game chat bubbles"): the
 // ravens are a still portrait taken once from their own model, drawn as flat UI in a fixed
 // spot at the top right, with a speech bubble under it. Nothing follows the camera, so
 // nothing hitches. Used in the run (SurfRaven.cs) and in the world (SurfStory.cs).
@@ -196,7 +196,7 @@ internal static class RavenUi
 			rim.intensity = 1.2f;
 			rim.color = new Color(0.7f, 0.82f, 1f);
 			rim.cullingMask = 1 << layer;
-			// 1.16.150 (Sam: the circle was empty): the game's deferred path and shaders leave no
+			// 1.16.150 (SAT: the circle was empty): the game's deferred path and shaders leave no
 			// usable alpha, so draw forward, fog off, once on black and once on white; what
 			// changes between them is see-through (as the boss's sky picture does).
 			const int size = 256;

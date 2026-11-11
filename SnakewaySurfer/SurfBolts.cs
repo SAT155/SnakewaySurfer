@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.15.2 (Sam: Eikthyr needs bigger lightning on his attacks). A storm boss's blows come down
+// 1.15.2 (SAT: Eikthyr needs bigger lightning on his attacks). A storm boss's blows come down
 // as real bolts from the sky: a jagged, flickering, branching streak with a white core, a burst
 // of light where it lands that lights up the whole track, his own lightning effect at double
 // size, and a harder shake. While a blow winds up his antlers glow brighter and throw sparks,

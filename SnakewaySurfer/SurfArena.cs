@@ -19,10 +19,10 @@ internal sealed partial class SurfGame
 	private float m_backdropDist = 70f;
 	private float m_backdropLift;
 	private float m_backdropHeight;
-	// 1.16.26 (Sam: the big monument clipped into the track): from its middle to its near side,
+	// 1.16.26 (SAT: the big monument clipped into the track): from its middle to its near side,
 	// so its nearest part keeps the distance, not its middle.
 	private float m_backdropNear;
-	// 1.16.27 (Sam: "flattened and warped, then reprojected ... to be a good skybox"): the place
+	// 1.16.27 (SAT: "flattened and warped, then reprojected ... to be a good skybox"): the place
 	// is drawn once into a picture, and that picture stands far off on the skyline, upright and
 	// facing you, free of the fog like the sky.
 	private bool m_backdropSky;
@@ -78,7 +78,7 @@ internal sealed partial class SurfGame
 		{
 			return 0f;
 		}
-		// 1.16.79 (Sam: a much bigger battle area): the walls start 14 m out, not 5.
+		// 1.16.79 (SAT: a much bigger battle area): the walls start 14 m out, not 5.
 		return walls * Plugin.HillHeight.Value * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((out_ - 14f) / 25f));
 	}
 
@@ -252,7 +252,7 @@ internal sealed partial class SurfGame
 		if (Pictures.MeshBounds(go, out Bounds bounds) && bounds.size.y > 0.1f)
 		{
 			float wide = Mathf.Max(bounds.size.x, bounds.size.z, 0.1f);
-			// 1.16.21 (Sam): extra large, towering over the skyline (Boss Landmark Size).
+			// 1.16.21 (SAT): extra large, towering over the skyline (Boss Landmark Size).
 			float tall = Mathf.Min(0.75f, (location ? 0.34f : 0.4f) * MonumentTall);
 			scale = Mathf.Clamp(Mathf.Min(dist * tall / bounds.size.y, dist * 1.3f * MonumentTall / wide), 0.3f, (location ? 8f : 12f) * MonumentFar * MonumentTall) * def.BackdropSize;
 			bottom = bounds.min.y - m_stage.position.y;

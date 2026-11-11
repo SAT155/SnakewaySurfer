@@ -108,7 +108,7 @@ internal sealed partial class SurfGame
 			{
 				continue;
 			}
-			// 1.16.77 (Sam: storm waves buried the ship, the serpent and the markers): broad,
+			// 1.16.77 (SAT: storm waves buried the ship, the serpent and the markers): broad,
 			// long swells the ship rides up and over, not steep walls of water.
 			float w = s > 0f ? 10f : 17f;
 			float shape = Mathf.Exp(-(s / w) * (s / w)) - 0.22f * Mathf.Exp(-((s - 18f) / 11f) * ((s - 18f) / 11f));
@@ -207,7 +207,7 @@ internal sealed partial class SurfGame
 		}
 		m_oceanMesh!.vertices = m_oceanVerts;
 		m_oceanMesh.RecalculateNormals();
-		// 1.16.2 (Sam: the water was missing; his log had "abnormal mesh bounds" for this mesh
+		// 1.16.2 (SAT: the water was missing; his log had "abnormal mesh bounds" for this mesh
 		// all along the coast, so the sea was culled): fixed bounds that always hold the grid,
 		// never worked out from the vertices.
 		m_oceanMesh.bounds = OceanBounds;
@@ -527,7 +527,7 @@ internal sealed partial class SurfGame
 				Vector2 pa = mid + side * a;
 				float noise = Mathf.PerlinNoise(a * 0.15f + r.Crest * 0.05f, m_seaClock * 0.4f);
 				float edge = r.Small ? Mathf.Clamp01(1f - Mathf.Abs(a) / span) : 1f;
-				// 1.16.76 (Sam: the waves were hard to understand): waves are harmless now, so their
+				// 1.16.76 (SAT: the waves were hard to understand): waves are harmless now, so their
 				// crests are a faint line of broken foam, not a bright band.
 				FoamQuad(pa + side * ((b - a) * 0.5f), side * ((b - a) * 0.55f), r.Dir * 0.9f, fade * edge * (0.12f + 0.2f * noise));
 			}

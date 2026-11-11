@@ -5,7 +5,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// What kind of challenge each creature poses, from the "Creature Schemas" setting (Sam picked
+// What kind of challenge each creature poses, from the "Creature Schemas" setting (SAT picked
 // these creature by creature). A creature can have several tags; where they are alternatives
 // (waiter or charger, smash or sweep) one is picked each time it turns up.
 //
@@ -61,7 +61,7 @@ internal static class Schemas
 		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; Charred_Archer: shooter waiter sideline; Charred_Mage: fire waiter; " +
 		"Dverger*: helper talk";
 
-	// 1.16.1 (Sam's test): entries changed since earlier releases, swapped in where a settings
+	// 1.16.1 (SAT's test): entries changed since earlier releases, swapped in where a settings
 	// file still has the old one (an entry someone changed themselves is left alone).
 	private static readonly (string old, string now)[] s_changed =
 	{

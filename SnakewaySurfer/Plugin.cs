@@ -87,7 +87,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<int> Lives = null!;
 	internal static ConfigEntry<int> Difficulty = null!;
 	internal static readonly string[] DifficultyNames = { "Gentle", "Normal", "Hard" };
-	// 1.16.94 (Sam: "Adjustable difficulty in the menu might be nice"): Gentle gives two extra
+	// 1.16.94 (SAT: "Adjustable difficulty in the menu might be nice"): Gentle gives two extra
 	// lives and a slower run and monsters; Hard one life fewer and a faster run.
 	internal static int Level => Mathf.Clamp(Difficulty.Value, 0, 2);
 	internal static int StartLives => Mathf.Max(1, Lives.Value + (Level == 0 ? 2 : Level == 2 ? -1 : 0));
@@ -187,7 +187,7 @@ public class Plugin : BaseUnityPlugin
 		SoundVolume = Config.Bind("3 - Look", "Sound Volume", 0.8f,
 			new ConfigDescription("Volume of the minigame sounds.", new AcceptableValueRange<float>(0f, 1f)));
 
-		// Before 1.14 XP was given in levels, which is a lot of XP at a high skill (Sam). These two
+		// Before 1.14 XP was given in levels, which is a lot of XP at a high skill (SAT). These two
 		// stay only so old config files load; they do nothing now.
 		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 0.08f,
 			new ConfigDescription("Not used since 1.14 (see Run XP Per Second).", new AcceptableValueRange<float>(0f, 10f)));
@@ -320,7 +320,7 @@ public class Plugin : BaseUnityPlugin
 		}
 		if (balance.Value < 4)
 		{
-			// 1.12: Sam found Run XP still too high at 0.25 levels per biome.
+			// 1.12: SAT found Run XP still too high at 0.25 levels per biome.
 			if (Mathf.Approximately(RunLevelsPerBiome.Value, 0.25f))
 			{
 				RunLevelsPerBiome.Value = 0.08f;
@@ -329,7 +329,7 @@ public class Plugin : BaseUnityPlugin
 		}
 		if (balance.Value < 5)
 		{
-			// 1.14 (Sam): greydwarf nests are Black Forest things, not Meadows ones.
+			// 1.14 (SAT): greydwarf nests are Black Forest things, not Meadows ones.
 			if (s_landmarks[0].Value == "Greyling: Spawner_GreydwarfNest")
 			{
 				s_landmarks[0].Value = Biomes.Defaults[0].Landmarks;
@@ -423,7 +423,7 @@ public class Plugin : BaseUnityPlugin
 			"What each creature does, as \"Prefab: tags; Prefab: tags\" (a trailing * matches a name start). Tags: charger, waiter, switcher, swarm, herd, line, crosser, shooter, flyshooter, sweep, gas2, gas3, smash, slams, lob, fire, tar, bomb, tickdrop, leaper, headleap, hurdle, stomper, ambush, chaser, behind, helper, talk, sideline. Creatures not listed behave as before.");
 		if (balance.Value < 6)
 		{
-			// 1.16.1 (Sam's test): draugr archers on the swamp's sidelines, leeches weaving and
+			// 1.16.1 (SAT's test): draugr archers on the swamp's sidelines, leeches weaving and
 			// swimming up from behind, wolves low enough to jump.
 			CreatureSchemas.Value = Schemas.Upgrade(CreatureSchemas.Value);
 			balance.Value = 6;
