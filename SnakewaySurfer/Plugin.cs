@@ -52,6 +52,9 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> LightIntensity = null!;
 	internal static ConfigEntry<float> MonsterHeight = null!;
 	internal static ConfigEntry<float> SceneryDensity = null!;
+	internal static ConfigEntry<bool> GameVegetation = null!;
+	internal static ConfigEntry<float> MistAmount = null!;
+	internal static ConfigEntry<float> AmbienceVolume = null!;
 	internal static ConfigEntry<string> TrackPiece = null!;
 	internal static ConfigEntry<float> StageHeight = null!;
 	internal static ConfigEntry<int> RenderLayer = null!;
@@ -236,6 +239,12 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Monsters in the lanes are their real size, but anything taller than this (or much wider than a lane) is shrunk to fit.", new AcceptableValueRange<float>(1f, 20f)));
 		SceneryDensity = Config.Bind("3 - Look", "Scenery Density", 1f,
 			new ConfigDescription("How many trees and rocks line the track. Lower it if the minigame runs slowly.", new AcceptableValueRange<float>(0.2f, 3f)));
+		MistAmount = Config.Bind("3 - Look", "Mistlands Mist", 1f,
+			new ConfigDescription("How much of the game's own mist drifts over the Mistlands (thick beside the track, thin over the lanes). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		AmbienceVolume = Config.Bind("4 - Sound", "Biome Ambience", 1f,
+			new ConfigDescription("How loud each biome's own background sound is (its wind and weather, its birds and night noises, and distant creatures such as a Gjall in the Mistlands). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		GameVegetation = Config.Bind("3 - Look", "Game Vegetation", true,
+			"Line the track with what the game itself grows in each biome (its trees, bushes, rocks, cliffs and roots, in the game's own proportions), instead of each biome's short Scenery list.");
 		TrackPiece = Config.Bind("3 - Look", "Track Piece", "stone_floor_2x2",
 			"Build piece whose material paves the track (prefab name, e.g. stone_floor_2x2, wood_floor).");
 		StageHeight = Config.Bind("3 - Look", "Stage Height", 4000f,
@@ -597,6 +606,20 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				args.Context.AddString("Self-test started: hands off the keyboard until it says it's finished. Close this console (F5) so it can run.");
+			});
+			new Terminal.ConsoleCommand("surfkit", "surfkit - testing: saves pictures and parts lists of the game's own dungeon rooms, then takes you round each biome for pictures and a count of what stands there (a few minutes, you can't be hurt and are brought back), to BepInEx/SnakewaySurferTest", args =>
+			{
+				if (Player.m_localPlayer == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				if (SurfGame.Active != null)
+				{
+					args.Context.AddString("Stop the run first.");
+					return;
+				}
+				Kit.Run(args.Context);
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{

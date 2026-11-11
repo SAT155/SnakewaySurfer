@@ -174,6 +174,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public readonly List<SpawnEntry> Monsters = new();
 		public readonly List<SpawnEntry> Flyers = new();
 		public readonly List<GameObject> Scenery = new();
+		// 1.16.185: what the game itself grows in this biome (SurfVegetation.cs), and how many of
+		// them line a metre of track.
+		public readonly List<VegEntry> Veg = new();
+		public float VegWeight;
+		public float VegPerMetre;
 		public readonly List<GameObject> Logs = new();
 		public readonly List<(GameObject prefab, string label)> Giants = new();
 		public float Fog;
@@ -1171,6 +1176,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					missing.Add(name);
 				}
 			}
+			LoadVegetation(rt, m_biomes.Count);
 			m_biomes.Add(rt);
 			{
 				Plugin.Log.LogInfo($"{def.Name}: monsters [{string.Join(", ", rt.Monsters.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0} x{m.GroupMin}-{m.GroupMax}"))}], flyers [{string.Join(", ", rt.Flyers.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0}"))}], {rt.Scenery.Count} scenery, {rt.Logs.Count} logs");
@@ -1446,6 +1452,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
 		m_clock += dt;
 		m_stateTime += dt;
+		UpdateAmbience(dt);
+		UpdateMist(dt);
 		m_bannerTime -= dt;
 		if (m_bannerTime <= 0f)
 		{
@@ -2217,7 +2225,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
 			}
-			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
+			// Two spots a step (one each side): a biome's own density when the game's tables gave one.
+			float perMetre = m_biomes[BiomeAt(m_nextSceneryZ)].VegPerMetre;
+			float step = perMetre > 0f ? 2f / perMetre : 5.75f;
+			m_nextSceneryZ += step * Random.Range(0.6f, 1.4f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
 		SpawnArenaTorches(horizon);
 		SpawnSwampSights(horizon);
@@ -2525,6 +2536,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void SpawnScenery(float z, int side)
 	{
 		BiomeRuntime b = m_biomes[BiomeAt(z)];
+		if (b.Veg.Count > 0)
+		{
+			SpawnVegetation(b, z, side);
+			return;
+		}
 		if (b.Scenery.Count == 0)
 		{
 			return;
