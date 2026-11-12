@@ -50,6 +50,12 @@ internal sealed partial class SurfGame
 		// 1.16.6, a frost cave (SurfCave.cs): walls of rough rock, crystals glowing where the
 		// crypts have torches, icicles falling from the roof, only flyers to slide under.
 		public bool Rocky;
+		// A roof over the halls (SAT chose "roof on, camera lowered": the open top showed black
+		// above the walls, nothing like the game). Its pieces (the floor's when none are named),
+		// and how far above the wall tops it sits (a frost cave's icicles hang below it).
+		public bool Roofed;
+		public string Roofs = "";
+		public float RoofLift;
 		public bool Crystals;
 		public string Sconce = "piece_walltorch";
 		// 1.16.150: a standing torch at the foot of the wall instead of one on it (the Swamp's green
@@ -98,6 +104,8 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_burialChamber = new CryptTheme
 	{
 		Name = "burial chamber",
+		Roofed = true,
+		Roofs = "ForestCrypt_Roof1|ForestCrypt_Walls1|ForestCrypt_Floor1",
 		Biome = "Black Forest",
 		// 1.16.150 (SAT: burial chambers are caves with wooden doors, not stone halls): rough rock
 		// walls and floor, timber props along the walls, shut wooden doors at the dead ends.
@@ -136,6 +144,7 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_sunkenCrypt = new CryptTheme
 	{
 		Name = "sunken crypt",
+		Roofed = true,
 		Biome = "Swamp",
 		Rooms = Room.Theme.SunkenCrypt,
 		Walls = "SunkenKit_int_wall_4x4|SunkenKit_int_wall_2x4|stone_wall_4x2",
@@ -180,6 +189,8 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_frostCave = new CryptTheme
 	{
 		Name = "frost cave",
+		Roofed = true,
+		RoofLift = 1.6f,
 		Biome = "Mountains",
 		Rooms = Room.Theme.Cave,
 		Rocky = true,
@@ -222,6 +233,7 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_infestedMine = new CryptTheme
 	{
 		Name = "infested mine",
+		Roofed = true,
 		Biome = "Mistlands",
 		Rooms = Room.Theme.DvergerTown,
 		Walls = "blackmarble_tile_wall_2x2|blackmarble_2x2x2|dvergrtown_wall_large|stone_wall_4x2",

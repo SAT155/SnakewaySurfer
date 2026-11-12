@@ -720,6 +720,10 @@ internal sealed partial class SurfGame
 			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
 		}
 
+		// The roof, over the walls too; open for the first and last few metres, where the camera
+		// comes down from outside and goes back up.
+		CryptRoof(root, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, first ? z0 + 6f : z0, exit ? z1 - 6f : z1 + CryptWall, y);
+
 		// The walls: the one on the outside of the corner ahead runs on to the end wall, the
 		// inside one stops where the way on opens.
 		int turn = exit ? 0 : c.Dirs[leg.Index];
@@ -1278,7 +1282,13 @@ internal sealed partial class SurfGame
 		}
 		// Behind you and a little closer than outside, turning with you at each corner.
 		Quaternion turn = m_stage.rotation * Quaternion.Euler(0f, yaw, 0f);
-		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, Plugin.CameraHeight.Value + 0.6f, -Plugin.CameraDistance.Value * 0.85f);
+		// Under the roof, where there is one.
+		float camUp = Plugin.CameraHeight.Value + 0.6f;
+		if (c.Theme.Roofed && Plugin.DungeonRoof.Value)
+		{
+			camUp = Mathf.Min(camUp, WallH + c.Theme.RoofLift - 0.8f);
+		}
+		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, camUp, -Plugin.CameraDistance.Value * 0.85f);
 		Vector3 look = m_cryptFocus + turn * new Vector3(0f, 1f, 7f);
 		Quaternion rot = Quaternion.LookRotation(look - pos);
 		float b = Mathf.SmoothStep(0f, 1f, m_cryptView);

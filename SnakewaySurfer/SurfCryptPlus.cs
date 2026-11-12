@@ -187,10 +187,36 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// The roof over a stretch of hall or a dead end, x0 < x1, z0 < z1: slabs laid on the wall tops.
+	private void CryptRoof(Transform root, float x0, float x1, float z0, float z1, float y)
+	{
+		CryptTheme theme = m_crypt!.Theme;
+		if (!theme.Roofed || !Plugin.DungeonRoof.Value || x1 - x0 < 0.5f || z1 - z0 < 0.5f)
+		{
+			return;
+		}
+		int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) / 4.2f));
+		int nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 4.2f));
+		float tx = (x1 - x0) / nx;
+		float tz = (z1 - z0) / nz;
+		float overlap = theme.Rocky ? 0.8f : 0.05f;
+		string names = theme.Roofs.Length > 0 ? theme.Roofs + "|" + theme.Floors : theme.Floors;
+		for (int i = 0; i < nx; i++)
+		{
+			for (int j = 0; j < nz; j++)
+			{
+				Quaternion turned = theme.Rocky ? Quaternion.Euler(0f, 90f * Random.Range(0, 4), 0f) : Quaternion.identity;
+				CryptPiece(root, names, turned, new Vector3(tx + overlap, theme.Rocky ? 1.2f : 0.5f, tz + overlap),
+					new Vector3(x0 + tx * (i + 0.5f), y + WallH + theme.RoofLift, z0 + tz * (j + 0.5f)));
+			}
+		}
+	}
+
 	// The floor of a dead end, x0 < x1, z0 < z1.
 	private void PocketFloor(Transform root, float x0, float x1, float z0, float z1, float y)
 	{
 		CryptTheme theme = m_crypt!.Theme;
+		CryptRoof(root, x0, x1, z0, z1, y);
 		int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) / 3.7f));
 		int nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 3.7f));
 		float tx = (x1 - x0) / nx;
