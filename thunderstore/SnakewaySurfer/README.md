@@ -289,6 +289,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.216**: The trees, bushes and rocks beside the track now follow a count taken in a real world: the same mix and nearly the same crowding as the biome itself (the Black Forest is much thicker). Burial chambers are built from the game's own burial chamber stones, rough standing slabs and stone floor tiles, in place of forest boulders.
 - **1.16.210**: A boss's storm no longer carries on in the real world after a run ends (the lightning flashes and thunder that lingered). Old Strange Portals that made the game log "Missing prefab hash" over and over are turned into wooden portals every game can load. Another try at showing Hugin's own model in his circle.
 - **1.16.200**: For testers: `surftest` and `surfkit` keep running while you use another window (don't minimise the game).
 - **1.16.196**: Fairness is now checked in two places. Every row of creatures and obstacles is tested before you reach it, and anything that would leave no way through with the jumps, rolls and lane changes the game allows is taken out (setting: Fair Placement). An attack can only hurt you if it was announced by a lane marker, or was itself in view, for at least 0.4 seconds (setting: Fair Warning). Low creatures marked for jumping, such as Blobs, are a little easier to clear.
