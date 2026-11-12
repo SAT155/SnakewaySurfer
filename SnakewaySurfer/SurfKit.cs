@@ -21,6 +21,7 @@ internal static class Kit
 	}
 
 	private static Runner? s_runner;
+	private static bool s_background;
 
 	public static bool Running => s_runner != null;
 
@@ -32,6 +33,9 @@ internal static class Kit
 			return;
 		}
 		s_runner = new GameObject("SnakewaySurferKit").AddComponent<Runner>();
+		// Keeps going while you use another window (don't minimise the game: nothing is drawn then).
+		s_background = Application.runInBackground;
+		Application.runInBackground = true;
 		Object.DontDestroyOnLoad(s_runner.gameObject);
 		s_runner.StartCoroutine(Work(context));
 	}
@@ -145,6 +149,7 @@ internal static class Kit
 		catch (Exception)
 		{
 		}
+		Application.runInBackground = s_background;
 		if (s_runner != null)
 		{
 			Object.Destroy(s_runner.gameObject);

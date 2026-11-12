@@ -57,6 +57,7 @@ internal sealed partial class SurfGame
 	private bool m_tourRan;
 
 	private bool Touring => m_tour != null;
+	private bool m_tourBackground;
 
 	private bool BotOn => Touring || Plugin.Autopilot.Value;
 
@@ -116,6 +117,9 @@ internal sealed partial class SurfGame
 		Plugin.Invincible.Value = true;
 		Plugin.IgnoreBossGate.Value = true;
 		m_tour = stages;
+		// Keeps playing while you use another window (don't minimise the game: nothing is drawn then).
+		m_tourBackground = Application.runInBackground;
+		Application.runInBackground = true;
 		m_tourRan = true;
 		m_tourAt = -1;
 		m_tourShotNo = 0;
@@ -316,6 +320,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		m_tour = null;
+		Application.runInBackground = m_tourBackground;
 		m_tourPending = null;
 		try
 		{
