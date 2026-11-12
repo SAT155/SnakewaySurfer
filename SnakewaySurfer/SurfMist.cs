@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace SnakewaySurfer;
@@ -63,8 +64,79 @@ internal sealed partial class SurfGame
 		return m_mist;
 	}
 
+	// (SAT, of the storm that was left behind by mistake: "Mistlands can use that thunder and
+	// lightning flicker".) The Mistlands' own thunderstorm, its clouds flickering white and violet
+	// with thunder after, hangs over the open Mistlands stretches: the game's 'Mistlands_thunder'
+	// weather effects, carried on the camera as a boss's weather is. Off in the mine and in the
+	// Queen's fight (which brings its own), and taken down when you leave or the run ends.
+	private readonly List<GameObject> m_mistStorm = new();
+	private bool m_mistStormLooked;
+
+	private void UpdateMistStorm(bool want)
+	{
+		if (want && !m_mistStormLooked)
+		{
+			m_mistStormLooked = true;
+			try
+			{
+				EnvSetup? env = EnvMan.instance != null ? EnvMan.instance.GetEnv("Mistlands_thunder") : null;
+				if (env?.m_psystems != null && m_camera != null)
+				{
+					foreach (GameObject ps in env.m_psystems)
+					{
+						if (ps == null)
+						{
+							continue;
+						}
+						GameObject copy = Instantiate(ps, m_camera.transform, false);
+						copy.transform.localPosition = Vector3.zero;
+						Pictures.SetLayer(copy, m_layer);
+						copy.SetActive(false);
+						foreach (ParticleSystem p in copy.GetComponentsInChildren<ParticleSystem>(true))
+						{
+							ParticleSystem.CollisionModule collision = p.collision;
+							collision.enabled = false;
+						}
+						m_mistStorm.Add(copy);
+					}
+				}
+				Plugin.Log.LogInfo($"Mistlands storm: {m_mistStorm.Count} of the game's 'Mistlands_thunder' effects borrowed.");
+			}
+			catch (System.Exception e)
+			{
+				Plugin.Log.LogWarning($"Couldn't borrow the Mistlands storm: {e.Message}");
+			}
+		}
+		foreach (GameObject go in m_mistStorm)
+		{
+			if (go != null && go.activeSelf != want)
+			{
+				go.SetActive(want);
+			}
+		}
+	}
+
+	private void ClearMistStorm()
+	{
+		foreach (GameObject go in m_mistStorm)
+		{
+			if (go != null)
+			{
+				Destroy(go);
+			}
+		}
+		m_mistStorm.Clear();
+		m_mistStormLooked = false;
+	}
+
 	private void UpdateMist(float dt)
 	{
+		bool storm = Plugin.MistStorm.Value && m_state == State.Running && m_biomes.Count > 0 && !m_atSea && m_bossEnvDef == null
+			&& m_biomes[BiomeAt(m_z)].Def.Name == "Mistlands" && !InCrypt(m_z);
+		if (storm || m_mistStorm.Count > 0)
+		{
+			UpdateMistStorm(storm);
+		}
 		float amount = Plugin.MistAmount.Value;
 		if (amount <= 0f || m_state != State.Running || m_biomes.Count == 0 || m_atSea)
 		{
