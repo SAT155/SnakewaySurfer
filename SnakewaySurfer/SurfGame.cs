@@ -495,6 +495,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		EndTour(false);
 		RemoveRaven();
+		// The boss's borrowed weather hangs on the game's own camera: left there, its storm
+		// (lightning flashes and thunder) went on in the real world after the run.
+		ClearWeather();
 		EndLoadScreen();
 		OnDestroyWave();
 		if (m_paused)

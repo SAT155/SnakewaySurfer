@@ -152,6 +152,7 @@ internal sealed class SurfStory : MonoBehaviour
 
 	private void Update()
 	{
+		SurfPortalPiece.Sweep();
 		Player? p = Player.m_localPlayer;
 		if (p != m_checked)
 		{
