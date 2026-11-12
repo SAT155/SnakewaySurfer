@@ -156,6 +156,8 @@ public class Plugin : BaseUnityPlugin
 	{
 		instance = this;
 		Log = Logger;
+		// (BepInEx's own line always says 1.16.0; this is the build actually loaded.)
+		Log.LogInfo($"SnakewaySurfer build {BuildVersion}.");
 
 		BiomeLength = Config.Bind("1 - Run", "Biome Length", 500f,
 			new ConfigDescription("Metres of track per biome. The run goes Meadows, Black Forest, Swamp, Mountains, Plains, Mistlands, Ashlands, Deep North, and Deep North never ends.",
