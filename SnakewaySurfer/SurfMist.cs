@@ -79,7 +79,17 @@ internal sealed partial class SurfGame
 			m_mistStormLooked = true;
 			try
 			{
-				EnvSetup? env = EnvMan.instance != null ? EnvMan.instance.GetEnv("Mistlands_thunder") : null;
+				// (The Queen's own weather is where the flicker was first seen, if the storm has none.)
+				EnvSetup? env = null;
+				foreach (string name in new[] { "Mistlands_thunder", "Queen" })
+				{
+					EnvSetup? e = EnvMan.instance != null ? EnvMan.instance.GetEnv(name) : null;
+					if (e?.m_psystems != null && e.m_psystems.Length > 0)
+					{
+						env = e;
+						break;
+					}
+				}
 				if (env?.m_psystems != null && m_camera != null)
 				{
 					foreach (GameObject ps in env.m_psystems)
@@ -100,7 +110,7 @@ internal sealed partial class SurfGame
 						m_mistStorm.Add(copy);
 					}
 				}
-				Plugin.Log.LogInfo($"Mistlands storm: {m_mistStorm.Count} of the game's 'Mistlands_thunder' effects borrowed.");
+				Plugin.Log.LogInfo($"Mistlands storm: {m_mistStorm.Count} effects borrowed from the game's '{(env != null ? env.m_name : "none")}' weather.");
 			}
 			catch (System.Exception e)
 			{
