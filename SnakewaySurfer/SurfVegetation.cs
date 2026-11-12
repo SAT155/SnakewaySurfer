@@ -29,7 +29,7 @@ internal sealed partial class SurfGame
 	// A zone is 64 m square; the track's verges are two bands this wide.
 	private const float VergeNear = 3f;
 	private const float VergeFar = 30f;
-	private const float VegMaxPerMetre = 1.5f;
+	private const float VegMaxPerMetre = 2.5f;
 
 	private void LoadVegetation(BiomeRuntime rt, int index)
 	{
@@ -104,17 +104,65 @@ internal sealed partial class SurfGame
 			rt.Veg.Clear();
 			return;
 		}
+		// What the picture tour counted in a real world sets the mix and the crowding, where it
+		// counted enough to go by (SurfCensus.cs).
+		float counted = 0f;
+		if (Census.ByBiome.TryGetValue(biome.ToString(), out (string name, int count)[]? census) && ZNetScene.instance != null)
+		{
+			float all = 0f;
+			foreach ((string _, int count) in census)
+			{
+				all += count;
+			}
+			if (all >= 60f)
+			{
+				HashSet<VegEntry> seen = new();
+				foreach ((string name, int count) in census)
+				{
+					VegEntry? have = rt.Veg.Find(e => e.Prefab.name == name);
+					if (have == null)
+					{
+						GameObject? prefab = ZNetScene.instance.GetPrefab(name);
+						if (prefab == null || prefab.GetComponentInChildren<Pickable>(true) != null || prefab.GetComponentInChildren<Character>(true) != null
+							|| prefab.GetComponentInChildren<SpawnArea>(true) != null || prefab.GetComponentInChildren<CreatureSpawner>(true) != null
+							|| prefab.GetComponentInChildren<Renderer>(true) == null)
+						{
+							continue;
+						}
+						have = new VegEntry { Prefab = prefab };
+						rt.Veg.Add(have);
+					}
+					have.Weight = count;
+					seen.Add(have);
+					counted += count;
+				}
+				// What the table lists but the count never met stays, as a rarity.
+				perZone = counted;
+				foreach (VegEntry e in rt.Veg)
+				{
+					if (!seen.Contains(e))
+					{
+						e.Weight = Mathf.Min(e.Weight, counted * 0.01f);
+						perZone += e.Weight;
+					}
+				}
+			}
+		}
 		rt.VegWeight = perZone;
 		// The game's count per zone, over the two verges' share of a zone, per metre of track.
 		// Not every spot the generator tries takes (slope, crowding), so two thirds of it.
 		float real = perZone / (64f * 64f) * 2f * (VergeFar - VergeNear) * 0.66f;
+		if (counted > 0f)
+		{
+			real = counted / Census.Area * 2f * (VergeFar - VergeNear);
+		}
 		rt.VegPerMetre = Mathf.Clamp(real, 0.3f, VegMaxPerMetre);
 		rt.Veg.Sort((a, b) => b.Weight.CompareTo(a.Weight));
 		foreach (VegEntry e in rt.Veg)
 		{
 			names.Append($"{e.Prefab.name} {e.Weight:0.#}, ");
 		}
-		Plugin.Log.LogInfo($"{rt.Def.Name} vegetation from the game: {rt.Veg.Count} kinds, {perZone:0} a zone, {real:0.00} a metre of track (using {rt.VegPerMetre:0.00}): {names}");
+		Plugin.Log.LogInfo($"{rt.Def.Name} vegetation from the game{(counted > 0f ? " (mix and crowding as counted in a real world)" : "")}: {rt.Veg.Count} kinds, {perZone:0} {(counted > 0f ? "counted" : "a zone")}, {real:0.00} a metre of track (using {rt.VegPerMetre:0.00}): {names}");
 	}
 
 	private void SpawnVegetation(BiomeRuntime b, float z, int side)
