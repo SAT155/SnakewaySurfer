@@ -289,6 +289,7 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.225**: The open Mistlands stretches now have the Mistlands' own thunderstorm, with flashes and thunder overhead (setting: Mistlands Storm). Burial chambers, sunken crypts, frost caves and infested mines have a roof over their halls, built from each dungeon's own pieces, and the camera sits lower to stay under it (setting: Dungeon Roof).
 - **1.16.216**: The trees, bushes and rocks beside the track now follow a count taken in a real world: the same mix and nearly the same crowding as the biome itself (the Black Forest is much thicker). Burial chambers are built from the game's own burial chamber stones, rough standing slabs and stone floor tiles, in place of forest boulders.
 - **1.16.210**: A boss's storm no longer carries on in the real world after a run ends (the lightning flashes and thunder that lingered). Old Strange Portals that made the game log "Missing prefab hash" over and over are turned into wooden portals every game can load. Another try at showing Hugin's own model in his circle.
 - **1.16.200**: For testers: `surftest` and `surfkit` keep running while you use another window (don't minimise the game).
