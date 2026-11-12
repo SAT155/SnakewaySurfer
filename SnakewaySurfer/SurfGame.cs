@@ -1266,6 +1266,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_shownBiome = -1;
 		m_nextRowZ = 45f;
 		m_placeChecked = 0;
+		m_unwarned = 0;
 		m_nextSceneryZ = -20f;
 		m_nextGroundZ = -GroundTile;
 		m_crashText = "";
@@ -2028,6 +2029,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// A crash, unless the Invincible test setting is on: then the thing is just passed through.
 	private void Hit(Thing t, string why)
 	{
+		// Nothing hurts that wasn't announced (SurfStrike.cs).
+		if (m_hurtTime <= 0f && !FairlyWarned(t))
+		{
+			ForgiveUnwarned(t, why);
+			return;
+		}
 		// Blocks and parries work in Invincible mode too, so they can be practised.
 		if (m_hurtTime <= 0f && TryBlock(t))
 		{

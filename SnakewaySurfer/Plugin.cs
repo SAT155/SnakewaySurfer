@@ -54,6 +54,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> SceneryDensity = null!;
 	internal static ConfigEntry<bool> GameVegetation = null!;
 	internal static ConfigEntry<bool> FairPlacement = null!;
+	internal static ConfigEntry<bool> FairWarning = null!;
 	internal static ConfigEntry<float> MistAmount = null!;
 	internal static ConfigEntry<float> AmbienceVolume = null!;
 	internal static ConfigEntry<string> TrackPiece = null!;
@@ -246,6 +247,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How loud each biome's own background sound is (its wind and weather, its birds and night noises, and distant creatures such as a Gjall in the Mistlands). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
 		FairPlacement = Config.Bind("1 - Run", "Fair Placement", true,
 			"Every row of creatures and obstacles is checked before you reach it: if no runner could get through it with the jumps, rolls and lane changes the game allows, the piece that closes the way is taken out. Off = rows are left exactly as they were laid out.");
+		FairWarning = Config.Bind("1 - Run", "Fair Warning", true,
+			"An attack can only hurt you if it was announced: a lane marker on your lane, or the attack itself in view, for at least 0.4 seconds. Anything quicker than that misses. Off = attacks hit whether announced or not.");
 		GameVegetation = Config.Bind("3 - Look", "Game Vegetation", true,
 			"Line the track with what the game itself grows in each biome (its trees, bushes, rocks, cliffs and roots, in the game's own proportions), instead of each biome's short Scenery list.");
 		TrackPiece = Config.Bind("3 - Look", "Track Piece", "stone_floor_2x2",
