@@ -101,14 +101,16 @@ internal sealed partial class SurfGame
 		Biome = "Black Forest",
 		// 1.16.150 (SAT: burial chambers are caves with wooden doors, not stone halls): rough rock
 		// walls and floor, timber props along the walls, shut wooden doors at the dead ends.
-		Rooms = 0,
-		Rocky = true,
-		Walls = "Rock_3|rock4_forest|Rock_4|rock1_mountain|stone_wall_4x2",
-		Floors = "rock4_forest|Rock_3|stone_floor_2x2",
+		// 1.16.2xx: built of the game's own burial chamber stones, taken from its real rooms
+		// (their picture book showed walls of rough standing slabs, a roof of the same, a floor of
+		// stone tiles under dirt), in place of forest boulders.
+		Rooms = Room.Theme.ForestCrypt,
+		Walls = "ForestCrypt_Walls1|stone_wall_4x2",
+		Floors = "ForestCrypt_Floor1|stone_floor_2x2",
 		Pillars = "wood_pole_log|wood_pole2|wood_pole",
 		TallPillar = "wood_pole_log_4|wood_pole_log|wood_pole2",
 		Door = "dungeon_forestcrypt_door|wood_door",
-		WallHeight = 2.6f,
+		WallHeight = 3f,
 		Monsters = "Skeleton:3:3, Skeleton_NoArcher:2:2, Skeleton_Poison:0.6",
 		Flyers = "Ghost:1",
 		Raised = "Skeleton:2, Skeleton_NoArcher:1",
@@ -315,6 +317,28 @@ internal sealed partial class SurfGame
 						continue;
 					}
 					m_kit[n] = t.gameObject;
+					// A burial chamber isn't built of named pieces: its walls, roof and floor are
+					// three groups of single stones. The first good stone of each is kept under
+					// "<theme>_Walls1" and so on (a wall stone: a slab at least 3.3 m long).
+					if (n == "Walls" || n == "Roof" || n == "Floor")
+					{
+						string key = $"{theme}_{n}1";
+						if (!m_kit.ContainsKey(key))
+						{
+							foreach (MeshRenderer r in t.GetComponentsInChildren<MeshRenderer>(true))
+							{
+								Vector3 size = r.bounds.size;
+								float longest = Mathf.Max(size.x, size.z);
+								float thin = Mathf.Min(size.x, size.z);
+								if (n != "Walls" || (longest >= 3.3f && thin <= 1.4f))
+								{
+									m_kit[key] = r.gameObject;
+									names.Append(key).Append($" ({size.x:0.#}x{size.y:0.#}x{size.z:0.#}), ");
+									break;
+								}
+							}
+						}
+					}
 					if (seen.Add(n) && seen.Count <= 80)
 					{
 						names.Append(n).Append(", ");
