@@ -133,6 +133,23 @@ internal static class RavenUi
 				anim.Rebind();
 				anim.Update(0.5f);
 			}
+			// The raven's own animation can switch its model off again (its pose while hidden), which
+			// left nothing to picture: switched back on here, after the animation has been applied.
+			foreach (Renderer r in copy.GetComponentsInChildren<Renderer>(true))
+			{
+				if (!(r is SkinnedMeshRenderer) && !(r is MeshRenderer))
+				{
+					continue;
+				}
+				r.enabled = true;
+				for (Transform up = r.transform; up != null && up != copy.transform; up = up.parent)
+				{
+					if (!up.gameObject.activeSelf)
+					{
+						up.gameObject.SetActive(true);
+					}
+				}
+			}
 			foreach (SkinnedMeshRenderer smr in copy.GetComponentsInChildren<SkinnedMeshRenderer>(true))
 			{
 				smr.updateWhenOffscreen = true;
