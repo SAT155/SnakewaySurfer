@@ -1,0 +1,86 @@
+name: Publish to Thunderstore
+
+# Uploads an existing GitHub release's Thunderstore zip to thunderstore.io. Runs only when started
+# by hand (Actions > Publish to Thunderstore > Run workflow); pushes never publish.
+# Needs the repo secret TCLI_AUTH_TOKEN (a Thunderstore service account token for TEAM below).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, e.g. v1.2.3. Leave empty for the latest full (non-pre) release."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: thunderstore-publish
+  cancel-in-progress: false
+
+env:
+  TEAM: "SnakeSquad"
+  PACKAGE: "SnakewaySurfer"
+  CATEGORIES: '["mods","misc","client-side","ai-generated"]'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Download the release zip
+        id: pkg
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+          fi
+          echo "Release: $TAG"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "$PACKAGE-*.zip" -D pkg
+          zip=$(ls pkg/*.zip | head -1)
+          name=$(unzip -p "$zip" manifest.json | jq -r .name)
+          version=$(unzip -p "$zip" manifest.json | jq -r .version_number)
+          if [ "$name" != "$PACKAGE" ]; then echo "::error::Zip manifest name is '$name', expected '$PACKAGE'"; exit 1; fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "::error::Bad version '$version'"; exit 1; fi
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing $PACKAGE $version from $zip" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload to Thunderstore
+        env:
+          TCLI_AUTH_TOKEN: ${{ secrets.TCLI_AUTH_TOKEN }}
+          ZIP: ${{ steps.pkg.outputs.zip }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TCLI_AUTH_TOKEN" ]; then echo "::error::Repo secret TCLI_AUTH_TOKEN is missing"; exit 1; fi
+          dotnet tool install -g tcli --version 0.2.4
+          cat > thunderstore.toml <<EOF
+          [config]
+          schemaVersion = "0.0.1"
+
+          [package]
+          namespace = "$TEAM"
+          name = "$PACKAGE"
+          versionNumber = "$VERSION"
+          description = "Uploaded from a GitHub release"
+          websiteUrl = "https://github.com/$GITHUB_REPOSITORY"
+          containsNsfwContent = false
+
+          [package.dependencies]
+
+          [publish]
+          repository = "https://thunderstore.io"
+          communities = [ "valheim" ]
+
+          [publish.categories]
+          valheim = $CATEGORIES
+          EOF
+          tcli publish --config-path thunderstore.toml --file "$ZIP" --token "$TCLI_AUTH_TOKEN"
+          echo "Uploaded: https://thunderstore.io/c/valheim/p/$TEAM/$PACKAGE/" >> "$GITHUB_STEP_SUMMARY"
