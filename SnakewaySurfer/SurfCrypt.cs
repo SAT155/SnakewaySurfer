@@ -785,6 +785,19 @@ internal sealed partial class SurfGame
 			{
 				pile.Go = CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.4f, 1.2f, 1.6f),
 					new Vector3(pile.Side * (CryptHalf - 0.75f), y, pile.Z), true, 2f);
+				// 1.16.x (SAT: those spawners look like bad guys): just the bones, without the
+				// spawner's red glow and smoke; the rising skeletons bring their own effect.
+				if (pile.Go != null)
+				{
+					foreach (ParticleSystem ps in pile.Go.GetComponentsInChildren<ParticleSystem>(true))
+					{
+						ps.gameObject.SetActive(false);
+					}
+					foreach (Light l in pile.Go.GetComponentsInChildren<Light>(true))
+					{
+						l.enabled = false;
+					}
+				}
 			}
 		}
 

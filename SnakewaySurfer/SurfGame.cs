@@ -4264,8 +4264,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					LogGuiError("crash keys", e);
 				}
-				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
-					$"Space: run again     R: retry{retry}{fromCheckpoint}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				// (Playtest: the one long key row ran off both edges, and white text over the
+				// track was hard to read.) A dark panel behind it all, the keys on two lines.
+				if (Event.current.type == EventType.Repaint)
+				{
+					Fill(new Rect(w * 0.08f, h * 0.17f, w * 0.84f, h * 0.7f), new Color(0f, 0f, 0f, 0.55f * s_guiAlpha));
+				}
+				Shadowed(new Rect(w * 0.05f, h * 0.68f, w * 0.9f, 140 * k),
+					$"Space: run again     R: retry{retry}{fromCheckpoint}\nM: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
 				try
 				{
 					Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
