@@ -222,7 +222,7 @@ Friends without the mod see that too.
 | S, ↓, Ctrl or C | Dodge roll under what's marked blue (in the air: drop fast and roll as you land) |
 | Shift (hold) | Sprint: faster, uses stamina, to get past an attack before it lands |
 | Right mouse (hold) | Block a creature's attack (stamina per blow and while held; you run a little slower, handy in the Elder's maze) |
-| Right mouse just before a hit | Parry: free, and the attacker staggers |
+| Right mouse when the attacker glints gold | Parry: free, and the attacker staggers (one press per blow: spamming opens no parry) |
 | Left mouse | Throw a spear you picked up (Eikthyr); at sea, fire the bow ballista |
 | Mouse, left mouse (hold) | Moder's bow: aim, hold to draw, let go to loose (Space or the arrow keys work too) |
 | A / D at sea | Rudder: steer left and right |
@@ -289,6 +289,12 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.304**: Fuling priests' fire and bombs mark the ground with a red ring that grows to cover every lane the blast will hit, reaching full size as it lands. Low arrows and shots can be jumped. Deathsquitos are bigger on land and at sea, and so are floating and dungeon chests, so they read at speed. The first islands have harbour labels, and nothing can hurt you on the walk into a camp.
+- **1.16.297**: The sea boss has crimson scales and a red glow, and Hugin names it. Wave crests are half as visible, so they no longer look like obstacles.
+- **1.16.287**: A boss's next attack waits until its last one has cleared the track, and bosses no longer drift while an attack plays. At sea, a gold mark shows the way to the far shore, islands have a lookout, and the harbour ring is easier to find.
+- **1.16.275**: The screen goes dark before a run is built, so starting no longer freezes on the menu. Lane changes are smoother, bat lanes are marked, and Bonemass stays on his side of the track. Sunken crypts leave a clear stretch behind mud banks. The Elder's last maze cell always has a surtling core within reach.
+- **1.16.254**: An attack has to be shown for 0.8 seconds before it can hurt you. A roll always dodges, with a cue when the next roll is ready.
+- **1.16.249**: Steadier camera, no stalls at checkpoints, and jumps cost stamina. Escape pauses the run. Trolls can't be blocked (dodge or parry them), the Elder's ground ring is gone, and Hugin explains parries and what hit you. Dungeons are seen from above by default, with no black gaps in their floors. Boss weapon pickups glow faintly in their lane instead of standing in a pillar of light. The crash screen sits on a dark panel. Less pop-in of trees and rocks in the distance.
 - **1.16.225**: The open Mistlands stretches now have the Mistlands' own thunderstorm, with flashes and thunder overhead (setting: Mistlands Storm). Burial chambers, sunken crypts, frost caves and infested mines have a roof over their halls, built from each dungeon's own pieces, and the camera sits lower to stay under it (setting: Dungeon Roof).
 - **1.16.216**: The trees, bushes and rocks beside the track now follow a count taken in a real world: the same mix and nearly the same crowding as the biome itself (the Black Forest is much thicker). Burial chambers are built from the game's own burial chamber stones, rough standing slabs and stone floor tiles, in place of forest boulders.
 - **1.16.210**: A boss's storm no longer carries on in the real world after a run ends (the lightning flashes and thunder that lingered). Old Strange Portals that made the game log "Missing prefab hash" over and over are turned into wooden portals every game can load. Another try at showing Hugin's own model in his circle.
