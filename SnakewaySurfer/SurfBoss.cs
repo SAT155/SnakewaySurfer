@@ -1469,10 +1469,8 @@ internal sealed partial class SurfGame
 		{
 			SetTrigger(m_bossAnim, "stagger");
 		}
-		if (m_boss.Mode == "side")
-		{
-			m_bossSide = -m_bossSide;
-		}
+		// 1.16.x (SAT: Bonemass shouldn't cross the road; his slime trail over the lanes looked
+		// like a damage zone): a side boss stays on its side when hit.
 		if (m_bossHits < BossHitsNeeded)
 		{
 			int left = BossHitsNeeded - m_bossHits;
