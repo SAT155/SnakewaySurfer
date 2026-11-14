@@ -356,7 +356,7 @@ internal sealed partial class SurfGame
 		Vector2 at = AheadSpot(Random.Range(55f, 65f));
 		SeaFoe? f = kind == "drake"
 			? SpawnCreature("drake", "Hatchling", 2.6f, at)
-			: SpawnCreature("squito", "Deathsquito", 1.6f, at);
+			: SpawnCreature("squito", "Deathsquito", 2.6f, at); // 1.16.x (SAT: too small)
 		if (f == null)
 		{
 			return;
@@ -444,7 +444,7 @@ internal sealed partial class SurfGame
 		GameObject go;
 		if (prefab != null)
 		{
-			go = SeaPicture(prefab, driftwood ? 1.8f : 1.4f, out _);
+			go = SeaPicture(prefab, driftwood ? 1.8f : 2.2f, out _);
 		}
 		else if (m_coinTemplate != null)
 		{

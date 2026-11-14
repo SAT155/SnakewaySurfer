@@ -1514,7 +1514,7 @@ internal sealed partial class SurfGame
 		{
 			return false;
 		}
-		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(1.3f, 1.1f, 1f), true, 1.6f);
+		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(2f, 1.6f, 1.5f), true, 2.6f); // 1.16.x (SAT: chests too small)
 		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
 		m_things.Add(new Thing { Go = go, Kind = Kind.Coin, Lane = lane, Z = z, HalfLength = 0.5f, Label = "Chest" });
 		return true;

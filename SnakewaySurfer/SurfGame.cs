@@ -2692,7 +2692,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	}
 
 	// Real size from the collider, only the very biggest shrunk to Monster Height.
-	private static float RealScale(CreatureInfo info) => info.Height > 0.3f ? Mathf.Min(1f, Plugin.MonsterHeight.Value / info.Height) : 1f;
+	// 1.16.x (SAT: deathsquitos too small): the very smallest are drawn at least 0.9 m tall (up to
+	// twice their size), so they read at speed.
+	private static float RealScale(CreatureInfo info) => info.Height > 0.3f ? Mathf.Min(Mathf.Clamp(0.9f / info.Height, 1f, 2f), Plugin.MonsterHeight.Value / info.Height) : 1f;
 
 	private GameObject Fitted(GameObject template, Quaternion rotation, Vector3 size, bool uniform, float maxScale = float.MaxValue)
 	{
