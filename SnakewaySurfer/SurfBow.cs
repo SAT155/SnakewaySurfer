@@ -64,9 +64,54 @@ internal sealed partial class SurfGame
 		{
 			m_drawState = DrawState(m_wieldShared.m_attack);
 			m_drawTime = Mathf.Clamp(DrawDuration(m_wieldShared.m_attack), 0.4f, 1.6f);
+			StartBowEquip();
 		}
 		m_bossBody = m_bossGo != null ? m_bossGo.GetComponentsInChildren<SkinnedMeshRenderer>() : new SkinnedMeshRenderer[0];
 		m_audio.Play("sfx_equip_start|sfx_pickable_pick", 0.9f, 1f);
+	}
+
+	// 1.16.x (SAT: the bow popped into the hand): a short equip. The character plays the game's
+	// equipping move while the bow grows into the hand from small with a little overshoot, and
+	// it can only be drawn once it's there.
+	private const float BowEquipTime = 0.45f;
+	private float m_bowEquip;
+	private Vector3 m_bowScale = Vector3.one;
+
+	private void StartBowEquip()
+	{
+		if (m_wielded == null)
+		{
+			return;
+		}
+		m_bowEquip = BowEquipTime;
+		m_bowScale = m_wielded.transform.localScale;
+		m_wielded.transform.localScale = m_bowScale * 0.15f;
+		AvatarBool("equipping", true);
+	}
+
+	private void UpdateBowEquip(float dt)
+	{
+		if (m_bowEquip <= 0f)
+		{
+			return;
+		}
+		m_bowEquip = Mathf.Max(0f, m_bowEquip - dt);
+		float u = 1f - m_bowEquip / BowEquipTime;
+		// Ease out with a slight overshoot (back easing).
+		float e = 1f + 2.2f * Mathf.Pow(u - 1f, 3f) + 1.2f * Mathf.Pow(u - 1f, 2f);
+		if (m_wielded != null)
+		{
+			m_wielded.transform.localScale = m_bowScale * Mathf.LerpUnclamped(0.15f, 1f, e);
+		}
+		if (m_bowEquip <= 0f)
+		{
+			if (m_wielded != null)
+			{
+				m_wielded.transform.localScale = m_bowScale;
+			}
+			AvatarBool("equipping", false);
+			m_audio.Play("sfx_equip_end|sfx_equip_start", 0.6f, 1.1f);
+		}
 	}
 
 	// The bow's draw state and time, read by name (they're Attack fields on the bow's attack).
@@ -80,6 +125,7 @@ internal sealed partial class SurfGame
 	{
 		m_aimTime -= dt;
 		m_aimClock += dt;
+		UpdateBowEquip(dt);
 		m_speed = 0f;
 		if (m_bossGo != null && m_boss != null)
 		{
@@ -120,7 +166,7 @@ internal sealed partial class SurfGame
 				m_drawArmed = true;
 			}
 		}
-		bool hold = canInput && m_drawArmed && keys && m_arrowsLeft > 0 && m_aimTime > 0f;
+		bool hold = canInput && m_drawArmed && m_bowEquip <= 0f && keys && m_arrowsLeft > 0 && m_aimTime > 0f;
 		if (hold)
 		{
 			if (!m_drawing)

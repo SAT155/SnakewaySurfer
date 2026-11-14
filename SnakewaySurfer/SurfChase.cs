@@ -125,6 +125,18 @@ internal sealed partial class SurfGame
 
 	// One of the boss's own attacks, by a word in its weapon or animation name (the first key
 	// that matches), else any.
+	private static bool Travels(string name)
+	{
+		foreach (string w in new[] { "teleport", "burrow", "rush", "dash", "jump", "leap", "charge", "dive" })
+		{
+			if (name.IndexOf(w, System.StringComparison.OrdinalIgnoreCase) >= 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private CreatureAttack? BossAttackFor(string keys)
 	{
 		if (m_bossInfo == null)
@@ -133,6 +145,15 @@ internal sealed partial class SurfGame
 		}
 		List<CreatureAttack> all = new(m_bossInfo.Melee);
 		all.AddRange(m_bossInfo.Ranged);
+		// 1.16.x (SAT: the Queen spazzed all over the road; the log showed her duel swing was
+		// "attack_teleport"): clips that carry the body off somewhere (teleport, burrow, rush,
+		// jump) aren't a blow you can read, so they're never picked while any other is left.
+		// (Unless such a clip is what was asked for, as for a charge.)
+		List<CreatureAttack> steady = all.FindAll(a => !Travels(a.Animation) && !Travels(a.Item));
+		if (steady.Count > 0 && !Travels(keys))
+		{
+			all = steady;
+		}
 		if (all.Count == 0)
 		{
 			return null;

@@ -20,6 +20,7 @@ internal sealed partial class SurfGame
 	private int m_duelLane;
 	private GameObject? m_duelMarker;
 	private float m_duelPull;
+	private float m_duelSlide;
 
 	// The counter: blows left to land, the wait for the next and for the one swinging now.
 	private const int ComboBlows = 3;
@@ -130,7 +131,16 @@ internal sealed partial class SurfGame
 			m_bossThing.Z = m_bossZ;
 		}
 		Vector3 p = m_bossGo.transform.localPosition;
-		float x = Mathf.MoveTowards(p.x, LaneX(m_duelLand >= 0f ? m_duelLane : m_lane) * 0.6f, dt * 4f);
+		// 1.16.x (SAT: the Queen spazzed all over the road): it holds still while a swing plays
+		// and only eases across between swings (no sliding back and forth after your lane).
+		float aimX = LaneX(m_duelLand >= 0f ? m_duelLane : m_lane) * 0.6f;
+		// (Still coming in from the side of the track, it keeps coming.)
+		bool hold = (m_duelLand >= 0f || InCombo) && Mathf.Abs(p.x - aimX) < 2.5f;
+		if (hold)
+		{
+			m_duelSlide = 0f;
+		}
+		float x = hold ? p.x : Mathf.SmoothDamp(p.x, aimX, ref m_duelSlide, 0.45f, 5f, dt);
 		// Moder fights you on the ground; others keep a little of their height.
 		float lift = Flies(def) ? 0f : def.Fly * 0.4f;
 		m_bossGo.transform.localPosition = new Vector3(x, RoadY(m_bossZ) + lift, m_bossZ);
@@ -184,6 +194,7 @@ internal sealed partial class SurfGame
 		if (inLane && m_blocking && m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			// Parried: it reels, and you get your blows in.
+			NoteParry();
 			PlayBlock(true);
 			Flash(new Color(1f, 0.95f, 0.75f), 0.6f);
 			m_blockXp += 2f;

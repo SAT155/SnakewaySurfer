@@ -52,7 +52,8 @@ internal sealed partial class SurfGame
 
 	private bool Has(string id) => m_owned.Contains(id);
 
-	private float ParryWindowNow => Plugin.ParryWindow.Value * (Has("serpent") ? 2f : 1f);
+	// 1.16.x: never shorter than ParryFloor, so pressing on the glint (SurfParryCue.cs) is in time.
+	private float ParryWindowNow => Mathf.Max(ParryFloor, Plugin.ParryWindow.Value) * (Has("serpent") ? 2f : 1f);
 
 	private int Bank
 	{

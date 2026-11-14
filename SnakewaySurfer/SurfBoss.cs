@@ -578,6 +578,7 @@ internal sealed partial class SurfGame
 	// 1.16.150 (SAT: little difference between star levels): from 2 stars a boss sometimes
 	// follows one move straight up with another (unless the move held the next one back).
 	private float m_bossLock;
+	private float m_bossSlideX;
 	private float m_bossHeld;
 
 	private bool BossAttackInFlight()
@@ -723,7 +724,17 @@ internal sealed partial class SurfGame
 		float lift = Flies(def) ? FlightHeight(def, dt) : def.Fly;
 		// After moving on it comes up out of the ground.
 		m_bossRise = Mathf.Max(0f, m_bossRise - dt * 1.4f);
-		Vector3 pos = new Vector3(m_bossLock > 0f ? m_bossGo.transform.localPosition.x : Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
+		// 1.16.x (SAT: the Queen spazzed all over the road): the attack lock froze it part way
+		// back to its place after a duel, so it lurched across the road in stops and starts. Now
+		// the lock only holds it once it's nearly there; on the way it glides smoothly.
+		float nowX = m_bossGo.transform.localPosition.x;
+		bool holdX = m_bossLock > 0f && Mathf.Abs(nowX - x) < 1f;
+		if (holdX)
+		{
+			m_bossSlideX = 0f;
+		}
+		float newX = holdX ? nowX : Mathf.SmoothDamp(nowX, x, ref m_bossSlideX, 0.5f, 6f, dt);
+		Vector3 pos = new Vector3(newX, RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
 		m_bossGo.transform.localPosition = pos;
 		m_bossThing.Z = m_bossZ;
 

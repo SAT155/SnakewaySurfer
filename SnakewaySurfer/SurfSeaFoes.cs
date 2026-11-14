@@ -788,7 +788,11 @@ internal sealed partial class SurfGame
 	// A creature's blow on the ship: blocks and parries as on land. 0 hurt, 1 blocked, 2 parried.
 	private int SeaHit(SeaFoe? foe, bool heavy, string why)
 	{
-		bool parry = m_hurtTime <= 0f && m_hullGrace <= 0f && m_blocking && m_runTime - m_blockPressed <= Plugin.ParryWindow.Value;
+		bool parry = m_hurtTime <= 0f && m_hullGrace <= 0f && m_blocking && m_runTime - m_blockPressed <= ParryWindowNow;
+		if (parry)
+		{
+			NoteParry();
+		}
 		int lives = m_lives;
 		float hurt = m_hurtTime;
 		float hull = m_hull;
