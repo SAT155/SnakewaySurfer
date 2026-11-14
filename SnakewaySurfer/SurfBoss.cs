@@ -452,22 +452,12 @@ internal sealed partial class SurfGame
 			{
 				return;
 			}
-			s_beamMaterial = new Material(shader) { name = "SurfPickupBeam", color = new Color(0.55f, 0.85f, 1f, 0.28f), renderQueue = 3110 };
+			s_beamMaterial = new Material(shader) { name = "SurfPickupBeam", color = new Color(0.55f, 0.85f, 1f, 0.18f), renderQueue = 3110 };
 		}
-		GameObject beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-		Destroy(beam.GetComponent<Collider>());
-		beam.name = "PickupBeam";
-		beam.layer = m_layer;
+		// 1.16.x (SAT: the pillar looked like a UFO's light beam): no pillar any more, only the
+		// faint glow on the lane under it and the pickup's own light.
 		// (The fitted wrapper is upright and scaled evenly; undo its scale.)
 		float k = Mathf.Max(0.01f, parent.localScale.x);
-		beam.transform.SetParent(parent, false);
-		beam.transform.localRotation = Quaternion.identity;
-		beam.transform.localScale = new Vector3(0.5f / k, 3f / k, 0.5f / k);
-		beam.transform.localPosition = new Vector3(0f, (3f - y) / k, 0f);
-		Renderer r = beam.GetComponent<Renderer>();
-		r.sharedMaterial = s_beamMaterial;
-		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-		r.receiveShadows = false;
 		GameObject patch = MakeMarker(1, 0f, 1.6f, s_beamMaterial);
 		patch.transform.SetParent(parent, false);
 		patch.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
