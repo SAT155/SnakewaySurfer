@@ -189,7 +189,7 @@ public class Plugin : BaseUnityPlugin
 		Countdown = Config.Bind("1 - Run", "Countdown", 3f,
 			new ConfigDescription("Seconds of countdown before each run.", new AcceptableValueRange<float>(0f, 10f)));
 		ExitKey = Config.Bind("1 - Run", "Exit Key", KeyCode.Escape,
-			"Stops the minigame and puts you back in the world. Stopping mid-run still counts the run for rewards.");
+			"Mid-run: pauses (press again to carry on; Q while paused stops the run). On the start menu and after a fall: puts you back in the world. Stopping mid-run still counts the run for rewards.");
 
 		StopWhenHurt = Config.Bind("1 - Run", "Stop When Hurt", true,
 			"Stop the minigame as soon as something damages your character in the real world. Health lost because food is wearing off doesn't count.");

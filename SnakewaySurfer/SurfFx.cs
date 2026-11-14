@@ -51,7 +51,88 @@ internal sealed partial class SurfGame
 				Picture(fx);
 			}
 		}
-		Plugin.Log.LogInfo($"Run warm-up: {(Time.realtimeSinceStartup - t0) * 1000f:0} ms.");
+		// 1.16.x (playtest: hitching while the track is built): the first copy of each tree,
+		// rock, log or creature used to be made the moment the track first needed it, mid-run.
+		// The starting biome's are made now, behind the loading screen; the rest of the lap's
+		// a few milliseconds a frame while you run (UpdateWarm), the next biome first.
+		m_warmQueue.Clear();
+		int first = m_segments.Count > 0 ? m_segments[0].Biome : 0;
+		int count = Mathf.Max(1, Mathf.Min(m_lapBiomes, m_biomes.Count));
+		for (int i = 0; i < count; i++)
+		{
+			int b = (first + i) % count;
+			if (b >= 0 && b < m_biomes.Count)
+			{
+				QueueWarm(m_biomes[b]);
+			}
+		}
+		int now = 0;
+		int firstCount = m_warmQueue.Count;
+		while (m_warmQueue.Count > 0 && now < m_biomeWarmCount)
+		{
+			WarmOne(m_warmQueue.Dequeue());
+			now++;
+		}
+		Plugin.Log.LogInfo($"Run warm-up: {(Time.realtimeSinceStartup - t0) * 1000f:0} ms ({now} of {firstCount} copies made now, the rest while running).");
+	}
+
+	private readonly Queue<GameObject> m_warmQueue = new();
+	// How many queued copies belong to the first biome queued.
+	private int m_biomeWarmCount;
+
+	private void QueueWarm(BiomeRuntime b)
+	{
+		int before = m_warmQueue.Count;
+		HashSet<GameObject> seen = new(m_warmQueue);
+		void Add(GameObject? go)
+		{
+			if (go != null && !m_pictureOf.ContainsKey(go) && seen.Add(go))
+			{
+				m_warmQueue.Enqueue(go);
+			}
+		}
+		foreach (GameObject go in b.Scenery) Add(go);
+		foreach (VegEntry v in b.Veg) Add(v.Prefab);
+		foreach (GameObject go in b.Logs) Add(go);
+		foreach ((GameObject prefab, string _) in b.Giants) Add(prefab);
+		foreach (SpawnEntry s in b.Monsters) Add(s.Prefab);
+		foreach (SpawnEntry s in b.Flyers) Add(s.Prefab);
+		foreach (GameObject go in b.Pickables) Add(go);
+		foreach ((string _, bool _, List<GameObject> homes) in b.Landmarks)
+		{
+			foreach (GameObject go in homes) Add(go);
+		}
+		if (before == 0)
+		{
+			m_biomeWarmCount = m_warmQueue.Count;
+		}
+	}
+
+	private void WarmOne(GameObject prefab)
+	{
+		try
+		{
+			Picture(prefab);
+		}
+		catch (System.Exception e)
+		{
+			Plugin.Log.LogWarning($"Couldn't copy {prefab.name} ahead of time: {e.Message}");
+		}
+	}
+
+	// Each running frame: queued copies for about 2 ms (always at least one).
+	private void UpdateWarm()
+	{
+		if (m_warmQueue.Count == 0)
+		{
+			return;
+		}
+		float t0 = Time.realtimeSinceStartup;
+		do
+		{
+			WarmOne(m_warmQueue.Dequeue());
+		}
+		while (m_warmQueue.Count > 0 && Time.realtimeSinceStartup - t0 < 0.002f);
 	}
 
 	// An effect prefab by name: from the scene's prefab list, else any loaded object of that

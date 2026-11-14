@@ -1410,7 +1410,21 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		m_lastHealth = health;
 
-		if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
+		// 1.16.x (playtest: Escape ended the run instead of pausing it): mid-run the Exit Key
+		// pauses (again: carries on), and Q while paused stops the run. On the start menu and
+		// the crash screen it still leaves straight away.
+		bool midRun = (m_state == State.Running || m_state == State.Countdown) && !Loading && Plugin.AllowPause.Value;
+		if (canInput && midRun && m_paused && Input.GetKeyDown(KeyCode.Q))
+		{
+			Quit();
+			return;
+		}
+		if (canInput && midRun && Input.GetKeyDown(Plugin.ExitKey.Value))
+		{
+			m_menuPaused = false;
+			SetPaused(!m_paused);
+		}
+		else if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
 		{
 			// 1.16.16: the start menu fades away first.
 			if (m_state == State.Menu && !Loading && m_menuClose < 0f)
@@ -1458,6 +1472,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 
+		UpdateWarm();
 		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
 		m_clock += dt;
 		m_stateTime += dt;
@@ -1611,7 +1626,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			AudioListener.pause = false;
 		}
-		m_banner = paused ? $"Paused\n{Plugin.PauseKey.Value} to carry on" : "";
+		m_banner = paused ? $"Paused\n{Plugin.ExitKey.Value} or {Plugin.PauseKey.Value}: carry on     Q: stop running" : "";
 		m_bannerTime = paused ? 9999f : 0f;
 	}
 
@@ -4204,12 +4219,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					// Starting on the coast: the longship's controls.
 					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: stop", m_mid);
+						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				else
 				{
 					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: stop running", m_mid);
+						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				break;
 			}
