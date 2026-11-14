@@ -594,9 +594,14 @@ internal sealed partial class SurfGame
 			}
 			if (last && ItemTemplate(def.HitItem) is GameObject hit)
 			{
-				// Something to throw at the Elder on one of the ways out.
-				Thing t = SpawnPickup(hit, 0, zs + cell * 0.5f, Kind.BossHit);
-				OnPath(t, Random.Range(0, MazePaths));
+				// Something to throw at the Elder on the ways out. 1.16.x (SAT: sometimes out of
+				// reach): the last cell's walls split it into groups you can't cross, so one in
+				// every group, wherever you came through.
+				foreach (List<int> g in groups)
+				{
+					Thing t = SpawnPickup(hit, 0, zs + cell * 0.5f, Kind.BossHit);
+					OnPath(t, g[Random.Range(0, g.Count)]);
+				}
 			}
 		}
 		// No other attacks until you're through.
