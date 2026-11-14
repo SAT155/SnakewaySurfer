@@ -4250,17 +4250,48 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				break;
 			case State.Crashed:
-				Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
-				Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
-					$"{m_z:0} m, {m_coins} coins, reached {m_biomes[m_highestBiome].Def.Name}\n\n{m_rewardText}", m_mid);
-				(int cb, int cs, bool csea) = CrashPlace();
-				string fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
+				// 1.16.x (playtest: after a fall the view just looked up with no menu): the keys
+				// are drawn first, and nothing in the summary can stop them showing.
+				string fromCheckpoint = "";
+				string retry = "";
+				try
+				{
+					(int cb, int cs, bool csea) = CrashPlace();
+					fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
+					retry = " " + Progress.Describe(cb, cs, csea);
+				}
+				catch (System.Exception e)
+				{
+					LogGuiError("crash keys", e);
+				}
 				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
-					$"Space: run again     R: retry {Progress.Describe(cb, cs, csea)}{fromCheckpoint}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+					$"Space: run again     R: retry{retry}{fromCheckpoint}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				try
+				{
+					Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
+					string reached = m_highestBiome >= 0 && m_highestBiome < m_biomes.Count ? m_biomes[m_highestBiome].Def.Name : "the dream";
+					Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
+						$"{m_z:0} m, {m_coins} coins, reached {reached}\n\n{m_rewardText}", m_mid);
+				}
+				catch (System.Exception e)
+				{
+					LogGuiError("crash summary", e);
+				}
 				break;
 			case State.Menu:
 				MenuGui(k, w, h);
 				break;
+		}
+	}
+
+	private static readonly HashSet<string> s_guiErrors = new();
+
+	// Once per place: an error while drawing, which would otherwise blank the rest of the screen.
+	private static void LogGuiError(string where, System.Exception e)
+	{
+		if (s_guiErrors.Add(where))
+		{
+			Plugin.Log.LogError($"Drawing the {where} failed: {e}");
 		}
 	}
 

@@ -1252,6 +1252,9 @@ internal sealed partial class SurfGame
 	}
 
 	// Top-down over the halls, like the sea: it turns with the way ahead around each corner.
+	// A roof only when the camera is down in the halls.
+	private static bool RoofsOn => Plugin.DungeonRoof.Value && !Plugin.DungeonTopDown.Value;
+
 	private void PlaceCryptCamera(float dt)
 	{
 		CryptRun? c = m_crypt;
@@ -1292,12 +1295,19 @@ internal sealed partial class SurfGame
 		Quaternion turn = m_stage.rotation * Quaternion.Euler(0f, yaw, 0f);
 		// Under the roof, where there is one.
 		float camUp = Plugin.CameraHeight.Value + 0.6f;
-		if (c.Theme.Roofed && Plugin.DungeonRoof.Value)
+		if (c.Theme.Roofed && RoofsOn)
 		{
 			camUp = Mathf.Min(camUp, WallH + c.Theme.RoofLift - 0.8f);
 		}
 		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, camUp, -Plugin.CameraDistance.Value * 0.85f);
 		Vector3 look = m_cryptFocus + turn * new Vector3(0f, 1f, 7f);
+		// 1.16.x (SAT: dungeons need to be top down): high over the halls, about 60 degrees
+		// down, a little ahead of you, turning with you at each corner as before.
+		if (Plugin.DungeonTopDown.Value)
+		{
+			pos = m_cryptFocus + turn * new Vector3(0f, 15f, -7.5f);
+			look = m_cryptFocus + turn * new Vector3(0f, 0f, 3.5f);
+		}
 		Quaternion rot = Quaternion.LookRotation(look - pos);
 		float b = Mathf.SmoothStep(0f, 1f, m_cryptView);
 		m_camera.transform.position = Vector3.Lerp(m_camera.transform.position, pos, b) + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake * b : Vector3.zero);

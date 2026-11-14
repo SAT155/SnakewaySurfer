@@ -191,7 +191,7 @@ internal sealed partial class SurfGame
 	private void CryptRoof(Transform root, float x0, float x1, float z0, float z1, float y)
 	{
 		CryptTheme theme = m_crypt!.Theme;
-		if (!theme.Roofed || !Plugin.DungeonRoof.Value || x1 - x0 < 0.5f || z1 - z0 < 0.5f)
+		if (!theme.Roofed || !RoofsOn || x1 - x0 < 0.5f || z1 - z0 < 0.5f)
 		{
 			return;
 		}

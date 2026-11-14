@@ -58,6 +58,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> MistAmount = null!;
 	internal static ConfigEntry<bool> MistStorm = null!;
 	internal static ConfigEntry<bool> DungeonRoof = null!;
+	internal static ConfigEntry<bool> DungeonTopDown = null!;
 	internal static ConfigEntry<float> AmbienceVolume = null!;
 	internal static ConfigEntry<string> TrackPiece = null!;
 	internal static ConfigEntry<float> StageHeight = null!;
@@ -248,8 +249,10 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How many trees and rocks line the track. Lower it if the minigame runs slowly.", new AcceptableValueRange<float>(0.2f, 3f)));
 		MistAmount = Config.Bind("3 - Look", "Mistlands Mist", 1f,
 			new ConfigDescription("How much of the game's own mist drifts over the Mistlands (thick beside the track, thin over the lanes). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		DungeonTopDown = Config.Bind("3 - Look", "Dungeon Top Down", true,
+			"Burial chambers, sunken crypts, frost caves and infested mines are seen from high above, looking down over the halls (no roof). Off: a chase camera behind you, under the roof if Dungeon Roof is on.");
 		DungeonRoof = Config.Bind("3 - Look", "Dungeon Roof", true,
-			"Burial chambers, sunken crypts, frost caves and infested mines have a roof, and the camera stays under it. Off = open to the dark above, with the camera as high as outside.");
+			"Burial chambers, sunken crypts, frost caves and infested mines have a roof, and the camera stays under it. Off = open to the dark above, with the camera as high as outside. Only with Dungeon Top Down off.");
 		MistStorm = Config.Bind("3 - Look", "Mistlands Storm", true,
 			"The Mistlands' own thunderstorm hangs over the open Mistlands stretches: clouds that flicker white and violet, with thunder after.");
 		AmbienceVolume = Config.Bind("4 - Sound", "Biome Ambience", 1f,
