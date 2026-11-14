@@ -577,6 +577,31 @@ internal sealed partial class SurfGame
 
 	// 1.16.150 (SAT: little difference between star levels): from 2 stars a boss sometimes
 	// follows one move straight up with another (unless the move held the next one back).
+	private float m_bossLock;
+	private float m_bossHeld;
+
+	private bool BossAttackInFlight()
+	{
+		if (m_boss == null)
+		{
+			return false;
+		}
+		if (m_chaseStrikes.Count > 0)
+		{
+			return true;
+		}
+		string label = m_bossThing?.Label ?? m_boss.Name;
+		foreach (Thing t in m_things)
+		{
+			if (t != m_bossThing && t.Collidable && t.Z > m_z - 1f && (t.Label == m_boss.Name || t.Label == label)
+				&& t.Kind != Kind.Item && t.Kind != Kind.BossHit && t.Kind != Kind.Coin && t.Kind != Kind.Scenery && t.Kind != Kind.Ground)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private void StarFollowUp(int stars, float interval)
 	{
 		if (stars >= 2 && m_bossAttackTimer <= interval + 0.01f && Random.value < 0.22f * (stars - 1))
@@ -689,13 +714,16 @@ internal sealed partial class SurfGame
 			// It keeps its distance ahead (1.13: a stander no longer sinks and rises on every
 			// move); 1.16.2: when that distance changes (Moder landing or taking off) it gets
 			// there smoothly instead of jumping.
-			m_bossZ = m_z + Mathf.MoveTowards(m_bossZ - m_z, want - m_z, dt * 14f);
+			// 1.16.x (SAT: bosses drift mid-animation): while an attack plays it holds its
+			// distance exactly, and only then eases to the new one.
+			m_bossLock = Mathf.Max(0f, m_bossLock - dt);
+			m_bossZ = m_z + (m_bossLock > 0f ? m_bossZ - m_z : Mathf.MoveTowards(m_bossZ - m_z, want - m_z, dt * 14f));
 		}
 		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 6f) : Flies(def) ? FlightSway() : 0f;
 		float lift = Flies(def) ? FlightHeight(def, dt) : def.Fly;
 		// After moving on it comes up out of the ground.
 		m_bossRise = Mathf.Max(0f, m_bossRise - dt * 1.4f);
-		Vector3 pos = new Vector3(Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
+		Vector3 pos = new Vector3(m_bossLock > 0f ? m_bossGo.transform.localPosition.x : Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
 		m_bossGo.transform.localPosition = pos;
 		m_bossThing.Z = m_bossZ;
 
@@ -723,8 +751,18 @@ internal sealed partial class SurfGame
 		}
 		int phase = Mathf.Clamp(m_bossHits, 0, def.Moves.Length - 1);
 		m_bossAttackTimer -= dt;
-		if (m_bossAttackTimer <= 0f)
+		// 1.16.x (SAT: attacks should wait for the last pattern to finish): not while any of its
+		// attacks is still on the track ahead of you.
+		// (At most 3 s, in case something of its stays on the track.)
+		if (m_bossAttackTimer <= 0f && m_bossHeld < 3f && BossAttackInFlight())
 		{
+			m_bossHeld += 0.15f - m_bossAttackTimer;
+			m_bossAttackTimer = 0.15f;
+		}
+		else if (m_bossAttackTimer <= 0f)
+		{
+			m_bossHeld = 0f;
+			m_bossLock = 1.2f;
 			BossMove(def, Flies(def) && m_bossLanded ? LandedMove() : NextMove(def, phase));
 			int bossStars = m_bossSeg?.Stars ?? 0;
 			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.2f * bossStars);
