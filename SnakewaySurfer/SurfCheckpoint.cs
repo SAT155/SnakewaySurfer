@@ -239,10 +239,25 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Progress.SaveResume(m_player, SeaTo, m_shipSeg.Stars, true, 0, island.Along);
+		// 1.16.x (SAT: the islands can have some fun popup text): Hugin names the island.
+		m_banner = s_islandLines[Random.Range(0, s_islandLines.Length)];
+		m_bannerTime = 4f;
 		m_audio.Play("sfx_runestone_activate|sfx_gui_select", 0.8f, 1.05f);
 		Flash(new Color(1f, 0.85f, 0.45f), 0.3f);
 		Plugin.Log.LogInfo($"Checkpoint at the island {island.Along:0} m into the crossing.");
 	}
+
+	private static readonly string[] s_islandLines =
+	{
+		"Gull Rock! The gulls say it's theirs. Mend fast.",
+		"Odin's Footstool. He's not using it right now.",
+		"Troll's Toe. Don't ask where the rest of him is.",
+		"Neck Point: lovely beach, terrible neighbours.",
+		"Driftwood Hump. Every plank here was once a ship like yours.",
+		"Serpent's Nap. Moor quietly.",
+		"Last Dry Patch. Make the most of it.",
+		"Hugin's Perch. I come here to think about you sailing badly.",
+	};
 
 	private void ClearResumePoint()
 	{

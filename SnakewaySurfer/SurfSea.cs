@@ -631,6 +631,7 @@ internal sealed partial class SurfGame
 			Vector2 f = HeadingVector();
 			m_x += f.x * m_boatSpeed * dt;
 			m_z += f.y * m_boatSpeed * dt;
+			SeaLookout(dt, f);
 			// The channel's edges: reefs that scrape and turn you back, no harm done.
 			if (Mathf.Abs(m_x) > SeaHalfWidth)
 			{
@@ -1154,6 +1155,40 @@ internal sealed partial class SurfGame
 		GUI.matrix = m;
 	}
 
+	// 1.16.x (playtest: rammed islands under full sail; the gold rings weren't understood):
+	// Hugin calls out an island dead ahead in time to turn or ease the sail, and explains a
+	// harbour ring the first time one comes near.
+	private float m_lookoutWait;
+	private bool m_harbourTold;
+
+	private void SeaLookout(float dt, Vector2 f)
+	{
+		m_lookoutWait = Mathf.Max(0f, m_lookoutWait - dt);
+		Vector2 ship = ShipCenter();
+		foreach (Island i in m_islands)
+		{
+			Vector2 to = i.C - ship;
+			float ahead = Vector2.Dot(to, f);
+			if (!m_harbourTold && ahead > 0f && to.magnitude < 70f)
+			{
+				m_harbourTold = true;
+				m_banner = "The gold ring by an island is a harbour: ease off the sail (S) inside it to moor, mend the hull and save a checkpoint.";
+				m_bannerTime = 6f;
+				return;
+			}
+			// In the way: within reach in the next 3 seconds, and the course passes over it.
+			float side = Mathf.Abs(f.x * to.y - f.y * to.x);
+			if (m_lookoutWait <= 0f && m_boatSpeed > 4f && ahead > 0f && ahead < m_boatSpeed * 3f + i.R && side < i.R * IslandShore + 3f)
+			{
+				m_lookoutWait = 8f;
+				m_audio.Play("sfx_raven_kaw|sfx_gui_select", 0.8f);
+				m_banner = "Land ahead! Steer round it or ease the sail (S).";
+				m_bannerTime = 3f;
+				return;
+			}
+		}
+	}
+
 	// A wind rose by the stamina bar, like the game's ship HUD: the wind's arrow (brighter the
 	// better it fills the sail), the ship's heading, and the sail setting.
 	private void SeaHud(float k, float w, float h)
@@ -1191,6 +1226,9 @@ internal sealed partial class SurfGame
 				Fill(new Rect(sailRect.x + i * 18f * k, sailRect.yMax - (i + 1) * 16f * k, 14f * k, (i + 1) * 16f * k), new Color(0.95f, 0.9f, 0.8f, 0.85f));
 			}
 		}
+		// 1.16.x (playtest: sailed off toward the edge first): a gold mark on the rose's top, the
+		// way to the far shore (straight up the screen).
+		Fill(new Rect(rose.center.x - 4f * k, rose.y - 14f * k, 8f * k, 18f * k), new Color(1f, 0.82f, 0.3f, 0.9f));
 		// The ballista's reload.
 		if (m_reload > 0f)
 		{
@@ -1208,7 +1246,7 @@ internal sealed partial class SurfGame
 			Color old = GUI.color;
 			GUI.color = new Color(1f, 1f, 1f, hint);
 			Shadowed(new Rect(w - 760f * k, rose.y - 150f * k, 720f * k, 100f * k),
-				$"A / D: steer     W / S: sail\nMouse: aim     {KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
+				$"Sail up the screen to the far shore (the gold mark)\nA / D: steer     W / S: sail\nMouse: aim     {KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
 			GUI.color = old;
 			m_small.alignment = anchor;
 			m_small.normal.textColor = text;
