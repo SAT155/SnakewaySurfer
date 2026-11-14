@@ -1945,9 +1945,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 						}
 						break;
 					}
-					if (sliding && !t.Wall && !string.IsNullOrEmpty(t.Label))
+					if (sliding)
 					{
-						// SAT: a roll dodges an attack, as in the game. Low foes, logs and walls still get you.
+						// SAT: a roll dodges an attack, as in the game. 1.16.x (SAT: rolling always
+						// has i-frames, kept fair by its cooldown): anything at all.
 						Dodged(t);
 						break;
 					}
@@ -1955,6 +1956,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 					Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
 				case Kind.Low:
+					if (sliding)
+					{
+						Dodged(t);
+						break;
+					}
 					if (m_y < (t.ClearHeight > 0f ? t.ClearHeight : 0.75f))
 					{
 						m_audio.Play(t.CrashText.Length > 0 ? Sfx.HitMonster : Sfx.HitLog);
@@ -2051,6 +2057,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// A crash, unless the Invincible test setting is on: then the thing is just passed through.
 	private void Hit(Thing t, string why)
 	{
+		// 1.16.x (SAT: rolling always has i-frames): nothing hurts during a roll on the ground,
+		// boss attacks, strikes and vines included. Only running into a dungeon's wall or
+		// wrecking at sea (no label, heavy) still counts.
+		if (m_slide > 0f && m_y < 0.4f && !(t.Label.Length == 0 && t.Heavy))
+		{
+			Dodged(t);
+			return;
+		}
 		// Nothing hurts that wasn't announced (SurfStrike.cs).
 		if (m_hurtTime <= 0f && !FairlyWarned(t))
 		{
@@ -3802,6 +3816,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float m_lifeRegen;
 	private float m_foodBoost;
 	private float m_rollCooldown;
+	private float m_rollReadyAt = -99f;
 
 	// Seconds to heal one life back, by difficulty.
 	private static float RegenSeconds => Plugin.Level == 0 ? 30f : Plugin.Level == 1 ? 45f : 70f;
@@ -3809,7 +3824,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void UpdateRegen(float dt)
 	{
 		m_foodBoost = Mathf.Max(0f, m_foodBoost - dt);
-		m_rollCooldown = Mathf.Max(0f, m_rollCooldown - dt);
+		if (m_rollCooldown > 0f)
+		{
+			m_rollCooldown = Mathf.Max(0f, m_rollCooldown - dt);
+			if (m_rollCooldown <= 0f && m_state == State.Running)
+			{
+				// 1.16.x (SAT: show when the roll is ready again): a soft tick, and the roll pip
+				// under the stamina bar flashes (SurfHud.cs).
+				m_audio.Play("sfx_gui_select|sfx_gui_button", 0.35f, 1.3f);
+				m_rollReadyAt = Time.time;
+			}
+		}
 		if (m_state != State.Running || m_lives >= Plugin.StartLives || m_atSea)
 		{
 			m_lifeRegen = 0f;

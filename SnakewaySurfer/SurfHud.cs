@@ -433,5 +433,16 @@ internal sealed partial class SurfGame
 			Color c = low && Mathf.FloorToInt(Time.time * 6f) % 2 == 0 ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.78f, 0.15f);
 			Bar(new Rect((w - sw) * 0.5f, h - 70f * k, sw, 12f * k), m_stamina / MaxStamina, c);
 		}
+		// The roll's cooldown: a thin pale bar under the stamina bar while it refills, which
+		// flashes white for a moment when the roll is ready again.
+		float rollMax = Plugin.SlideTime.Value + 0.45f;
+		float sinceReady = Time.time - m_rollReadyAt;
+		if (m_rollCooldown > 0f || sinceReady < 0.35f)
+		{
+			float rw = 120f * k;
+			float fill = m_rollCooldown > 0f ? 1f - m_rollCooldown / Mathf.Max(0.05f, rollMax) : 1f;
+			Color rc = m_rollCooldown > 0f ? new Color(0.65f, 0.8f, 1f, 0.7f) : new Color(1f, 1f, 1f, 1f - sinceReady / 0.35f);
+			Bar(new Rect((w - rw) * 0.5f, h - 54f * k, rw, 6f * k), fill, rc);
+		}
 	}
 }
