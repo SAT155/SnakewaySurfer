@@ -13,6 +13,9 @@ public class Plugin : BaseUnityPlugin
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
 	public const string PluginVersion = "1.16.0";
+	// Filled in by the build with its run number, so logs and the self-test name the real release.
+	public static readonly int BuildNumber = 0;
+	public static string BuildVersion => BuildNumber > 0 ? PluginVersion.Substring(0, PluginVersion.LastIndexOf('.') + 1) + BuildNumber : PluginVersion + " (local build)";
 
 	private static Plugin instance = null!;
 	internal static ManualLogSource Log = null!;
@@ -49,12 +52,22 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> LightIntensity = null!;
 	internal static ConfigEntry<float> MonsterHeight = null!;
 	internal static ConfigEntry<float> SceneryDensity = null!;
+	internal static ConfigEntry<bool> GameVegetation = null!;
+	internal static ConfigEntry<bool> FairPlacement = null!;
+	internal static ConfigEntry<bool> FairWarning = null!;
+	internal static ConfigEntry<float> MistAmount = null!;
+	internal static ConfigEntry<bool> MistStorm = null!;
+	internal static ConfigEntry<bool> DungeonRoof = null!;
+	internal static ConfigEntry<bool> DungeonTopDown = null!;
+	internal static ConfigEntry<float> AmbienceVolume = null!;
 	internal static ConfigEntry<string> TrackPiece = null!;
 	internal static ConfigEntry<float> StageHeight = null!;
 	internal static ConfigEntry<int> RenderLayer = null!;
 
 	internal static ConfigEntry<bool> DebugLog = null!;
 	internal static ConfigEntry<bool> Invincible = null!;
+	internal static ConfigEntry<bool> Autopilot = null!;
+	internal static ConfigEntry<bool> DrawnRaven = null!;
 	internal static ConfigEntry<bool> AllowPause = null!;
 	internal static ConfigEntry<bool> GameLighting = null!;
 	internal static ConfigEntry<bool> UseGameCamera = null!;
@@ -85,7 +98,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<int> Lives = null!;
 	internal static ConfigEntry<int> Difficulty = null!;
 	internal static readonly string[] DifficultyNames = { "Gentle", "Normal", "Hard" };
-	// 1.16.94 (Sam: "Adjustable difficulty in the menu might be nice"): Gentle gives two extra
+	// 1.16.94 (SAT: "Adjustable difficulty in the menu might be nice"): Gentle gives two extra
 	// lives and a slower run and monsters; Hard one life fewer and a faster run.
 	internal static int Level => Mathf.Clamp(Difficulty.Value, 0, 2);
 	internal static int StartLives => Mathf.Max(1, Lives.Value + (Level == 0 ? 2 : Level == 2 ? -1 : 0));
@@ -103,6 +116,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> DistanceHaze = null!;
 	internal static ConfigEntry<bool> WaveGuide = null!;
 	internal static ConfigEntry<float> RollStamina = null!;
+	internal static ConfigEntry<float> JumpStamina = null!;
 	internal static ConfigEntry<KeyCode> SprintKey = null!;
 	internal static ConfigEntry<KeyCode> BlockKey = null!;
 	internal static ConfigEntry<KeyCode> ThrowKey = null!;
@@ -146,6 +160,8 @@ public class Plugin : BaseUnityPlugin
 	{
 		instance = this;
 		Log = Logger;
+		// (BepInEx's own line always says 1.16.0; this is the build actually loaded.)
+		Log.LogInfo($"SnakewaySurfer build {BuildVersion}.");
 
 		BiomeLength = Config.Bind("1 - Run", "Biome Length", 500f,
 			new ConfigDescription("Metres of track per biome. The run goes Meadows, Black Forest, Swamp, Mountains, Plains, Mistlands, Ashlands, Deep North, and Deep North never ends.",
@@ -174,7 +190,7 @@ public class Plugin : BaseUnityPlugin
 		Countdown = Config.Bind("1 - Run", "Countdown", 3f,
 			new ConfigDescription("Seconds of countdown before each run.", new AcceptableValueRange<float>(0f, 10f)));
 		ExitKey = Config.Bind("1 - Run", "Exit Key", KeyCode.Escape,
-			"Stops the minigame and puts you back in the world. Stopping mid-run still counts the run for rewards.");
+			"Mid-run: pauses (press again to carry on; Q while paused stops the run). On the start menu and after a fall: puts you back in the world. Stopping mid-run still counts the run for rewards.");
 
 		StopWhenHurt = Config.Bind("1 - Run", "Stop When Hurt", true,
 			"Stop the minigame as soon as something damages your character in the real world. Health lost because food is wearing off doesn't count.");
@@ -185,7 +201,7 @@ public class Plugin : BaseUnityPlugin
 		SoundVolume = Config.Bind("3 - Look", "Sound Volume", 0.8f,
 			new ConfigDescription("Volume of the minigame sounds.", new AcceptableValueRange<float>(0f, 1f)));
 
-		// Before 1.14 XP was given in levels, which is a lot of XP at a high skill (Sam). These two
+		// Before 1.14 XP was given in levels, which is a lot of XP at a high skill (SAT). These two
 		// stay only so old config files load; they do nothing now.
 		RunLevelsPerBiome = Config.Bind("2 - Rewards", "Run Levels Per Biome", 0.08f,
 			new ConfigDescription("Not used since 1.14 (see Run XP Per Second).", new AcceptableValueRange<float>(0f, 10f)));
@@ -231,6 +247,22 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Monsters in the lanes are their real size, but anything taller than this (or much wider than a lane) is shrunk to fit.", new AcceptableValueRange<float>(1f, 20f)));
 		SceneryDensity = Config.Bind("3 - Look", "Scenery Density", 1f,
 			new ConfigDescription("How many trees and rocks line the track. Lower it if the minigame runs slowly.", new AcceptableValueRange<float>(0.2f, 3f)));
+		MistAmount = Config.Bind("3 - Look", "Mistlands Mist", 1f,
+			new ConfigDescription("How much of the game's own mist drifts over the Mistlands (thick beside the track, thin over the lanes). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		DungeonTopDown = Config.Bind("3 - Look", "Dungeon Top Down", true,
+			"Burial chambers, sunken crypts, frost caves and infested mines are seen from high above, looking down over the halls (no roof). Off: a chase camera behind you, under the roof if Dungeon Roof is on.");
+		DungeonRoof = Config.Bind("3 - Look", "Dungeon Roof", true,
+			"Burial chambers, sunken crypts, frost caves and infested mines have a roof, and the camera stays under it. Off = open to the dark above, with the camera as high as outside. Only with Dungeon Top Down off.");
+		MistStorm = Config.Bind("3 - Look", "Mistlands Storm", true,
+			"The Mistlands' own thunderstorm hangs over the open Mistlands stretches: clouds that flicker white and violet, with thunder after.");
+		AmbienceVolume = Config.Bind("4 - Sound", "Biome Ambience", 1f,
+			new ConfigDescription("How loud each biome's own background sound is (its wind and weather, its birds and night noises, and distant creatures such as a Gjall in the Mistlands). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		FairPlacement = Config.Bind("1 - Run", "Fair Placement", true,
+			"Every row of creatures and obstacles is checked before you reach it: if no runner could get through it with the jumps, rolls and lane changes the game allows, the piece that closes the way is taken out. Off = rows are left exactly as they were laid out.");
+		FairWarning = Config.Bind("1 - Run", "Fair Warning", true,
+			"An attack can only hurt you if it was announced: a lane marker on your lane, or the attack itself in view, for at least 0.8 seconds. Anything quicker than that misses. Off = attacks hit whether announced or not.");
+		GameVegetation = Config.Bind("3 - Look", "Game Vegetation", true,
+			"Line the track with what the game itself grows in each biome (its trees, bushes, rocks, cliffs and roots, in the game's own proportions), instead of each biome's short Scenery list.");
 		TrackPiece = Config.Bind("3 - Look", "Track Piece", "stone_floor_2x2",
 			"Build piece whose material paves the track (prefab name, e.g. stone_floor_2x2, wood_floor).");
 		StageHeight = Config.Bind("3 - Look", "Stage Height", 4000f,
@@ -318,7 +350,7 @@ public class Plugin : BaseUnityPlugin
 		}
 		if (balance.Value < 4)
 		{
-			// 1.12: Sam found Run XP still too high at 0.25 levels per biome.
+			// 1.12: SAT found Run XP still too high at 0.25 levels per biome.
 			if (Mathf.Approximately(RunLevelsPerBiome.Value, 0.25f))
 			{
 				RunLevelsPerBiome.Value = 0.08f;
@@ -327,7 +359,7 @@ public class Plugin : BaseUnityPlugin
 		}
 		if (balance.Value < 5)
 		{
-			// 1.14 (Sam): greydwarf nests are Black Forest things, not Meadows ones.
+			// 1.14 (SAT): greydwarf nests are Black Forest things, not Meadows ones.
 			if (s_landmarks[0].Value == "Greyling: Spawner_GreydwarfNest")
 			{
 				s_landmarks[0].Value = Biomes.Defaults[0].Landmarks;
@@ -339,6 +371,10 @@ public class Plugin : BaseUnityPlugin
 			"Log which monsters, scenery and logs were found for each biome when a run starts.");
 		Invincible = Config.Bind("9 - Debug", "Invincible", false,
 			"Testing: run through everything instead of crashing (a banner says what would have got you).");
+		Autopilot = Config.Bind("9 - Debug", "Autopilot", false,
+			"Testing: the run plays itself (lanes, jumps, rolls, dungeon corners and digging; no blocking, bosses or sailing). The surftest command turns this on by itself.");
+		DrawnRaven = Config.Bind("3 - Look", "Drawn Raven Picture", false,
+			"Show the ravens as the drawn picture that ships with the mod instead of a picture taken from their model in your game. (The drawn one is also used whenever the other can't be made.)");
 		GameTerrainShader = Config.Bind("3 - Look", "Game Terrain Shader", false,
 			"Testing: draw the land with the game's own terrain shader. It doesn't draw on the minigame's stage (the ground shows the sky), so by default the land uses the game's ground textures on a plain shader (Game Ground Textures).");
 		GameTerrainShape = Config.Bind("3 - Look", "Game Terrain Shape", true,
@@ -360,13 +396,15 @@ public class Plugin : BaseUnityPlugin
 		SprintKey = Config.Bind("2 - Keys", "Sprint Key", KeyCode.LeftShift,
 			"Hold to sprint: faster, so you can get past an attack before it lands. Uses stamina.");
 		BlockKey = Config.Bind("2 - Keys", "Block Key", KeyCode.Mouse1,
-			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas and tar can't be blocked, and a bat in the face knocks your guard down for a moment.");
+			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas, tar and the blows of trolls and other giants can't be blocked (dodge them, or parry), and a bat in the face knocks your guard down for a moment.");
 		ThrowKey = Config.Bind("2 - Keys", "Throw Key", KeyCode.Mouse0,
 			"Throws a spear you picked up at the boss (Eikthyr): it flies down your lane, so throw when he's lined up with you.");
 		SprintSpeed = Config.Bind("1 - Run", "Sprint Speed", 1.35f,
 			new ConfigDescription("How much faster you run while sprinting.", new AcceptableValueRange<float>(1f, 2f)));
 		MaxStamina = Config.Bind("1 - Run", "Stamina", 100f,
-			new ConfigDescription("Stamina for sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+			new ConfigDescription("Stamina for jumping, rolling, sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+		JumpStamina = Config.Bind("1 - Run", "Jump Stamina", 8f,
+			new ConfigDescription("Stamina used by each jump, as in the game. Without enough you can't jump. 0: jumps are free.", new AcceptableValueRange<float>(0f, 100f)));
 		SprintStamina = Config.Bind("1 - Run", "Sprint Stamina Per Second", 18f,
 			new ConfigDescription("Stamina used each second of sprinting.", new AcceptableValueRange<float>(0f, 100f)));
 		RollStamina = Config.Bind("1 - Run", "Roll Stamina", 12f,
@@ -380,7 +418,7 @@ public class Plugin : BaseUnityPlugin
 		SkillXp = Config.Bind("2 - Rewards", "Block And Dodge XP", true,
 			"Blocking and Dodge skill XP as the game gives it: 1 for each blocked hit, 2 for each parry (Blocking), and 1 for each attack you roll under, jump or step out of the way of (Dodge). Given with the Run XP when the run ends.");
 		StaminaRegen = Config.Bind("1 - Run", "Stamina Regen Per Second", 22f,
-			new ConfigDescription("Stamina recovered each second once you stop sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
+			new ConfigDescription("Stamina recovered each second once you stop jumping, rolling, sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
 		ParryWindow = Config.Bind("1 - Run", "Parry Window", 0.3f,
 			new ConfigDescription("Seconds before a hit in which pressing block parries it.", new AcceptableValueRange<float>(0.05f, 1f)));
 		ParryDuel = Config.Bind("1 - Run", "Parry Duel", true,
@@ -417,7 +455,7 @@ public class Plugin : BaseUnityPlugin
 			"What each creature does, as \"Prefab: tags; Prefab: tags\" (a trailing * matches a name start). Tags: charger, waiter, switcher, swarm, herd, line, crosser, shooter, flyshooter, sweep, gas2, gas3, smash, slams, lob, fire, tar, bomb, tickdrop, leaper, headleap, hurdle, stomper, ambush, chaser, behind, helper, talk, sideline. Creatures not listed behave as before.");
 		if (balance.Value < 6)
 		{
-			// 1.16.1 (Sam's test): draugr archers on the swamp's sidelines, leeches weaving and
+			// 1.16.1 (SAT's test): draugr archers on the swamp's sidelines, leeches weaving and
 			// swimming up from behind, wolves low enough to jump.
 			CreatureSchemas.Value = Schemas.Upgrade(CreatureSchemas.Value);
 			balance.Value = 6;
@@ -560,6 +598,48 @@ public class Plugin : BaseUnityPlugin
 					return;
 				}
 				args.Context.AddString(SurfStory.Command(player, new[] { "surfstory", "portal" }));
+			});
+			new Terminal.ConsoleCommand("surftest", "surftest [quick] [biome] | stop - testing: the run plays itself through the menu, every biome, dungeon, boss and the crossing, saving screenshots and a report to BepInEx/SnakewaySurferTest (about 20 minutes; \"quick\" is open track only, a biome's name does just that biome)", args =>
+			{
+				Player player = Player.m_localPlayer;
+				if (player == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				if (args.Args.Length > 1 && args.Args[1].ToLowerInvariant() == "stop")
+				{
+					SurfGame.Stop();
+					args.Context.AddString("Self-test stopped. Its report so far is in BepInEx/SnakewaySurferTest.");
+					return;
+				}
+				if (SurfGame.Active != null)
+				{
+					args.Context.AddString("Stop the run first.");
+					return;
+				}
+				SurfGame.TourRequest = args.Args;
+				SurfGame.Begin(player, args.Context);
+				if (SurfGame.Active == null)
+				{
+					SurfGame.TourRequest = null;
+					return;
+				}
+				args.Context.AddString("Self-test started: hands off the keyboard until it says it's finished. Close this console (F5) so it can run.");
+			});
+			new Terminal.ConsoleCommand("surfkit", "surfkit - testing: saves pictures and parts lists of the game's own dungeon rooms, then takes you round each biome for pictures and a count of what stands there (a few minutes, you can't be hurt and are brought back), to BepInEx/SnakewaySurferTest", args =>
+			{
+				if (Player.m_localPlayer == null)
+				{
+					args.Context.AddString("Load into a world first.");
+					return;
+				}
+				if (SurfGame.Active != null)
+				{
+					args.Context.AddString("Stop the run first.");
+					return;
+				}
+				Kit.Run(args.Context);
 			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{

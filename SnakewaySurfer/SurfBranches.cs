@@ -51,7 +51,7 @@ internal sealed partial class SurfGame
 			{
 				m_dividers.Add((zs, ze, boundary));
 				float x = (boundary - 0.5f) * LaneWidth;
-				// 1.14.2 (Sam): the road splits into separate paths with a strip of wild ground
+				// 1.14.2 (SAT): the road splits into separate paths with a strip of wild ground
 				// between them, overgrown with the Elder's tangled vines (no more logs).
 				GroundStrip(b, x, zs - 0.5f, ze + 0.5f, 0.8f);
 				bool vines = false;
@@ -163,7 +163,7 @@ internal sealed partial class SurfGame
 	// A low root to slide under, with a burning torch beneath it.
 	private void SpawnTorchRoot(BiomeRuntime b, int lane, float z, int group, BossDef def)
 	{
-		// A vine arching across the path at head height (1.14.2, Sam: vines, not logs), its ends
+		// A vine arching across the path at head height (1.14.2, SAT: vines, not logs), its ends
 		// rooted beside the path.
 		GameObject root = new GameObject("TorchVine");
 		root.layer = m_layer;
@@ -293,7 +293,7 @@ internal sealed partial class SurfGame
 	}
 }
 
-// 1.16.1 (Sam: the Elder's fight still wasn't the maze he hoped for): the Elder's maze. Root
+// 1.16.1 (SAT: the Elder's fight still wasn't the maze he hoped for): the Elder's maze. Root
 // walls split the three lanes into six narrow paths, two to a lane, for a run of cells. In each
 // cell some of the walls between paths are open (step across) and some closed, and some paths
 // end in a thicket of vines at the cell's end. Every walled-off group of paths always has a way
@@ -302,7 +302,7 @@ internal sealed partial class SurfGame
 internal sealed partial class SurfGame
 {
 	private const int MazePaths = 6;
-	// 1.16.94 (Sam: the split lanes were "incredibly thin since the play area doesn't increase"):
+	// 1.16.94 (SAT: the split lanes were "incredibly thin since the play area doesn't increase"):
 	// each of the six paths is a full lane wide now, and the track widens to hold them (SurfChase.ExtraFlat).
 	private const float PathWidth = LaneWidth;
 	private readonly List<(float z0, float z1, int boundary)> m_mazeWalls = new();
@@ -351,10 +351,10 @@ internal sealed partial class SurfGame
 		UpdateMazeGuide();
 	}
 
-	// 1.16.150 (Sam: the Elder stopped attacking in his maze; now the paths are wide enough, bring
+	// 1.16.150 (SAT: the Elder stopped attacking in his maze; now the paths are wide enough, bring
 	// the vines back): now and then a vine bursts up on your path a little ahead, its tile red
 	// first. Roll through it, or step to a path beside it where the walls let you.
-	// 1.16.150 (Sam: grabbing the torch should burn away the rest of the root maze): a wall of
+	// 1.16.150 (SAT: grabbing the torch should burn away the rest of the root maze): a wall of
 	// fire races ahead down every path, the walls and thickets catching one after another, and
 	// you run on through the ash.
 	private readonly List<(Thing t, float wait)> m_burning = new();
@@ -594,9 +594,14 @@ internal sealed partial class SurfGame
 			}
 			if (last && ItemTemplate(def.HitItem) is GameObject hit)
 			{
-				// Something to throw at the Elder on one of the ways out.
-				Thing t = SpawnPickup(hit, 0, zs + cell * 0.5f, Kind.BossHit);
-				OnPath(t, Random.Range(0, MazePaths));
+				// Something to throw at the Elder on the ways out. 1.16.x (SAT: sometimes out of
+				// reach): the last cell's walls split it into groups you can't cross, so one in
+				// every group, wherever you came through.
+				foreach (List<int> g in groups)
+				{
+					Thing t = SpawnPickup(hit, 0, zs + cell * 0.5f, Kind.BossHit);
+					OnPath(t, g[Random.Range(0, g.Count)]);
+				}
 			}
 		}
 		// No other attacks until you're through.
@@ -625,7 +630,7 @@ internal sealed partial class SurfGame
 	private void MazeWall(BossDef def, BiomeRuntime b, float x, float zs, float ze)
 	{
 		GroundStrip(b, x, zs - 0.3f, ze + 0.3f, 0.45f);
-		// 1.16.70 (Sam: "impossible to tell which lane is which"): an unbroken hedge of roots
+		// 1.16.70 (SAT: "impossible to tell which lane is which"): an unbroken hedge of roots
 		// along the whole wall, so each wall reads as a line, with vines standing up out of it,
 		// pinched thin so their arms stay in the wall instead of sprawling over the paths.
 		for (float pz = zs; pz < ze - 0.1f; pz += 6f)

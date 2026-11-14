@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.1 (Sam's test): the swamp's own sights along the track. Now and then a sunken crypt's
+// 1.16.1 (SAT's test): the swamp's own sights along the track. Now and then a sunken crypt's
 // entrance stands beside it, and a surtling fire spout burns there with a flock of surtlings
 // above it, loosing slow fireballs at your lane as you come (roll under them, or change lanes).
 internal sealed partial class SurfGame

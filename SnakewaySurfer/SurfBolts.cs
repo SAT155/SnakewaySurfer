@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.15.2 (Sam: Eikthyr needs bigger lightning on his attacks). A storm boss's blows come down
+// 1.15.2 (SAT: Eikthyr needs bigger lightning on his attacks). A storm boss's blows come down
 // as real bolts from the sky: a jagged, flickering, branching streak with a white core, a burst
 // of light where it lands that lights up the whole track, his own lightning effect at double
 // size, and a harder shake. While a blow winds up his antlers glow brighter and throw sparks,
@@ -267,9 +267,16 @@ internal sealed partial class SurfGame
 		GameObject? fx = FindFx(Sfx.LightningFx);
 		if (fx != null)
 		{
-			PlayFx(fx, at, Quaternion.identity, 3f, null, 2f);
+			// 1.16.178: at double size with its own lights it whited out the whole screen, hiding
+			// the red lanes of the next blow.
+			GameObject go = PlayFx(fx, at, Quaternion.identity, 3f, null, 1.3f);
+			foreach (Light l in go.GetComponentsInChildren<Light>(true))
+			{
+				l.intensity = Mathf.Min(l.intensity, 1.5f);
+				l.range = Mathf.Min(l.range, 12f);
+			}
 		}
-		m_flash = Mathf.Max(m_flash, big ? 1f : 0.7f);
+		m_flash = Mathf.Max(m_flash, big ? 0.55f : 0.4f);
 		m_shake = Mathf.Max(m_shake, big ? 0.45f : 0.3f);
 	}
 

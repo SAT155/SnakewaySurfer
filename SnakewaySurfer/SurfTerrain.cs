@@ -55,7 +55,24 @@ internal sealed partial class SurfGame
 
 	// A spot where a ring (radius 170 m, 90 m either side) is all this biome, and dry unless it's
 	// the Swamp. Searched outward from the world centre, so it's the nearest such spot.
-	private TerrainSource? FindSource(Heightmap.Biome biome)
+	// For the `surfkit` biome tour: the same spot the terrain is borrowed from.
+	internal static bool BiomeSpot(Heightmap.Biome biome, out Vector2 spot)
+	{
+		spot = default;
+		if (WorldGenerator.instance == null)
+		{
+			return false;
+		}
+		TerrainSource? s = FindSource(biome);
+		if (s == null)
+		{
+			return false;
+		}
+		spot = s.Center;
+		return true;
+	}
+
+	private static TerrainSource? FindSource(Heightmap.Biome biome)
 	{
 		WorldGenerator wg = WorldGenerator.instance;
 		const float radius = 170f;

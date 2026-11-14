@@ -3,7 +3,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.3 (Sam: "The serpent stops to perform its breath attack"): a serpent swims under the
+// 1.16.3 (SAT: "The serpent stops to perform its breath attack"): a serpent swims under the
 // water to a spot well ahead of the ship and a little off its course, comes up there and stops
 // dead. It rears and turns with the ship while a wide red streak runs down the water from its
 // jaws toward you, then blows a jet of freezing spray down the streak. Steer out of the streak
@@ -49,7 +49,7 @@ internal sealed partial class SurfGame
 		// Stopped dead, reared up out of the water: the ship comes on toward it.
 		f.Dir = Vector2.zero;
 		f.Y = Mathf.MoveTowards(f.Y, f.Boss ? 0f : -0.1f, dt * 5f);
-		// 1.16.74 (Sam: it shouldn't keep tracking once it starts): it barely turns after rearing
+		// 1.16.74 (SAT: it shouldn't keep tracking once it starts): it barely turns after rearing
 		// up, so the ship can sail out of the streak.
 		if (f.T < windup * 0.5f)
 		{

@@ -39,7 +39,7 @@ internal sealed class BossDef
 	// Its arena (SurfArena.cs): the game's own location for it, looming far ahead; how high the
 	// land rises beside the track; and the torches lining the path.
 	public string Location = "";
-	// 1.16.1 (Sam: Bonemass's landmark faced away and didn't read as a giant thing): a turn
+	// 1.16.1 (SAT: Bonemass's landmark faced away and didn't read as a giant thing): a turn
 	// for the backdrop beyond facing the runner, and how much bigger than the usual fit.
 	public float BackdropTurn;
 	public float BackdropSize = 1f;
@@ -113,7 +113,7 @@ internal static class Progress
 			Env = "Moder|SnowStorm",
 			Moves = new[]
 			{
-				// 1.16.2 (Sam): her ice volley from the air and her frost breath once she lands,
+				// 1.16.2 (SAT): her ice volley from the air and her frost breath once she lands,
 				// as in the game; no more logs and bars.
 				new[] { "icevolley", "icevolley", "land" },
 				new[] { "icevolley", "icewide", "land" },
@@ -129,7 +129,7 @@ internal static class Progress
 			Env = "GoblinKing|Heath clear",
 			Moves = new[]
 			{
-				// 1.16.124 (Sam): his beam is bounced back with the Fuling totems (SurfTotem.cs).
+				// 1.16.124 (SAT): his beam is bounced back with the Fuling totems (SurfTotem.cs).
 				new[] { "meteors", "totembeam" },
 				new[] { "totembeam", "meteors", "beam" },
 				new[] { "lob2", "totembeam", "meteors", "totembeam" },
@@ -320,7 +320,7 @@ internal static class Progress
 		return Checkpoints(player).Exists(c => c.stars == stars && c.biome > plains);
 	}
 
-	// 1.16.79 (Sam): one ad hoc save in the middle of a biome (or at an island of the crossing),
+	// 1.16.79 (SAT): one ad hoc save in the middle of a biome (or at an island of the crossing),
 	// to start again from after a fall. Only ever one: each new one replaces the last, and beating
 	// a boss or making landfall clears it (those save real checkpoints). "biome,stars,sea,items,along".
 	private static string ResumeKey() => "SnakewaySurfer.Resume." + WorldId();
@@ -472,7 +472,7 @@ internal static class Progress
 
 	private static int Lap() => Plugin.LoopBiomes.Value <= 0 ? Biomes.Defaults.Length : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, Biomes.Defaults.Length);
 
-	// 1.16.16 (Sam): "surfprogress": see, erase or set this character's progress.
+	// 1.16.16 (SAT): "surfprogress": see, erase or set this character's progress.
 	public static string Command(Player player, string[] args)
 	{
 		string verb = args.Length > 1 ? args[1].Trim().ToLowerInvariant() : "";

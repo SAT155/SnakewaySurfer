@@ -2,12 +2,12 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14.2 (Sam): fighting back by parrying. Grabbing the boss's weapon arms you; the boss closes
+// 1.14.2 (SAT): fighting back by parrying. Grabbing the boss's weapon arms you; the boss closes
 // in and swings at your lane, up to three times, each swing marked red before it lands. Parry
 // one (block just before it lands) and it staggers. Blocking or dodging keeps you safe but does
 // no harm; after three swings the weapon is spent. Eikthyr's spear and Moder's bow work their
 // own way (SurfThrow.cs, SurfBow.cs).
-// 1.16.2 (Sam): the parry staggers it (its own reeling clip, as a parried creature in the game),
+// 1.16.2 (SAT): the parry staggers it (its own reeling clip, as a parried creature in the game),
 // you get a chain of blows in with the weapon in your hands (the weapon's own clips: the
 // atgeir's three thrusts, the mace's swings), then dodge roll back away and it backs off to
 // its distance. Moder down on the track is fought this way with a silver atgeir.
@@ -20,6 +20,7 @@ internal sealed partial class SurfGame
 	private int m_duelLane;
 	private GameObject? m_duelMarker;
 	private float m_duelPull;
+	private float m_duelSlide;
 
 	// The counter: blows left to land, the wait for the next and for the one swinging now.
 	private const int ComboBlows = 3;
@@ -36,6 +37,8 @@ internal sealed partial class SurfGame
 
 	private bool DuelBusy => Dueling || InCombo || m_recede > 0f;
 
+	private int m_duelHints;
+
 	private void ArmDuel()
 	{
 		m_duelTries = DuelTries;
@@ -47,6 +50,14 @@ internal sealed partial class SurfGame
 		if (m_boss != null)
 		{
 			ArmForMelee(m_boss);
+			// 1.16.x (playtest: nothing said how to use the surtling core on the Elder): Hugin
+			// says it the first two times a run.
+			if (m_duelHints < 2)
+			{
+				m_duelHints++;
+				m_banner = $"{m_boss.Name} comes at you! Block just before each swing lands to parry it, and your blow lands.";
+				m_bannerTime = 5f;
+			}
 		}
 		// It turns on you: no other attacks meanwhile.
 		m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, 99f);
@@ -120,7 +131,16 @@ internal sealed partial class SurfGame
 			m_bossThing.Z = m_bossZ;
 		}
 		Vector3 p = m_bossGo.transform.localPosition;
-		float x = Mathf.MoveTowards(p.x, LaneX(m_duelLand >= 0f ? m_duelLane : m_lane) * 0.6f, dt * 4f);
+		// 1.16.x (SAT: the Queen spazzed all over the road): it holds still while a swing plays
+		// and only eases across between swings (no sliding back and forth after your lane).
+		float aimX = LaneX(m_duelLand >= 0f ? m_duelLane : m_lane) * 0.6f;
+		// (Still coming in from the side of the track, it keeps coming.)
+		bool hold = (m_duelLand >= 0f || InCombo) && Mathf.Abs(p.x - aimX) < 2.5f;
+		if (hold)
+		{
+			m_duelSlide = 0f;
+		}
+		float x = hold ? p.x : Mathf.SmoothDamp(p.x, aimX, ref m_duelSlide, 0.45f, 5f, dt);
 		// Moder fights you on the ground; others keep a little of their height.
 		float lift = Flies(def) ? 0f : def.Fly * 0.4f;
 		m_bossGo.transform.localPosition = new Vector3(x, RoadY(m_bossZ) + lift, m_bossZ);
@@ -174,6 +194,7 @@ internal sealed partial class SurfGame
 		if (inLane && m_blocking && m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			// Parried: it reels, and you get your blows in.
+			NoteParry();
 			PlayBlock(true);
 			Flash(new Color(1f, 0.95f, 0.75f), 0.6f);
 			m_blockXp += 2f;

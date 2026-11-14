@@ -50,6 +50,12 @@ internal sealed partial class SurfGame
 		// 1.16.6, a frost cave (SurfCave.cs): walls of rough rock, crystals glowing where the
 		// crypts have torches, icicles falling from the roof, only flyers to slide under.
 		public bool Rocky;
+		// A roof over the halls (SAT chose "roof on, camera lowered": the open top showed black
+		// above the walls, nothing like the game). Its pieces (the floor's when none are named),
+		// and how far above the wall tops it sits (a frost cave's icicles hang below it).
+		public bool Roofed;
+		public string Roofs = "";
+		public float RoofLift;
 		public bool Crystals;
 		public string Sconce = "piece_walltorch";
 		// 1.16.150: a standing torch at the foot of the wall instead of one on it (the Swamp's green
@@ -98,17 +104,21 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_burialChamber = new CryptTheme
 	{
 		Name = "burial chamber",
+		Roofed = true,
+		Roofs = "ForestCrypt_Roof1|ForestCrypt_Walls1|ForestCrypt_Floor1",
 		Biome = "Black Forest",
-		// 1.16.150 (Sam: burial chambers are caves with wooden doors, not stone halls): rough rock
+		// 1.16.150 (SAT: burial chambers are caves with wooden doors, not stone halls): rough rock
 		// walls and floor, timber props along the walls, shut wooden doors at the dead ends.
-		Rooms = 0,
-		Rocky = true,
-		Walls = "Rock_3|rock4_forest|Rock_4|rock1_mountain|stone_wall_4x2",
-		Floors = "rock4_forest|Rock_3|stone_floor_2x2",
+		// 1.16.2xx: built of the game's own burial chamber stones, taken from its real rooms
+		// (their picture book showed walls of rough standing slabs, a roof of the same, a floor of
+		// stone tiles under dirt), in place of forest boulders.
+		Rooms = Room.Theme.ForestCrypt,
+		Walls = "ForestCrypt_Walls1|stone_wall_4x2",
+		Floors = "ForestCrypt_Floor1|stone_floor_2x2",
 		Pillars = "wood_pole_log|wood_pole2|wood_pole",
 		TallPillar = "wood_pole_log_4|wood_pole_log|wood_pole2",
 		Door = "dungeon_forestcrypt_door|wood_door",
-		WallHeight = 2.6f,
+		WallHeight = 3f,
 		Monsters = "Skeleton:3:3, Skeleton_NoArcher:2:2, Skeleton_Poison:0.6",
 		Flyers = "Ghost:1",
 		Raised = "Skeleton:2, Skeleton_NoArcher:1",
@@ -134,6 +144,7 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_sunkenCrypt = new CryptTheme
 	{
 		Name = "sunken crypt",
+		Roofed = true,
 		Biome = "Swamp",
 		Rooms = Room.Theme.SunkenCrypt,
 		Walls = "SunkenKit_int_wall_4x4|SunkenKit_int_wall_2x4|stone_wall_4x2",
@@ -160,7 +171,7 @@ internal sealed partial class SurfGame
 		Fog = new Color(0.01f, 0.02f, 0.012f),
 		Idle = "sfx_draugr_idle",
 		IdleRare = "sfx_blob_idle",
-		// 1.16.150 (Sam: hard to see in the swamp crypt): the game's green torches every 9 m or so.
+		// 1.16.150 (SAT: hard to see in the swamp crypt): the game's green torches every 9 m or so.
 		SconceGap = 9f,
 		StandingSconce = true,
 		Sconce = "piece_groundtorch_green|piece_groundtorch_wood",
@@ -178,6 +189,8 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_frostCave = new CryptTheme
 	{
 		Name = "frost cave",
+		Roofed = true,
+		RoofLift = 1.6f,
 		Biome = "Mountains",
 		Rooms = Room.Theme.Cave,
 		Rocky = true,
@@ -220,6 +233,7 @@ internal sealed partial class SurfGame
 	private static readonly CryptTheme s_infestedMine = new CryptTheme
 	{
 		Name = "infested mine",
+		Roofed = true,
 		Biome = "Mistlands",
 		Rooms = Room.Theme.DvergerTown,
 		Walls = "blackmarble_tile_wall_2x2|blackmarble_2x2x2|dvergrtown_wall_large|stone_wall_4x2",
@@ -315,6 +329,28 @@ internal sealed partial class SurfGame
 						continue;
 					}
 					m_kit[n] = t.gameObject;
+					// A burial chamber isn't built of named pieces: its walls, roof and floor are
+					// three groups of single stones. The first good stone of each is kept under
+					// "<theme>_Walls1" and so on (a wall stone: a slab at least 3.3 m long).
+					if (n == "Walls" || n == "Roof" || n == "Floor")
+					{
+						string key = $"{theme}_{n}1";
+						if (!m_kit.ContainsKey(key))
+						{
+							foreach (MeshRenderer r in t.GetComponentsInChildren<MeshRenderer>(true))
+							{
+								Vector3 size = r.bounds.size;
+								float longest = Mathf.Max(size.x, size.z);
+								float thin = Mathf.Min(size.x, size.z);
+								if (n != "Walls" || (longest >= 3.3f && thin <= 1.4f))
+								{
+									m_kit[key] = r.gameObject;
+									names.Append(key).Append($" ({size.x:0.#}x{size.y:0.#}x{size.z:0.#}), ");
+									break;
+								}
+							}
+						}
+					}
 					if (seen.Add(n) && seen.Count <= 80)
 					{
 						names.Append(n).Append(", ");

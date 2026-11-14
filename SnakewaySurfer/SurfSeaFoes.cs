@@ -112,7 +112,7 @@ internal sealed partial class SurfGame
 			SeaBossDone();
 		}
 		bool fight = m_seaBoss != null && !m_seaBoss.Dead;
-		// 1.16.3 (Sam: the storm and the serpent came way too early): a calm first stretch, then
+		// 1.16.3 (SAT: the storm and the serpent came way too early): a calm first stretch, then
 		// serpents, and the storm gathers from 60% of the way (past the second island) to full at
 		// 78%. It clears once the serpent of the deep is beaten.
 		float goal = m_seaBossBeaten ? 0f : Mathf.Clamp01((along - len * 0.6f) / (len * 0.18f));
@@ -356,7 +356,7 @@ internal sealed partial class SurfGame
 		Vector2 at = AheadSpot(Random.Range(55f, 65f));
 		SeaFoe? f = kind == "drake"
 			? SpawnCreature("drake", "Hatchling", 2.6f, at)
-			: SpawnCreature("squito", "Deathsquito", 1.6f, at);
+			: SpawnCreature("squito", "Deathsquito", 2.6f, at); // 1.16.x (SAT: too small)
 		if (f == null)
 		{
 			return;
@@ -425,7 +425,7 @@ internal sealed partial class SurfGame
 				Kind = "rock",
 				Go = go,
 				P = new Vector2(x, m_z + Random.Range(72f, 90f)),
-				// 1.16.76 (Sam ran onto rocks he couldn't make out): they stand out of the water,
+				// 1.16.76 (SAT ran onto rocks he couldn't make out): they stand out of the water,
 				// ringed with breaking foam.
 				Y = -0.2f,
 				Radius = size * 0.42f,
@@ -444,7 +444,7 @@ internal sealed partial class SurfGame
 		GameObject go;
 		if (prefab != null)
 		{
-			go = SeaPicture(prefab, driftwood ? 1.8f : 1.4f, out _);
+			go = SeaPicture(prefab, driftwood ? 1.8f : 2.2f, out _);
 		}
 		else if (m_coinTemplate != null)
 		{
@@ -514,6 +514,29 @@ internal sealed partial class SurfGame
 		f.Phase = 0;
 		m_seaBoss = f;
 		ApplyStarsTint(f);
+		// 1.16.x (SAT: which serpent is the boss isn't clear from the model): dark crimson
+		// scales with a red glow about it, and Hugin names it.
+		foreach (Renderer r in f.Go.GetComponentsInChildren<Renderer>())
+		{
+			foreach (Material m in r.materials)
+			{
+				if (m.HasProperty("_Color"))
+				{
+					m.color = m.color * new Color(1.1f, 0.45f, 0.4f, 1f);
+				}
+			}
+		}
+		Light glow = new GameObject("BossGlow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(f.Go.transform, false);
+		glow.transform.localPosition = Vector3.up * 3f;
+		glow.type = LightType.Point;
+		glow.color = new Color(1f, 0.3f, 0.2f);
+		glow.range = 16f;
+		glow.intensity = 2.2f;
+		glow.cullingMask = 1 << m_layer;
+		m_banner = "The serpent of the deep! The red one: hit it with the ballista.";
+		m_bannerTime = 4f;
 		m_audio.Play("sfx_serpent_taunt|sfx_serpent_alerted", 1f, 0.75f);
 		m_shake = Mathf.Max(m_shake, 0.4f);
 		Plugin.Log.LogInfo($"The serpent rises: {f.Hp} hits to beat.");
@@ -651,7 +674,7 @@ internal sealed partial class SurfGame
 		}
 		if (f.Anim != null)
 		{
-			// 1.16.74 (Sam: "Why is the serpent not animated at all?"): a serpent never holds
+			// 1.16.74 (SAT: "Why is the serpent not animated at all?"): a serpent never holds
 			// still in the water; it swims in place even while it rears or waits to be shot.
 			bool serpent = f.Kind == "serpent" || f.Kind == "boss";
 			if (serpent && !f.Anim.enabled)
@@ -765,7 +788,11 @@ internal sealed partial class SurfGame
 	// A creature's blow on the ship: blocks and parries as on land. 0 hurt, 1 blocked, 2 parried.
 	private int SeaHit(SeaFoe? foe, bool heavy, string why)
 	{
-		bool parry = m_hurtTime <= 0f && m_hullGrace <= 0f && m_blocking && m_runTime - m_blockPressed <= Plugin.ParryWindow.Value;
+		bool parry = m_hurtTime <= 0f && m_hullGrace <= 0f && m_blocking && m_runTime - m_blockPressed <= ParryWindowNow;
+		if (parry)
+		{
+			NoteParry();
+		}
 		int lives = m_lives;
 		float hurt = m_hurtTime;
 		float hull = m_hull;
@@ -847,10 +874,10 @@ internal sealed partial class SurfGame
 				// (to stop and breathe).
 				Vector2 spot = f.Move == "breath" ? BreathSpot(f, 30f) : ship + new Vector2(f.Side * 14f, 6f) + shipVel * 0.8f;
 				Vector2 to = spot - f.P;
-				// 1.16.74 (Sam: "quite a bit slower"): it closes on the ship gently.
+				// 1.16.74 (SAT: "quite a bit slower"): it closes on the ship gently.
 				float speed = m_boatSpeed + 4f;
 				f.Dir = to.normalized * speed;
-				// 1.16.3 (Sam: "it should squiggle along, not straight-line it"): it weaves as it
+				// 1.16.3 (SAT: "it should squiggle along, not straight-line it"): it weaves as it
 				// swims, straightening out as it gets there.
 				float weave = Mathf.Sin(f.T * 2.4f + f.Bob) * 35f * Mathf.Clamp01((to.magnitude - 3f) / 12f);
 				f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(to) + weave, 160f * dt);
@@ -861,7 +888,7 @@ internal sealed partial class SurfGame
 					AddFoam(f.P - Dir2(f.Facing) * 2f, Random.Range(0.6f, 1.1f), 1.2f, 0.45f, 1.8f);
 				}
 				f.Wait -= dt;
-				// 1.16.73 (Sam: "These attacks are undodgable"): one attack at a time.
+				// 1.16.73 (SAT: "These attacks are undodgable"): one attack at a time.
 				if (to.magnitude < 3f && f.Wait <= 0f && OtherAttacking(f))
 				{
 					f.Wait = 0.4f;
@@ -886,7 +913,7 @@ internal sealed partial class SurfGame
 			{
 				// Up and rearing: the streak shows where it will strike.
 				f.Y = Mathf.MoveTowards(f.Y, -0.3f, dt * 5f);
-				// 1.16.74 (Sam): once it has picked its strike it holds it; the streak stays put
+				// 1.16.74 (SAT): once it has picked its strike it holds it; the streak stays put
 				// and the ship can steer out of it.
 				Vector2 dir = Dir2(f.Facing);
 				f.P += shipVel * dt;
@@ -978,7 +1005,7 @@ internal sealed partial class SurfGame
 
 	private bool Surfaced(SeaFoe f) => f.Y > -1.2f;
 
-	// 1.16.74 (Sam: "the serpent swims too close to the island"): serpents keep to open water,
+	// 1.16.74 (SAT: "the serpent swims too close to the island"): serpents keep to open water,
 	// clear of the islands' shores.
 	private void KeepOffIslands(SeaFoe f)
 	{
@@ -1501,7 +1528,7 @@ internal sealed partial class SurfGame
 		return wrapper;
 	}
 
-	// 1.16.79 (Sam: "the player should be able to aim the boat's ranged attack with their
+	// 1.16.79 (SAT: "the player should be able to aim the boat's ranged attack with their
 	// mouse"): the mouse swings the bow ballista as it turns the camera in the game, across the
 	// bow up to 80 degrees either side, and a faint line on the water shows where it points
 	// (dim while it reloads).

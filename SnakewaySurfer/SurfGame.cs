@@ -52,6 +52,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public string Label = "";
 		public string CrashText = "";
 		public bool Collidable = true;
+		// 1.16.164: when it was first seen (SurfTest.cs), for the hit log.
+		public float Born = -1f;
 		// Set pieces (trolls): what moves when the player gets close.
 		public Special Special;
 		public Transform? Moving;
@@ -112,7 +114,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// Bats (SurfBats.cs): a nuisance, not a crash.
 		public bool Nuisance;
 		public float Seed;
-		// Too heavy to block (trolls, smashes, shockwaves): only a parry stops it (1.14.2, Sam).
+		// Too heavy to block (trolls, smashes, shockwaves): only a parry stops it (1.14.2, SAT).
 		public bool Heavy;
 		// A second lane the same blow covers (a troll's long log), collidable with it.
 		public Thing? Partner;
@@ -172,6 +174,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public readonly List<SpawnEntry> Monsters = new();
 		public readonly List<SpawnEntry> Flyers = new();
 		public readonly List<GameObject> Scenery = new();
+		// 1.16.189: what the game itself grows in this biome (SurfVegetation.cs), and how many of
+		// them line a metre of track.
+		public readonly List<VegEntry> Veg = new();
+		public float VegWeight;
+		public float VegPerMetre;
 		public readonly List<GameObject> Logs = new();
 		public readonly List<(GameObject prefab, string label)> Giants = new();
 		public float Fog;
@@ -210,7 +217,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private const float WaterDepth = 0.3f;
 	private const float Gravity = 32f;
 	private const float GroundTile = 40f;
-	// 1.16.18 (Sam): how far ahead the track is built (it was always 150 m).
+	// 1.16.18 (SAT): how far ahead the track is built (it was always 150 m).
 	private static float AheadDistance => Mathf.Clamp(Plugin.ViewDistance.Value, 100f, 400f);
 	// How much further than the original 150 m the view reaches.
 	private static float ViewScale => AheadDistance / 150f;
@@ -276,8 +283,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float m_y;
 	private float m_vy;
 	private int m_lane = 1;
+	private float m_xVel;
 	private float m_slide;
-	// 1.16.1 (Sam): the slide is the game's dodge roll (its own animation and sound).
+	// 1.16.1 (SAT): the slide is the game's dodge roll (its own animation and sound).
 	private bool m_rollPending;
 	private bool m_rollAnim;
 	private readonly float[] m_laneAt = new float[3];
@@ -302,6 +310,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private bool m_consoleWasVisible;
 	private Vector3 m_camPos;
 	private bool m_camPlaced;
+	// The runner camera's eased parts (PlaceCamera).
+	private float m_camSide, m_camSideVel, m_camClear, m_camClearVel, m_camSlope, m_camSlopeVel, m_camLift, m_camLiftVel;
 	private SurfAudio m_audio = null!;
 	private string[]? m_dream;
 	private int m_lastTick;
@@ -375,10 +385,20 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 	}
 
+	// 1.16.x (SAT: a big freeze when surfsup is typed, then the dream): the screen goes dark
+	// first, and the run is built a couple of frames later behind it (FinishInit).
+	private int m_initPending;
+
 	private void Init(Player player)
 	{
 		Active = this;
 		m_player = player;
+		m_initPending = 2;
+	}
+
+	private void FinishInit()
+	{
+		Player player = m_player;
 		m_layer = Plugin.RenderLayer.Value;
 		m_runAnimSpeed = player.m_runSpeed > 0f ? player.m_runSpeed : 7f;
 
@@ -462,7 +482,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		PlayerHooks.RefreshHelmet(player);
 		ResetRun();
-		// 1.16.16 (Sam): the very first run goes straight in (after a dream), no menu.
+		// 1.16.16 (SAT): the very first run goes straight in (after a dream), no menu.
 		bool first = FirstRun();
 		if (m_dream != null && Plugin.DreamIntro.Value)
 		{
@@ -486,7 +506,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			Active = null;
 		}
+		if (m_initPending > 0)
+		{
+			// Never built: nothing to put back.
+			return;
+		}
+		EndTour(false);
 		RemoveRaven();
+		// The boss's borrowed weather hangs on the game's own camera: left there, its storm
+		// (lightning flashes and thunder) went on in the real world after the run.
+		ClearWeather();
+		ClearMistStorm();
 		EndLoadScreen();
 		OnDestroyWave();
 		if (m_paused)
@@ -718,7 +748,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		// The game's ground textures live in a texture array (_DiffuseArrayTex): the layer whose
 		// colour is closest to the biome's ground.
-		// 1.16.1 (Sam: the Mountains were desert sand): only when one is close. The game's snow
+		// 1.16.1 (SAT: the Mountains were desert sand): only when one is close. The game's snow
 		// isn't a layer of the array (its shader whitens the ground itself), so snowy biomes
 		// get the minigame's own mottled ground in their snow colour.
 		if (BiomeGroundColor(biome) is Color want && TerrainSlice(want, out float off) is Texture2D slice && off < 0.1f)
@@ -899,13 +929,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_terrainLand.SetFloat("_WaterLevel", sea);
 		}
 		string style = Plugin.TrackStyle.Value.Trim().ToLowerInvariant();
-		// 1.16.2 (Sam: the road looked oddly black, not like a stone or dirt path): the game's
+		// 1.16.2 (SAT: the road looked oddly black, not like a stone or dirt path): the game's
 		// terrain shader drew our path strip nearly black, so the path is the game's dirt or
 		// paved ground texture on a plain lit material unless "hoed" asks for the shader's own.
 		if (style.StartsWith("hoed"))
 		{
 			style = style.Contains("paved") ? "paved" : "dirt";
-			// 1.16 (Sam: the dirt path looked very dark): the dirt worn in at 70%, so a little of
+			// 1.16 (SAT: the dirt path looked very dark): the dirt worn in at 70%, so a little of
 			// the biome's own ground shows through, as on a trodden path.
 			Color path = style == "paved" ? new Color(0f, 0f, 1f, 1f) : new Color(0.7f, 0f, 0f, 1f);
 			m_trackMask = MaskTexture(new Color(0f, 0f, 0f, 1f), path);
@@ -1084,7 +1114,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					rt.Flyers.Add(e);
 				}
 			}
-			// 1.14 (Sam: the swamp was mostly abominations): giants come only as the rare giant
+			// 1.14 (SAT: the swamp was mostly abominations): giants come only as the rare giant
 			// set piece (Giant Chance), not also as everyday creatures from the spawn table.
 			int giantsRemoved = rt.Monsters.RemoveAll(m => rt.Giants.Exists(g => g.prefab == m.Prefab));
 			if (giantsRemoved > 0 && rt.Monsters.Count == 0)
@@ -1097,7 +1127,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			if (autoFlyers && def.Name == "Swamp" && !rt.Flyers.Exists(f => IsBat(f.Prefab)) && Pictures.Monster("Bat") is GameObject bat)
 			{
-				// Swamps have their bats (Sam), in swarms (SurfBats.cs).
+				// Swamps have their bats (SAT), in swarms (SurfBats.cs).
 				rt.Flyers.Add(new SpawnEntry { Prefab = bat, Label = SpawnTables.Label(bat), Weight = 1f, Flying = true });
 			}
 			else if (!autoFlyers)
@@ -1168,6 +1198,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					missing.Add(name);
 				}
 			}
+			LoadVegetation(rt, m_biomes.Count);
 			m_biomes.Add(rt);
 			{
 				Plugin.Log.LogInfo($"{def.Name}: monsters [{string.Join(", ", rt.Monsters.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0} x{m.GroupMin}-{m.GroupMax}"))}], flyers [{string.Join(", ", rt.Flyers.ConvertAll(m => $"{m.Prefab.name} {m.Weight:0.0}"))}], {rt.Scenery.Count} scenery, {rt.Logs.Count} logs");
@@ -1256,6 +1287,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_runBiomes.Clear();
 		m_shownBiome = -1;
 		m_nextRowZ = 45f;
+		m_placeChecked = 0;
+		m_unwarned = 0;
 		m_nextSceneryZ = -20f;
 		m_nextGroundZ = -GroundTile;
 		m_crashText = "";
@@ -1301,19 +1334,25 @@ internal sealed partial class SurfGame : MonoBehaviour
 		ResetSegments();
 		ResetShop(m_resumeNext);
 		ApplyResume();
+		ApplyTourStage();
+		WarmRun();
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
 
 	private void Crash(string why)
 	{
+		m_crashReason = why;
 		if (m_state != State.Running)
 		{
 			return;
 		}
 		m_state = State.Crashed;
 		m_stateTime = 0f;
-		DepositCoins();
+		if (!m_tourRan)
+		{
+			DepositCoins();
+		}
 		m_crashText = why;
 		if (m_atSea && m_seaPhase == 2)
 		{
@@ -1321,7 +1360,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		SetTrigger("stagger");
 		// Run XP for the running: time at sea is sailing.
-		m_rewardText = Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
+		// (A self-test earns nothing: SurfTest.cs.)
+		m_rewardText = m_tourRan ? "" : Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
 			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f, m_runBiomes);
 		if (m_lootText.Length > 0)
 		{
@@ -1351,7 +1391,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	{
 		foreach (KeyCode k in keys)
 		{
-			if (Input.GetKeyDown(k))
+			// (The autopilot presses keys too: SurfTest.cs.)
+			if (Input.GetKeyDown(k) || BotKey(k))
 			{
 				return true;
 			}
@@ -1364,6 +1405,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 		if (m_player == null || m_player.IsDead() || m_player.IsTeleporting() || Player.m_localPlayer != m_player)
 		{
 			Destroy(gameObject);
+			return;
+		}
+		if (m_initPending > 0)
+		{
+			if (--m_initPending == 0)
+			{
+				FinishInit();
+			}
 			return;
 		}
 
@@ -1385,7 +1434,21 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		m_lastHealth = health;
 
-		if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
+		// 1.16.x (playtest: Escape ended the run instead of pausing it): mid-run the Exit Key
+		// pauses (again: carries on), and Q while paused stops the run. On the start menu and
+		// the crash screen it still leaves straight away.
+		bool midRun = (m_state == State.Running || m_state == State.Countdown) && !Loading && Plugin.AllowPause.Value;
+		if (canInput && midRun && m_paused && Input.GetKeyDown(KeyCode.Q))
+		{
+			Quit();
+			return;
+		}
+		if (canInput && midRun && Input.GetKeyDown(Plugin.ExitKey.Value))
+		{
+			m_menuPaused = false;
+			SetPaused(!m_paused);
+		}
+		else if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
 		{
 			// 1.16.16: the start menu fades away first.
 			if (m_state == State.Menu && !Loading && m_menuClose < 0f)
@@ -1397,10 +1460,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 
-		// 1.16.16 (Sam): the game's portal loading screen while a run is set up.
+		// 1.16.16 (SAT): the game's portal loading screen while a run is set up.
 		if (UpdateLoad(canInput))
 		{
 			PlaceCamera(0f);
+			return;
+		}
+		// 1.16.164: the self-test drives the run from here (SurfTest.cs).
+		UpdateTour();
+		if (this == null || Active != this)
+		{
 			return;
 		}
 
@@ -1427,8 +1496,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 
+		UpdateWarm();
 		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
+		m_clock += dt;
 		m_stateTime += dt;
+		UpdateAmbience(dt);
+		UpdateMist(dt);
 		m_bannerTime -= dt;
 		if (m_bannerTime <= 0f)
 		{
@@ -1577,12 +1650,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			AudioListener.pause = false;
 		}
-		m_banner = paused ? $"Paused\n{Plugin.PauseKey.Value} to carry on" : "";
+		m_banner = paused ? $"Paused\n{Plugin.ExitKey.Value} or {Plugin.PauseKey.Value}: carry on     Q: stop running" : "";
 		m_bannerTime = paused ? 9999f : 0f;
 	}
 
 	private void LateUpdate()
 	{
+		if (m_initPending > 0)
+		{
+			return;
+		}
 		UpdateCryptFrames();
 		PlaceRaven();
 		if (Loading && m_loadBlink)
@@ -1612,6 +1689,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void UpdateRun(float dt, bool canInput)
 	{
 		m_runTime += dt;
+		BotThink(dt);
 		float biomeProgress = SpeedProgressAt(m_z);
 		m_speed = Mathf.Min(Plugin.StartSpeed.Value + Plugin.SpeedPerBiome.Value * biomeProgress, Plugin.MaxSpeed.Value) * Plugin.SpeedScale;
 		if (m_slowTime > 0f)
@@ -1664,7 +1742,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			if (KeyDown(KeyCode.W, KeyCode.UpArrow, KeyCode.Space))
 			{
-				if (grounded)
+				if (grounded && SpendJumpStamina())
 				{
 					m_vy = Mathf.Sqrt(2f * Gravity * Plugin.JumpHeight.Value);
 					m_slide = 0f;
@@ -1672,7 +1750,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					m_audio.Play(Sfx.Jump);
 				}
 			}
-			// 1.16.150 (Sam: the roll may be too useful now): a short wait before the next one.
+			// 1.16.150 (SAT: the roll may be too useful now): a short wait before the next one.
 			if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C) && m_rollCooldown <= 0f && SpendRollStamina())
 			{
 				m_rollCooldown = Plugin.SlideTime.Value + 0.45f;
@@ -1724,7 +1802,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_slide = Mathf.Max(0f, m_slide - dt);
 		}
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
-		m_x = Mathf.MoveTowards(m_x, InMaze ? SubX(m_subLane) : LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * (Has("deer") ? 1.2f : 1f) * dt);
+		// 1.16.x (SAT: moving left and right is janky): eased in and out (critically damped,
+		// no overshoot) at no more than the lane switch speed, instead of starting and stopping dead.
+		float laneTo = InMaze ? SubX(m_subLane) : LaneX(m_lane);
+		float laneSpeed = Plugin.LaneSwitchSpeed.Value * (Has("deer") ? 1.2f : 1f);
+		m_x = dt > 0f ? Mathf.SmoothDamp(m_x, laneTo, ref m_xVel, 0.06f, laneSpeed, dt) : m_x;
+		if (Mathf.Abs(m_x - laneTo) < 0.01f)
+		{
+			m_x = laneTo;
+			m_xVel = 0f;
+		}
 		m_z += m_speed * dt;
 		CryptCorner(dt);
 		// When you were last in each lane, for stepping out of the way of a blow (Dodge XP).
@@ -1784,7 +1871,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				continue;
 			}
-			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX ? t.X : LaneX(t.Lane))) > (t.Kind == Kind.Coin && Has("magnet") ? LaneWidth * 1.5f : LaneWidth * 0.45f))
+			// (Bats flit about, but hit by their lane, the one marked under them: playtest, their hitbox was unclear.)
+			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX && !t.Nuisance ? t.X : LaneX(t.Lane))) > (t.Kind == Kind.Coin && Has("magnet") ? LaneWidth * 1.5f : LaneWidth * 0.45f))
 			{
 				continue;
 			}
@@ -1823,7 +1911,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 						m_things.RemoveAt(i);
 						if (hit)
 						{
-							// 1.16.150 (Sam): picking up what hurts the boss clears its attacks in flight.
+							// 1.16.150 (SAT): picking up what hurts the boss clears its attacks in flight.
 							ClearBossAttacks();
 						}
 						// These change the run (and the list), so stop looking this frame.
@@ -1895,9 +1983,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 						}
 						break;
 					}
-					if (sliding && !t.Wall && !string.IsNullOrEmpty(t.Label))
+					if (sliding)
 					{
-						// Sam: a roll dodges an attack, as in the game. Low foes, logs and walls still get you.
+						// SAT: a roll dodges an attack, as in the game. 1.16.x (SAT: rolling always
+						// has i-frames, kept fair by its cooldown): anything at all.
 						Dodged(t);
 						break;
 					}
@@ -1905,10 +1994,18 @@ internal sealed partial class SurfGame : MonoBehaviour
 					Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"A {t.Label} got you in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
 					return;
 				case Kind.Low:
+					if (sliding)
+					{
+						Dodged(t);
+						break;
+					}
 					if (m_y < (t.ClearHeight > 0f ? t.ClearHeight : 0.75f))
 					{
 						m_audio.Play(t.CrashText.Length > 0 ? Sfx.HitMonster : Sfx.HitLog);
-						Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
+						// (Playtest: "a log" in a crypt hall that had none; its low pieces are mud and rubble.)
+						Hit(t, t.CrashText.Length > 0 ? t.CrashText : InCrypt(m_z) && m_crypt != null
+							? $"You tripped over the rubble in the {m_crypt.Theme.Name}! (Jump or roll over it.)"
+							: $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}! (Jump or roll over it.)");
 						return;
 					}
 					if (t.Label.Length > 0)
@@ -1941,6 +2038,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 						// Rolled under a shot or a swoop.
 						Dodged(t);
 					}
+					// 1.16.x (SAT: you should be able to jump over the arrow): a shot flying at chest
+					// height is cleared by a jump too.
+					if (!sliding && t.Speed != 0f && t.Label.Length > 0 && m_y > t.BaseY * 0.8f)
+					{
+						Dodged(t);
+						break;
+					}
 					if (!sliding)
 					{
 						m_audio.Play(string.IsNullOrEmpty(t.Label) ? Sfx.HitLog : Sfx.HitMonster);
@@ -1954,7 +2058,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 	}
 
-	// 1.16.150 (Sam): jumping clean over a creature is worth 1 to 5 coins, once per creature,
+	// 1.16.150 (SAT): jumping clean over a creature is worth 1 to 5 coins, once per creature,
 	// with a little shower of coin sounds.
 	private void JumpBonus(Thing t)
 	{
@@ -2001,10 +2105,35 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// A crash, unless the Invincible test setting is on: then the thing is just passed through.
 	private void Hit(Thing t, string why)
 	{
+		// 1.16.x (SAT: enemies before the campsite could still kill you): nothing hurts on the
+		// walk to the camp or while you rest there.
+		if (m_camping)
+		{
+			t.Collidable = false;
+			return;
+		}
+		// 1.16.x (SAT: rolling always has i-frames): nothing hurts during a roll on the ground,
+		// boss attacks, strikes and vines included. Only running into a dungeon's wall or
+		// wrecking at sea (no label, heavy) still counts.
+		if (m_slide > 0f && m_y < 0.4f && !(t.Label.Length == 0 && t.Heavy))
+		{
+			Dodged(t);
+			return;
+		}
+		// Nothing hurts that wasn't announced (SurfStrike.cs).
+		if (m_hurtTime <= 0f && !FairlyWarned(t))
+		{
+			ForgiveUnwarned(t, why);
+			return;
+		}
 		// Blocks and parries work in Invincible mode too, so they can be practised.
 		if (m_hurtTime <= 0f && TryBlock(t))
 		{
 			return;
+		}
+		if (m_hurtTime <= 0f || Plugin.Invincible.Value)
+		{
+			LogHit(t, why);
 		}
 		if (Plugin.Invincible.Value)
 		{
@@ -2028,7 +2157,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			PlayBlock(false);
 			return;
 		}
-		// Sam's test: the combo animation up close is a cutscene of sorts, so nothing hurts you during it.
+		// SAT's test: the combo animation up close is a cutscene of sorts, so nothing hurts you during it.
 		if (InCombo)
 		{
 			t.Collidable = false;
@@ -2050,8 +2179,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			t.Collidable = false;
 			m_shake = Mathf.Max(m_shake, 0.35f);
 			SetTrigger("stagger");
-			m_banner = $"Ouch! {m_lives} {(m_lives == 1 ? "life" : "lives")} left";
-			m_bannerTime = 1.5f;
+			// 1.16.x (playtest: died in the Elder's maze without knowing what happened): Hugin
+			// says what hit you and how to avoid it, not just the lives left.
+			string lives = $"{m_lives} {(m_lives == 1 ? "life" : "lives")} left";
+			m_banner = why.Length > 0 ? $"{why}\n{lives}" : $"Ouch! {lives}";
+			m_bannerTime = why.Length > 0 ? 3.5f : 1.5f;
 			return;
 		}
 		if (Has("valkyrie") && !m_valkyrieUsed)
@@ -2082,6 +2214,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				m_things.RemoveAt(i);
 				continue;
+			}
+			if (t.Born < 0f)
+			{
+				NoteNewThing(t);
 			}
 			if (m_state == State.Running && i == m_things.Count - 1)
 			{
@@ -2191,7 +2327,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				MaybePickable(m_nextSceneryZ + Random.Range(0f, 3f), Random.value < 0.5f ? -1 : 1);
 			}
-			m_nextSceneryZ += Random.Range(3.5f, 8f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
+			// Two spots a step (one each side): a biome's own density when the game's tables gave one.
+			float perMetre = m_biomes[BiomeAt(m_nextSceneryZ)].VegPerMetre;
+			float step = perMetre > 0f ? 2f / perMetre : 5.75f;
+			m_nextSceneryZ += step * Random.Range(0.6f, 1.4f) / Mathf.Max(0.2f, Plugin.SceneryDensity.Value);
 		}
 		SpawnArenaTorches(horizon);
 		SpawnSwampSights(horizon);
@@ -2217,8 +2356,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				CryptClearRows(before);
 			}
+			GateRow(before);
 			float difficulty = Mathf.Clamp01(ProgressAt(m_nextRowZ) / m_biomes.Count);
-			// Closer together down the crypt's halls (1.16.4, Sam: lots of skeletons).
+			// Closer together down the crypt's halls (1.16.4, SAT: lots of skeletons).
 			m_nextRowZ += (Mathf.Lerp(30f, 16f, difficulty) + Random.Range(0f, 9f)) * (InCrypt(m_nextRowZ) ? 0.65f : 1f);
 		}
 	}
@@ -2312,7 +2452,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		BiomeBlend(z, out int a, out int b, out float blend);
 		float w = Mathf.Lerp(m_biomes[a].Water ? 1f : 0f, m_biomes[b].Water ? 1f : 0f, blend);
-		// 1.16.150 (Sam: the Swamp should be bits of land and frequent pools, not one long flood):
+		// 1.16.150 (SAT: the Swamp should be bits of land and frequent pools, not one long flood):
 		// the water comes and goes along the track, about half of it pools.
 		return w <= 0f ? 0f : w * SwampPool(z);
 	}
@@ -2499,6 +2639,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void SpawnScenery(float z, int side)
 	{
 		BiomeRuntime b = m_biomes[BiomeAt(z)];
+		if (b.Veg.Count > 0)
+		{
+			SpawnVegetation(b, z, side);
+			return;
+		}
 		if (b.Scenery.Count == 0)
 		{
 			return;
@@ -2554,7 +2699,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 	}
 
 	// Real size from the collider, only the very biggest shrunk to Monster Height.
-	private static float RealScale(CreatureInfo info) => info.Height > 0.3f ? Mathf.Min(1f, Plugin.MonsterHeight.Value / info.Height) : 1f;
+	// 1.16.x (SAT: deathsquitos too small): the very smallest are drawn at least 0.9 m tall (up to
+	// twice their size), so they read at speed.
+	private static float RealScale(CreatureInfo info) => info.Height > 0.3f ? Mathf.Min(Mathf.Clamp(0.9f / info.Height, 1f, 2f), Plugin.MonsterHeight.Value / info.Height) : 1f;
 
 	private GameObject Fitted(GameObject template, Quaternion rotation, Vector3 size, bool uniform, float maxScale = float.MaxValue)
 	{
@@ -2608,11 +2755,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		BiomeRuntime giants = m_biomes[BiomeAt(z)];
 		(GameObject prefab, string label) giant = giants.Giants.Count > 0 ? giants.Giants[Random.Range(0, giants.Giants.Count)] : (null!, "");
 		// Ambushers (abominations) burst out of the ground over the track; trolls either swing
-		// beside it or leap onto it. Ambushers are rarer (1.14, Sam: a swamp of abominations).
+		// beside it or leap onto it. Ambushers are rarer (1.14, SAT: a swamp of abominations).
 		bool rise = giant.prefab != null && SpawnTables.Contains(Plugin.Ambushers.Value, giant.prefab);
 		if (!crypt && giant.prefab != null && z > 60f && Random.value < Plugin.GiantChance.Value * (rise ? 0.4f : 1f))
 		{
-			// 1.16.1 (Sam): an abomination also sweeps two lanes from the side, like a troll's log.
+			// 1.16.1 (SAT): an abomination also sweeps two lanes from the side, like a troll's log.
 			if (Random.value < 0.5f && (!rise || CreatureInfo.Of(giant.prefab).Melee.Exists(a => a.Type == Attack.AttackType.Horizontal)))
 			{
 				SpawnSwingTroll(z, giants, giant);
@@ -2695,7 +2842,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 						break;
 					}
 					SpawnCreature(e, lane, z, Kind.Block, 0f, biomeIndex);
-					// Pack animals (greydwarfs, wolves...) come in their groups. 1.14 (Sam): not a
+					// Pack animals (greydwarfs, wolves...) come in their groups. 1.14 (SAT): not a
 					// conga line in one lane but spread out, each a few strides on and, when it's the
 					// only creature lane in this row, weaving into the next lane, so you have to weave
 					// too. With two creature lanes they keep to their own lane, spaced out, so a way
@@ -2731,7 +2878,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 						? Fitted(Picture(log), Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(LaneWidth * 0.85f, 0.5f, 0.9f), false)
 						: Fitted(Picture(log), Quaternion.Euler(0f, 0f, 90f), new Vector3(LaneWidth * 0.9f, 0.7f, 0.7f), false);
 					go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
-					// 1.16.150 (Sam: the swamp crypt's rocks were almost impossible to jump): the mounds
+					// 1.16.150 (SAT: the swamp crypt's rocks were almost impossible to jump): the mounds
 					// are lower, shallower, and cleared by any jump that's off the ground.
 					bool mound = crypt && m_crypt!.Theme.LowUpright;
 					m_things.Add(new Thing { Go = go, Kind = Kind.Low, Lane = lane, Z = z, HalfLength = mound ? 0.25f : 0.35f, ClearHeight = mound ? 0.45f : 0f });
@@ -2793,7 +2940,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		float trollX = side * (LaneWidth * 1.5f + 2.4f);
 		// Mostly the troll's own attack with its own weapon; now and then the classic stiff log
-		// swing from 1.2, which Sam asked to keep, done by a young (small) troll.
+		// swing from 1.2, which SAT asked to keep, done by a young (small) troll.
 		CreatureInfo info = CreatureInfo.Of(prefab);
 		// An abomination swings its arm across (its horizontal attack), with no weapon.
 		CreatureAttack? sweep = info.Melee.Find(a => a.Type == Attack.AttackType.Horizontal);
@@ -2837,7 +2984,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Heavy = true,
 			Threat = true,
 		});
-		// 1.16.1 (Sam): a troll's log, and an abomination's sweep, always reach the middle lane
+		// 1.16.1 (SAT): a troll's log, and an abomination's sweep, always reach the middle lane
 		// too (both lanes are marked).
 		{
 			Thing swing = m_things[m_things.Count - 1];
@@ -2942,11 +3089,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// The real attack animation winds up slower than the classic stiff swing.
 		bool real = swing && t.Moving == null;
 		// The real swing lands when its clip's blow does.
-		// 1.16.1 (Sam: the log swings started too late): a big creature's swing is slow to wind up.
+		// 1.16.1 (SAT: the log swings started too late): a big creature's swing is slow to wind up.
 		float windup = real ? AnimTiming.Delay(t.Anim, t.Attack?.Animation ?? "", 1.3f) : 0f;
 		if (!t.Triggered)
 		{
-			// 1.14 (Sam): the real log swing landed too late, and the leap onto the track (and its
+			// 1.14 (SAT): the real log swing landed too late, and the leap onto the track (and its
 			// red lanes) came too early. The log now lands a moment before you get there (it stays
 			// down in its lane), the leap lands under a second ahead of you, and its lanes light
 			// up about a second and a half before that.
@@ -3107,7 +3254,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		if (schema != null && schema.Has("hurdle") && kind == Kind.Block)
 		{
 			// Short enough to jump, whatever its collider says.
-			clear = Mathf.Min(height * 0.85f, Plugin.JumpHeight.Value * 0.6f);
+			clear = Mathf.Min(height * 0.85f, Plugin.JumpHeight.Value * 0.45f);
 		}
 		string gait = role.Length > 0 ? role : schema?.PickOf("charger", "waiter", "switcher") ?? "";
 		float speed = 0f;
@@ -3197,7 +3344,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		return thing;
 	}
 
-	// 1.16.150 (Sam): a starred lap has a mix of its own star level and those below it.
+	// 1.16.150 (SAT): a starred lap has a mix of its own star level and those below it.
 	private static int MixStars(int lap)
 	{
 		if (lap <= 0)
@@ -3208,7 +3355,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		return r < 0.55f ? lap : r < 0.85f ? lap - 1 : Mathf.Max(0, lap - 2);
 	}
 
-	// What stars change in how a creature moves (Sam's notes): from 1 star some necks, draugr
+	// What stars change in how a creature moves (SAT's notes): from 1 star some necks, draugr
 	// and the like drift slowly from lane to lane; on a starred lap the plain greydwarfs swarm
 	// across the lanes; from 2 stars they move and strike a little quicker.
 	private void StarTraits(Thing t, int lap, int stars, string gait, string prefab)
@@ -3418,7 +3565,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		else if (t.Attack.Ranged && t.Ranged.Length == 0)
 		{
-			// The shot leaves while you're still well off: the wind-up is counted in (1.14, Sam:
+			// The shot leaves while you're still well off: the wind-up is counted in (1.14, SAT:
 			// shamans attacked way too late).
 			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, 0.35f);
 			float lead = (m_speed + t.Speed) * windup;
@@ -3435,13 +3582,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 			// time it plays), else a guess from the creature's size.
 			float windup = AnimTiming.Delay(t.Anim, t.Attack.Animation, FallbackWindup(t));
 			// A smasher strikes from further off so its shockwaves travel to you.
-			// 1.14 (Sam: golems and shamans struck too late): measured from its front, since a big
+			// 1.14 (SAT: golems and shamans struck too late): measured from its front, since a big
 			// creature's body reaches you before its middle does, and a beat early so the blow is
 			// seen landing rather than after you've run into it.
 			float reach = t.Smashes > 0 ? (m_speed + t.Speed) * (windup + 1.2f) + 6f : (m_speed + t.Speed) * (windup + 0.15f) + 1.5f + t.HalfLength;
 			if (t.Move.StartsWith("gas"))
 			{
-				// 1.14.2 (Sam): gas goes out early, so its cloud is already hanging there as you
+				// 1.14.2 (SAT): gas goes out early, so its cloud is already hanging there as you
 				// come, about a second and a half ahead.
 				reach = (m_speed + t.Speed) * (windup + 1.5f) + 4f + t.HalfLength;
 			}
@@ -3615,7 +3762,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			return;
 		}
-		// 1.16.150 (Sam: draugr shot through the walls): never round a corner or through a mud bank.
+		// 1.16.150 (SAT: draugr shot through the walls): never round a corner or through a mud bank.
 		if (m_crypt != null && shooter.Z > m_z && (CornerBetween(m_z + 1f, shooter.Z) || DigBetween(m_z, shooter.Z)))
 		{
 			return;
@@ -3630,7 +3777,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		GameObject wrapper = MakeShotVisual(attack);
 		wrapper.transform.localPosition = new Vector3(startX, RoadY(startZ) + y, startZ);
 		wrapper.transform.localRotation = Quaternion.LookRotation(new Vector3((targetX - startX) / time, 0f, -speed));
-		// A blue patch rides along under it (1.14, Sam: blobs' shots had no telegraph): slide.
+		// A blue patch rides along under it (1.14, SAT: blobs' shots had no telegraph): slide.
 		GameObject shadow = MakeMarker(m_lane, startZ, 1.4f, SlideMaterial);
 		shadow.transform.position = wrapper.transform.position - m_stage.up * (y - 0.08f);
 		shadow.transform.SetParent(wrapper.transform, true);
@@ -3645,7 +3792,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			HalfLength = 0.45f,
 			Speed = speed,
 			Label = shooter.Label,
-			CrashText = $"A {shooter.Label}'s shot hit you in the {biome}! (Slide under them.)",
+			CrashText = $"A {shooter.Label}'s shot hit you in the {biome}! (Roll under it or jump over it.)",
 			FreeX = true,
 			X = startX,
 			TargetX = targetX,
@@ -3694,7 +3841,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		return wrapper;
 	}
 
-	// 1.16.150 (Sam: a health bar that slowly recharges, faster after food): now and then, while
+	// 1.16.150 (SAT: a health bar that slowly recharges, faster after food): now and then, while
 	// you're hurt, one of the biome's foods lies in a lane. Eating it speeds your healing up.
 	private bool SpawnFood(int lane, float z)
 	{
@@ -3726,6 +3873,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float m_lifeRegen;
 	private float m_foodBoost;
 	private float m_rollCooldown;
+	private float m_rollReadyAt = -99f;
 
 	// Seconds to heal one life back, by difficulty.
 	private static float RegenSeconds => Plugin.Level == 0 ? 30f : Plugin.Level == 1 ? 45f : 70f;
@@ -3733,7 +3881,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void UpdateRegen(float dt)
 	{
 		m_foodBoost = Mathf.Max(0f, m_foodBoost - dt);
-		m_rollCooldown = Mathf.Max(0f, m_rollCooldown - dt);
+		if (m_rollCooldown > 0f)
+		{
+			m_rollCooldown = Mathf.Max(0f, m_rollCooldown - dt);
+			if (m_rollCooldown <= 0f && m_state == State.Running)
+			{
+				// 1.16.x (SAT: show when the roll is ready again): a soft tick, and the roll pip
+				// under the stamina bar flashes (SurfHud.cs).
+				m_audio.Play("sfx_gui_select|sfx_gui_button", 0.35f, 1.3f);
+				m_rollReadyAt = Time.time;
+			}
+		}
 		if (m_state != State.Running || m_lives >= Plugin.StartLives || m_atSea)
 		{
 			m_lifeRegen = 0f;
@@ -3935,26 +4093,42 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camBack = Mathf.MoveTowards(m_camBack, back ? 1f : 0f, dt / 1.4f);
 		float swing = Mathf.SmoothStep(0f, 1f, m_camBack) * Mathf.PI;
 		float dist = Plugin.CameraDistance.Value * (1f + 0.25f * Mathf.Sin(swing));
-		float camX = m_x * 0.6f + Mathf.Sin(swing) * dist;
 		float camZ = m_z - Mathf.Cos(swing) * dist;
-		float lookX = m_x * 0.8f - Mathf.Sin(swing) * 7f;
 		float lookZ = m_z + Mathf.Cos(swing) * 7f;
-		// Follow the rolling road, but never dip into a rise behind you.
-		float road = Mathf.Max(RoadY(m_z), RoadY(camZ) + 0.8f);
-		Vector3 target = StagePoint(new Vector3(camX, road + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_y * 0.4f, camZ));
-		Vector3 look = StagePoint(new Vector3(lookX, RoadY(lookZ) + 1.0f, lookZ));
+		// 1.16.x (playtest: motion sickness from the camera's pitch bobbing and the yaw-then-jerk
+		// on lane changes): the camera slides sideways and up/down with you but never turns or
+		// tilts to do it. Its side, height and the road's slope are each eased on their own
+		// (critically damped, no overshoot), and the point it looks at moves with it by the
+		// same amounts, so a lane change or a bump in the road is a plain glide. Only the slow
+		// slope ease tips the view, over a second or more, on long rises and falls.
+		float ground = RoadY(m_z);
+		float clear = Mathf.Max(ground, RoadY(camZ) + 0.8f);
+		float slope = (RoadY(m_z + 14f) - ground) / 14f;
+		float lift = m_y * 0.25f;
 		if (!m_camPlaced)
 		{
-			m_camPos = target;
+			m_camSide = m_x;
+			m_camClear = clear;
+			m_camSlope = slope;
+			m_camLift = lift;
+			m_camSideVel = m_camClearVel = m_camSlopeVel = m_camLiftVel = 0f;
 			m_camPlaced = true;
 		}
-		else
+		else if (dt > 0f)
 		{
-			Vector3 smooth = Vector3.Lerp(m_camPos, target, 1f - Mathf.Exp(-10f * dt));
-			// Never lag behind along the track, only ease sideways and up/down.
-			smooth.z = target.z;
-			m_camPos = smooth;
+			m_camSide = Mathf.SmoothDamp(m_camSide, m_x, ref m_camSideVel, 0.2f, Mathf.Infinity, dt);
+			m_camClear = Mathf.SmoothDamp(m_camClear, clear, ref m_camClearVel, 0.45f, Mathf.Infinity, dt);
+			m_camSlope = Mathf.SmoothDamp(m_camSlope, slope, ref m_camSlopeVel, 1.4f, Mathf.Infinity, dt);
+			m_camLift = Mathf.SmoothDamp(m_camLift, lift, ref m_camLiftVel, 0.3f, Mathf.Infinity, dt);
 		}
+		float side = m_camSide * 0.6f;
+		float camX = side + Mathf.Sin(swing) * dist;
+		float lookX = side - Mathf.Sin(swing) * 7f;
+		float camY = m_camClear + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_camLift;
+		// The look point rises and falls with the camera, tipped only by the eased slope.
+		float lookY = m_camClear + 1.0f + m_camLift + m_camSlope * (lookZ - m_z) * 0.6f;
+		m_camPos = StagePoint(new Vector3(camX, camY, camZ));
+		Vector3 look = StagePoint(new Vector3(lookX, lookY, lookZ));
 		m_shake = Mathf.MoveTowards(m_shake, 0f, dt * 0.8f);
 		m_camera.transform.position = m_camPos + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake : Vector3.zero);
 		m_camera.transform.rotation = Quaternion.LookRotation(look - m_camPos);
@@ -3991,7 +4165,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// shows on the horizon.
 		float arenaFog = Plugin.BossLandmarks.Value ? 1f - (0.25f + 0.1f * (MonumentSize - 1f)) * arena : 1f + 0.5f * arena;
 		Color sky = Color.Lerp(b.Sky, b.Sky * 0.55f + tint * 0.2f, arena);
-		// 1.16.19 (Sam): the air clears to match the View Distance, so the far end of the track
+		// 1.16.19 (SAT): the air clears to match the View Distance, so the far end of the track
 		// still fades into the fog (the fogs were made for 150 m).
 		float fog = b.Fog * Plugin.FogStrength.Value * arenaFog * ViewFog;
 		Color fogColor = Color.Lerp(b.FogColor, b.FogColor * 0.6f + tint * 0.25f, arena);
@@ -4115,6 +4289,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 			AbilityIconsGui(24f * k, 84f * k, k);
 			WetGui(24f * k, 118f * k, k);
 			TotemGui(k);
+			ParryCueGui(k);
+			HealthPopGui(k);
 		}
 		if (m_shopOpen && m_state == State.Running)
 		{
@@ -4130,12 +4306,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					// Starting on the coast: the longship's controls.
 					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: stop", m_mid);
+						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				else
 				{
 					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: stop running", m_mid);
+						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				break;
 			}
@@ -4158,17 +4334,54 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				break;
 			case State.Crashed:
-				Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
-				Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
-					$"{m_z:0} m, {m_coins} coins, reached {m_biomes[m_highestBiome].Def.Name}\n\n{m_rewardText}", m_mid);
-				(int cb, int cs, bool csea) = CrashPlace();
-				string fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
-				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
-					$"Space: run again     R: retry {Progress.Describe(cb, cs, csea)}{fromCheckpoint}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				// 1.16.x (playtest: after a fall the view just looked up with no menu): the keys
+				// are drawn first, and nothing in the summary can stop them showing.
+				string fromCheckpoint = "";
+				string retry = "";
+				try
+				{
+					(int cb, int cs, bool csea) = CrashPlace();
+					fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
+					retry = " " + Progress.Describe(cb, cs, csea);
+				}
+				catch (System.Exception e)
+				{
+					LogGuiError("crash keys", e);
+				}
+				// (Playtest: the one long key row ran off both edges, and white text over the
+				// track was hard to read.) A dark panel behind it all, the keys on two lines.
+				if (Event.current.type == EventType.Repaint)
+				{
+					Fill(new Rect(w * 0.08f, h * 0.17f, w * 0.84f, h * 0.7f), new Color(0f, 0f, 0f, 0.55f * s_guiAlpha));
+				}
+				Shadowed(new Rect(w * 0.05f, h * 0.68f, w * 0.9f, 140 * k),
+					$"Space: run again     R: retry{retry}{fromCheckpoint}\nM: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				try
+				{
+					Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
+					string reached = m_highestBiome >= 0 && m_highestBiome < m_biomes.Count ? m_biomes[m_highestBiome].Def.Name : "the dream";
+					Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
+						$"{m_z:0} m, {m_coins} coins, reached {reached}\n\n{m_rewardText}", m_mid);
+				}
+				catch (System.Exception e)
+				{
+					LogGuiError("crash summary", e);
+				}
 				break;
 			case State.Menu:
 				MenuGui(k, w, h);
 				break;
+		}
+	}
+
+	private static readonly HashSet<string> s_guiErrors = new();
+
+	// Once per place: an error while drawing, which would otherwise blank the rest of the screen.
+	private static void LogGuiError(string where, System.Exception e)
+	{
+		if (s_guiErrors.Add(where))
+		{
+			Plugin.Log.LogError($"Drawing the {where} failed: {e}");
 		}
 	}
 
@@ -4251,7 +4464,7 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		// Whatever the mode, the far end of the track is mostly lost in it (the haze sheets,
 		// SurfHaze.cs, take the rest).
 		float ahead = game != null ? game.ViewAhead : 150f;
-		// 1.16.79 (Sam: "the fog is preventing the ocean from being seen easily"): from high over
+		// 1.16.79 (SAT: "the fog is preventing the ocean from being seen easily"): from high over
 		// the ship the floor is lifted, so the sea stays clear.
 		if (game != null)
 		{
@@ -4261,11 +4474,13 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		if (RenderSettings.fogMode == FogMode.Linear)
 		{
 			RenderSettings.fogStartDistance = 0f;
-			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead * 1.15f) : 100000f;
+			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead) : 100000f;
 		}
 		else if (any)
 		{
-			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 1.6f : 1.2f) / ahead);
+			// 1.16.x (playtest: things popping in): at least this thick, so what's built at the far
+			// end appears through about 87% fog instead of 80%.
+			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 2.0f : 1.45f) / ahead);
 		}
 		RenderSettings.fogDensity = density;
 		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;

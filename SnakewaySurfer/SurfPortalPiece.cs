@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.84 (Sam): "add a portal building that you can build and place with hammer that only costs
+// 1.16.84 (SAT): "add a portal building that you can build and place with hammer that only costs
 // ectoplasm and feathers. Be sure to set it's category appropriately. ... these can be set for
 // the different biomes if a user just wants to go straight to running, reset them to make em
 // revert back to sleep required to start dream."
@@ -17,7 +17,7 @@ namespace SnakewaySurfer;
 internal static class SurfPortalPiece
 {
 	public const string PrefabName = "piece_surf_strangeportal";
-	// 1.16.x (Sam: "It needs to work for some players without any mods"): a built Strange Portal
+	// 1.16.x (SAT: "It needs to work for some players without any mods"): a built Strange Portal
 	// is saved as the vanilla wooden portal plus this ZDO flag. Players and servers without the
 	// mod see a plain wooden portal instead of logging "Missing prefab hash" every frame; modded
 	// players turn it back into the Strange Portal as it loads (TeleportWorldAwake below).
@@ -105,6 +105,59 @@ internal static class SurfPortalPiece
 		}
 	}
 
+	// A Strange Portal saved by an old version under its own name, in a game where that name
+	// isn't known (the piece switched off, or its model not found): the game logs "Missing prefab
+	// hash" for it every time it tries to load it, for everyone. Such portals are rewritten here
+	// as the vanilla wooden portal plus our flag, which any game can load. Checked now and then.
+	private static float s_sweepAt;
+	private static bool s_missingLogged;
+
+	public static void Sweep()
+	{
+		if (Time.realtimeSinceStartup < s_sweepAt || ZDOMan.instance == null || ZNetScene.instance == null || Player.m_localPlayer == null)
+		{
+			return;
+		}
+		s_sweepAt = Time.realtimeSinceStartup + 20f;
+		if (ZNetScene.instance.GetPrefab(PrefabHash) != null)
+		{
+			// Known here: each one converts itself as it loads (StrangePortal.Awake).
+			return;
+		}
+		if (!s_missingLogged)
+		{
+			s_missingLogged = true;
+			Plugin.Log.LogInfo($"The Strange Portal piece isn't registered in this game (setting {(Plugin.PortalPiece.Value ? "on, but the wooden portal wasn't found to copy" : "off")}); old Strange Portals in the world are being turned into wooden portals that every game can load.");
+		}
+		int fixedCount = 0;
+		try
+		{
+			List<ZDO> found = new();
+			foreach (ZDO zdo in ZDOMan.instance.m_objectsByID.Values)
+			{
+				if (zdo != null && zdo.GetPrefab() == PrefabHash)
+				{
+					found.Add(zdo);
+				}
+			}
+			foreach (ZDO zdo in found)
+			{
+				zdo.SetOwner(ZDOMan.GetSessionID());
+				zdo.SetPrefab(VanillaHash);
+				zdo.Set(FlagKey, true);
+				fixedCount++;
+			}
+		}
+		catch (System.Exception e)
+		{
+			Plugin.Log.LogWarning($"Couldn't rewrite old Strange Portals: {e.Message}");
+		}
+		if (fixedCount > 0)
+		{
+			Plugin.Log.LogInfo($"Rewrote {fixedCount} old Strange Portal(s) as wooden portals; the \"Missing prefab hash\" messages for them stop now.");
+		}
+	}
+
 	private static GameObject? PortalFrom(List<GameObject> prefabs) => prefabs.Find(g => g != null && g.name == "portal_wood");
 
 	[HarmonyPatch(typeof(ZNetScene), "Awake")]
@@ -117,6 +170,10 @@ internal static class SurfPortalPiece
 				return;
 			}
 			GameObject? prefab = Make(PortalFrom(__instance.m_prefabs));
+			if (prefab == null)
+			{
+				Plugin.Log.LogWarning($"Strange Portal: no wooden portal among the game's {__instance.m_prefabs.Count} prefabs to copy; the piece is unavailable this session.");
+			}
 			if (prefab != null && !__instance.m_prefabs.Contains(prefab))
 			{
 				__instance.m_prefabs.Add(prefab);

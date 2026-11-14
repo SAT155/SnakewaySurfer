@@ -10,6 +10,130 @@ namespace SnakewaySurfer;
 internal sealed partial class SurfGame
 {
 	private static readonly Dictionary<string, GameObject?> s_fx = new();
+	private static Dictionary<string, GameObject>? s_roots;
+
+	// 1.16.x (playtest: hitches at checkpoints): every loaded root object by name, from one walk
+	// over all objects. Before, each effect name missing from the prefab list walked them all
+	// again the first time it played (a checkpoint's activation effect, a first hit...), and
+	// that walk is a long stall mid-run. Now it's done once, at the run's start (WarmRun).
+	private static Dictionary<string, GameObject> RootIndex()
+	{
+		if (s_roots == null)
+		{
+			s_roots = new Dictionary<string, GameObject>();
+			foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+			{
+				if (go != null && go.transform.parent == null && !s_roots.ContainsKey(go.name))
+				{
+					s_roots[go.name] = go;
+				}
+			}
+		}
+		return s_roots;
+	}
+
+	// While the run loads: the lookups and copies the first checkpoint would otherwise do in
+	// the middle of the run.
+	private void WarmRun()
+	{
+		float t0 = Time.realtimeSinceStartup;
+		RootIndex();
+		m_audio.Warm("sfx_runestone_activate|sfx_gui_select");
+		m_audio.Warm("sfx_gui_inventory_close|sfx_gui_button");
+		if (CheckpointsOn)
+		{
+			if ((Pictures.Prefab("guard_stone") ?? Pictures.Prefab("piece_groundtorch_blue") ?? Pictures.Prefab("piece_groundtorch_wood")) is GameObject stone)
+			{
+				Picture(stone);
+			}
+			if (FindFx(CheckpointFx) is GameObject fx)
+			{
+				Picture(fx);
+			}
+		}
+		// 1.16.x (playtest: hitching while the track is built): the first copy of each tree,
+		// rock, log or creature used to be made the moment the track first needed it, mid-run.
+		// The starting biome's are made now, behind the loading screen; the rest of the lap's
+		// a few milliseconds a frame while you run (UpdateWarm), the next biome first.
+		m_warmQueue.Clear();
+		int first = m_segments.Count > 0 ? m_segments[0].Biome : 0;
+		int count = Mathf.Max(1, Mathf.Min(m_lapBiomes, m_biomes.Count));
+		for (int i = 0; i < count; i++)
+		{
+			int b = (first + i) % count;
+			if (b >= 0 && b < m_biomes.Count)
+			{
+				QueueWarm(m_biomes[b]);
+			}
+		}
+		int now = 0;
+		int firstCount = m_warmQueue.Count;
+		while (m_warmQueue.Count > 0 && now < m_biomeWarmCount)
+		{
+			WarmOne(m_warmQueue.Dequeue());
+			now++;
+		}
+		Plugin.Log.LogInfo($"Run warm-up: {(Time.realtimeSinceStartup - t0) * 1000f:0} ms ({now} of {firstCount} copies made now, the rest while running).");
+	}
+
+	private readonly Queue<GameObject> m_warmQueue = new();
+	// How many queued copies belong to the first biome queued.
+	private int m_biomeWarmCount;
+
+	private void QueueWarm(BiomeRuntime b)
+	{
+		int before = m_warmQueue.Count;
+		HashSet<GameObject> seen = new(m_warmQueue);
+		void Add(GameObject? go)
+		{
+			if (go != null && !m_pictureOf.ContainsKey(go) && seen.Add(go))
+			{
+				m_warmQueue.Enqueue(go);
+			}
+		}
+		foreach (GameObject go in b.Scenery) Add(go);
+		foreach (VegEntry v in b.Veg) Add(v.Prefab);
+		foreach (GameObject go in b.Logs) Add(go);
+		foreach ((GameObject prefab, string _) in b.Giants) Add(prefab);
+		foreach (SpawnEntry s in b.Monsters) Add(s.Prefab);
+		foreach (SpawnEntry s in b.Flyers) Add(s.Prefab);
+		foreach (GameObject go in b.Pickables) Add(go);
+		foreach ((string _, bool _, List<GameObject> homes) in b.Landmarks)
+		{
+			foreach (GameObject go in homes) Add(go);
+		}
+		if (before == 0)
+		{
+			m_biomeWarmCount = m_warmQueue.Count;
+		}
+	}
+
+	private void WarmOne(GameObject prefab)
+	{
+		try
+		{
+			Picture(prefab);
+		}
+		catch (System.Exception e)
+		{
+			Plugin.Log.LogWarning($"Couldn't copy {prefab.name} ahead of time: {e.Message}");
+		}
+	}
+
+	// Each running frame: queued copies for about 2 ms (always at least one).
+	private void UpdateWarm()
+	{
+		if (m_warmQueue.Count == 0)
+		{
+			return;
+		}
+		float t0 = Time.realtimeSinceStartup;
+		do
+		{
+			WarmOne(m_warmQueue.Dequeue());
+		}
+		while (m_warmQueue.Count > 0 && Time.realtimeSinceStartup - t0 < 0.002f);
+	}
 
 	// An effect prefab by name: from the scene's prefab list, else any loaded object of that
 	// name (many effects aren't registered), looked up once.
@@ -26,14 +150,7 @@ internal sealed partial class SurfGame
 				found = Pictures.Prefab(name);
 				if (found == null)
 				{
-					foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
-					{
-						if (go != null && go.name == name && go.transform.parent == null)
-						{
-							found = go;
-							break;
-						}
-					}
+					RootIndex().TryGetValue(name, out found);
 				}
 				s_fx[name] = found;
 			}
@@ -79,7 +196,7 @@ internal sealed partial class SurfGame
 	}
 
 	// A torch or fire copy burning: a fireplace keeps its flames on inactive children (its
-	// "enabled" objects, switched by fuel), which a lifeless copy never turns on (1.14.2, Sam:
+	// "enabled" objects, switched by fuel), which a lifeless copy never turns on (1.14.2, SAT:
 	// the torches weren't lit).
 	private void LightUp(GameObject go)
 	{
@@ -222,7 +339,7 @@ internal sealed partial class SurfGame
 			Plugin.Log.LogInfo($"No weather found for {def.Name}'s arena (tried '{(m_locationEnv.TryGetValue(def.Location, out string z) ? z : "")}', '{def.Env}').");
 			return;
 		}
-		// Its rain, snow or ash, following our camera. 1.14 (Sam saw no rain at Eikthyr): when
+		// Its rain, snow or ash, following our camera. 1.14 (SAT saw no rain at Eikthyr): when
 		// its own place's weather has none, the first of its fallback weathers that has some.
 		GameObject[] systems = m_bossEnv.m_psystems ?? new GameObject[0];
 		if (systems.Length == 0 && EnvMan.instance != null)

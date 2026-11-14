@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.79 (Sam: "Island's are kind of like sub-checkpoints if you think about it. Maybe we can
+// 1.16.79 (SAT: "Island's are kind of like sub-checkpoints if you think about it. Maybe we can
 // introduce checkpoints now to all of the biomes. Ofcourse only one checkpoint should ever be
 // saved since it is just an ad hoc save to reload to in the middle of a biome ... When you die
 // you have the option to restart from last checkpoint in a biome"):
@@ -25,6 +25,8 @@ internal sealed partial class SurfGame
 		public Light? Glow;
 		public bool Lit;
 		public float LitT;
+		public float BaseY;
+		public float Age;
 	}
 
 	private readonly List<CheckStone> m_checkStones = new();
@@ -35,6 +37,7 @@ internal sealed partial class SurfGame
 	private float m_seaSkip;
 
 	private static bool CheckpointsOn => Plugin.MidCheckpoints.Value;
+	private const string CheckpointFx = "vfx_guardstone_activate|vfx_guardstone_permitted_add|vfx_Place_stone";
 
 	private bool CanResume(int biome, int stars, bool sea)
 	{
@@ -98,7 +101,7 @@ internal sealed partial class SurfGame
 		if (items > 0 && BossFor(first) is BossDef boss && items >= boss.Amount)
 		{
 			m_itemsPlanned = first;
-			// 1.16.150 (Sam): a retry at the boss is straight to the boss, no new monsters on the way.
+			// 1.16.150 (SAT): a retry at the boss is straight to the boss, no new monsters on the way.
 			m_quietToBoss = true;
 		}
 		Plugin.Log.LogInfo($"From the checkpoint: {Progress.Describe(biome, stars)}, {along:0} m in, {items} item(s).");
@@ -118,13 +121,14 @@ internal sealed partial class SurfGame
 		Segment here = SegAt(m_z);
 		if (StoneStretch(here) && !m_halfPlanned.Contains(here))
 		{
-			// 1.16.109 (Sam): a biome's dungeon exit is its checkpoint, when it has one.
+			// 1.16.109 (SAT): a biome's dungeon exit is its checkpoint, when it has one.
 			float half = !float.IsNaN(CryptExitFor(here)) ? CryptExitFor(here) + 12f : here.Start + Plugin.BiomeLength.Value * 0.5f;
 			if (half < m_z + 15f || here.End < half + 20f)
 			{
 				m_halfPlanned.Add(here);
 			}
-			else if (half < m_z + AheadDistance * 0.8f)
+			// Planted out at the far end of the view, in the fog (it used to appear well inside it).
+			else if (half < m_z + AheadDistance)
 			{
 				m_halfPlanned.Add(here);
 				PlantStone(here, half, here == m_itemSeg ? m_items : 0);
@@ -134,7 +138,8 @@ internal sealed partial class SurfGame
 		if (StoneStretch(here) && m_itemsPlanned != here && here == m_itemSeg && BossFor(here) is BossDef boss && m_items >= boss.Amount)
 		{
 			m_itemsPlanned = here;
-			PlantStone(here, m_z + 28f, m_items);
+			// It rises out of the ground ahead rather than popping up there.
+			PlantStone(here, m_z + 40f, m_items, true);
 		}
 		for (int i = m_checkStones.Count - 1; i >= 0; i--)
 		{
@@ -143,6 +148,13 @@ internal sealed partial class SurfGame
 			{
 				m_checkStones.RemoveAt(i);
 				continue;
+			}
+			if (c.Age < 1f)
+			{
+				c.Age += dt;
+				Vector3 at = c.Go.transform.localPosition;
+				at.y = c.BaseY - 3f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(c.Age)));
+				c.Go.transform.localPosition = at;
 			}
 			if (!c.Lit && m_z >= c.Z && m_state == State.Running)
 			{
@@ -159,19 +171,20 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	private void PlantStone(Segment seg, float z, int items)
+	private void PlantStone(Segment seg, float z, int items, bool rise = false)
 	{
 		if (CryptCovers(z) || (m_crypt != null && z > m_crypt.Start - 10f && z < m_crypt.End + 10f))
 		{
 			z = (m_crypt?.End ?? z) + 12f;
 		}
 		GameObject? prefab = Pictures.Prefab("guard_stone") ?? Pictures.Prefab("piece_groundtorch_blue") ?? Pictures.Prefab("piece_groundtorch_wood");
-		CheckStone c = new CheckStone { Z = z, Items = items, Seg = seg };
+		CheckStone c = new CheckStone { Z = z, Items = items, Seg = seg, Age = rise ? 0f : 99f };
 		int side = Random.value < 0.5f ? -1 : 1;
 		float x = side * (TrackHalf + 1.6f + ExtraFlat(z));
 		GameObject wrapper = new GameObject("Checkpoint") { layer = m_layer };
 		wrapper.transform.SetParent(m_stage, false);
-		wrapper.transform.localPosition = new Vector3(x, HillHeight(x, z) - 0.05f, z);
+		c.BaseY = HillHeight(x, z) - 0.05f;
+		wrapper.transform.localPosition = new Vector3(x, c.BaseY - (rise ? 3f : 0f), z);
 		wrapper.transform.localRotation = Quaternion.Euler(0f, side < 0 ? 90f : -90f, 0f);
 		if (prefab != null)
 		{
@@ -205,7 +218,7 @@ internal sealed partial class SurfGame
 		Progress.SaveResume(m_player, c.Seg.Biome, c.Seg.Stars, false, items, Mathf.Max(0f, c.Z - c.Seg.Start));
 		m_audio.Play("sfx_runestone_activate|sfx_gui_select", 0.9f, 1f);
 		Flash(new Color(0.55f, 0.8f, 1f), 0.3f);
-		if (c.Go != null && FindFx("vfx_guardstone_activate|vfx_guardstone_permitted_add|vfx_Place_stone") is GameObject fx)
+		if (c.Go != null && FindFx(CheckpointFx) is GameObject fx)
 		{
 			PlayFx(fx, c.Go.transform.localPosition + Vector3.up * 1.2f, Quaternion.identity, 3f);
 		}
@@ -226,10 +239,25 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Progress.SaveResume(m_player, SeaTo, m_shipSeg.Stars, true, 0, island.Along);
+		// 1.16.x (SAT: the islands can have some fun popup text): Hugin names the island.
+		m_banner = s_islandLines[Random.Range(0, s_islandLines.Length)];
+		m_bannerTime = 4f;
 		m_audio.Play("sfx_runestone_activate|sfx_gui_select", 0.8f, 1.05f);
 		Flash(new Color(1f, 0.85f, 0.45f), 0.3f);
 		Plugin.Log.LogInfo($"Checkpoint at the island {island.Along:0} m into the crossing.");
 	}
+
+	private static readonly string[] s_islandLines =
+	{
+		"Gull Rock! The gulls say it's theirs. Mend fast.",
+		"Odin's Footstool. He's not using it right now.",
+		"Troll's Toe. Don't ask where the rest of him is.",
+		"Neck Point: lovely beach, terrible neighbours.",
+		"Driftwood Hump. Every plank here was once a ship like yours.",
+		"Serpent's Nap. Moor quietly.",
+		"Last Dry Patch. Make the most of it.",
+		"Hugin's Perch. I come here to think about you sailing badly.",
+	};
 
 	private void ClearResumePoint()
 	{

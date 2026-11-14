@@ -17,7 +17,7 @@ internal static class Rewards
 	{
 		List<string> lines = new();
 
-		// Real XP (1.14, Sam): what running in the world gives for the same time, scaled.
+		// Real XP (1.14, SAT): what running in the world gives for the same time, scaled.
 		float xpSeconds = Plugin.MaxRunXpSeconds.Value > 0f ? Mathf.Min(seconds, Plugin.MaxRunXpSeconds.Value) : seconds;
 		float raise = xpSeconds * Plugin.RunXpPerSecond.Value;
 		if (raise > 0.001f)
@@ -28,7 +28,7 @@ internal static class Rewards
 				lines.Add($"Run skill +{gained:0.00} levels");
 			}
 		}
-		// 1.16.1 (Sam): Blocking and Dodge XP as the game gives it for each block, parry and
+		// 1.16.1 (SAT): Blocking and Dodge XP as the game gives it for each block, parry and
 		// dodge (Humanoid.BlockAttack raises Blocking by 1, or 2 for a parry).
 		foreach ((Skills.SkillType type, float amount, string name) in new[] { (Skills.SkillType.Blocking, blockRaise, "Blocking"), (Skills.SkillType.Dodge, dodgeRaise, "Dodge") })
 		{
@@ -55,7 +55,7 @@ internal static class Rewards
 			}
 			else
 			{
-				// 1.16.23 (Sam): one food from each biome you ran through, each its own biome's.
+				// 1.16.23 (SAT): one food from each biome you ran through, each its own biome's.
 				List<string> found = new();
 				if (biomesRun != null && biomesRun.Count > 0)
 				{
@@ -88,7 +88,7 @@ internal static class Rewards
 		return string.Join("\n", lines);
 	}
 
-	// 1.16.79 (Sam: "Anytime the player does the draugr dungeon, they get an iron per star level
+	// 1.16.79 (SAT: "Anytime the player does the draugr dungeon, they get an iron per star level
 	// to their inventory. Same for the other materials", with "that 30 minute timer just like the
 	// food items"): each dungeon cleared gives its own material, one more per star, at most once
 	// per Food Cooldown Minutes (one timer for all dungeons, saved on the character).

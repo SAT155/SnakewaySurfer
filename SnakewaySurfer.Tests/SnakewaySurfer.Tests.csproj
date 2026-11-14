@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <!-- The checks that run on every build without the game: the mod's Unity-free files,
+         compiled on their own and put through their rules. Run with: dotnet run -c Release -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net8.0</TargetFramework>
+        <RootNamespace>SnakewaySurfer.Tests</RootNamespace>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <InvariantGlobalization>true</InvariantGlobalization>
+    </PropertyGroup>
+    <ItemGroup>
+        <Compile Include="../SnakewaySurfer/SurfPlacement.cs" Link="SurfPlacement.cs" />
+    </ItemGroup>
+</Project>

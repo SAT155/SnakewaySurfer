@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14 (Sam): hurting a boss takes timing. Eikthyr: grab a spear and throw it (Throw Key) when
+// 1.14 (SAT): hurting a boss takes timing. Eikthyr: grab a spear and throw it (Throw Key) when
 // he's lined up with you; it flies down your lane and he weaves between the lanes, so a badly
 // timed throw misses. Moder's ballista bolt (SurfBoss.cs) flies too, so you lead her.
 internal sealed partial class SurfGame

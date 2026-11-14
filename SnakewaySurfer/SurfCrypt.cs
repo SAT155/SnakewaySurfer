@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.4 (Sam: "The burial chamber dungeon could include like 90 degree turns or something like
+// 1.16.4 (SAT: "The burial chamber dungeon could include like 90 degree turns or something like
 // moving around tight corners in the dark hallway. with lots of skeletons in a hallway and such.
 // Maybe a ghost or skeleton spawner every now and then. Perhaps the dungeons could all be
 // top-down. Similar to the sailing one. A torch would definitely be used in the burial
@@ -22,15 +22,15 @@ namespace SnakewaySurfer;
 // unchanged. After the exit the last frame becomes the stage again.
 internal sealed partial class SurfGame
 {
-	// 1.16.79 (Sam: "Dungeon hallways can be much much larger"): 5 m of floor beside the lanes
+	// 1.16.79 (SAT: "Dungeon hallways can be much much larger"): 5 m of floor beside the lanes
 	// (was 1.2), taller walls (WallH) and the camera higher to take it in.
-	// 1.16.150 (Sam: the high camera in dungeons was disorienting, and the floor's three tiles
+	// 1.16.150 (SAT: the high camera in dungeons was disorienting, and the floor's three tiles
 	// didn't match the three lanes): one flagstone per lane and a strip beside them, and the
 	// camera stays behind you as on the open track.
 	private const float CryptHalf = TrackHalf + 1.2f;
 	private const float CryptWall = 0.6f;
 	// How far before a corner the turn can be pressed, and where you wait if you haven't.
-	// 1.16.20 (Sam pressed D at a corner and hit the wall): a press a little early was taken as a
+	// 1.16.20 (SAT pressed D at a corner and hit the wall): a press a little early was taken as a
 	// lane change, and the window was under a second at speed. Now it's about 1.6 s, a press
 	// toward the opening just before it still counts, and being in the lane on the opening's side
 	// when you reach the corner takes the turn too.
@@ -70,7 +70,7 @@ internal sealed partial class SurfGame
 		// +1 turns right, -1 left.
 		public readonly List<int> Dirs = new();
 		public readonly List<bool> Armed = new();
-		// 1.16.22 (Sam): the camera turns once you've pressed for the corner (0 to 1 each), and a
+		// 1.16.22 (SAT): the camera turns once you've pressed for the corner (0 to 1 each), and a
 		// gust of wind ahead of you beckons the way until you do (SurfGust.cs).
 		public readonly List<float> CamTurn = new();
 		public float NextWhoosh;
@@ -172,9 +172,18 @@ internal sealed partial class SurfGame
 		}
 		foreach (float c in m_crypt.Corners)
 		{
-			// 1.16.150 (Sam: monsters right round a corner aren't fair): a second or so of clear
+			// 1.16.150 (SAT: monsters right round a corner aren't fair): a second or so of clear
 			// hall after each turn.
 			if (z > c - Mathf.Max(16f, TurnWindow + 4f) && z < c + Mathf.Max(12f, m_speed * 1.4f + 6f))
+			{
+				return true;
+			}
+		}
+		// 1.16.x (playtest: kept getting hurt just behind the mud banks): the same clear stretch
+		// behind each bank you dig through, since nothing past it shows until it's open.
+		foreach (DigWall d in m_digs)
+		{
+			if (z > d.Z - 6f && z < d.Z + Mathf.Max(12f, m_speed * 1.4f + 6f))
 			{
 				return true;
 			}
@@ -257,7 +266,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			float len = Plugin.BiomeLength.Value;
-			// 1.16.109 (Sam: dungeons too short): about twice as long; a biome with a boss waits for
+			// 1.16.109 (SAT: dungeons too short): about twice as long; a biome with a boss waits for
 			// its dungeon (its items only come after it), so it may run past the biome's usual end.
 			float length = Mathf.Clamp(Mathf.Round(len * 0.9f / GroundTile) * GroundTile, theme.MinLength * 1.8f, theme.MaxLength * 1.8f);
 			float start = Mathf.Ceil((s.Start + Mathf.Max(120f, len * 0.25f)) / GroundTile) * GroundTile;
@@ -310,7 +319,7 @@ internal sealed partial class SurfGame
 			c.Dirs.Add(-d);
 			net += d;
 			z += side;
-			// 1.16.109 (Sam: halls too alike, could be much longer): short and long ones mixed.
+			// 1.16.109 (SAT: halls too alike, could be much longer): short and long ones mixed.
 			float north = Random.value < 0.3f ? Random.Range(14f, 24f) : Random.Range(30f, 80f);
 			if (z + north + 14f + 30f > end)
 			{
@@ -709,16 +718,11 @@ internal sealed partial class SurfGame
 					new Vector3(x, y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
 			}
 		}
-		if (!floored)
-		{
-			GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(slab.GetComponent<Collider>());
-			slab.layer = m_layer;
-			slab.transform.SetParent(root, false);
-			slab.transform.localPosition = new Vector3(0f, y - 0.1f, (z0 + z1) * 0.5f);
-			slab.transform.localScale = new Vector3(CryptHalf * 2f, 0.2f, z1 - z0);
-			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
-		}
+		FloorUnderlay(root, 0f, (z0 + z1) * 0.5f, CryptHalf * 2f, z1 - z0, y, floored);
+
+		// The roof, over the walls too; open for the first and last few metres, where the camera
+		// comes down from outside and goes back up.
+		CryptRoof(root, -wallX - CryptWall * 0.5f, wallX + CryptWall * 0.5f, first ? z0 + 6f : z0, exit ? z1 - 6f : z1 + CryptWall, y);
 
 		// The walls: the one on the outside of the corner ahead runs on to the end wall, the
 		// inside one stops where the way on opens.
@@ -790,6 +794,19 @@ internal sealed partial class SurfGame
 			{
 				pile.Go = CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.4f, 1.2f, 1.6f),
 					new Vector3(pile.Side * (CryptHalf - 0.75f), y, pile.Z), true, 2f);
+				// 1.16.x (SAT: those spawners look like bad guys): just the bones, without the
+				// spawner's red glow and smoke; the rising skeletons bring their own effect.
+				if (pile.Go != null)
+				{
+					foreach (ParticleSystem ps in pile.Go.GetComponentsInChildren<ParticleSystem>(true))
+					{
+						ps.gameObject.SetActive(false);
+					}
+					foreach (Light l in pile.Go.GetComponentsInChildren<Light>(true))
+					{
+						l.enabled = false;
+					}
+				}
 			}
 		}
 
@@ -1239,7 +1256,27 @@ internal sealed partial class SurfGame
 		m_avatarDrawn = true;
 	}
 
+	// Under every dungeon floor a plain stone slab: by itself when no floor pieces were found,
+	// else a little below them, so the gaps between rough stones (the burial chamber's are
+	// irregular) show stone instead of the black void under the stage (1.16.x, playtest: star-
+	// shaped black holes all over the burial chamber floor).
+	private void FloorUnderlay(Transform root, float cx, float cz, float sx, float sz, float y, bool floored)
+	{
+		GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+		Destroy(slab.GetComponent<Collider>());
+		slab.layer = m_layer;
+		slab.transform.SetParent(root, false);
+		slab.transform.localPosition = new Vector3(cx, y - (floored ? 0.22f : 0.1f), cz);
+		slab.transform.localScale = new Vector3(sx, 0.2f, sz);
+		Renderer r = slab.GetComponent<Renderer>();
+		r.sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+	}
+
 	// Top-down over the halls, like the sea: it turns with the way ahead around each corner.
+	// A roof only when the camera is down in the halls.
+	private static bool RoofsOn => Plugin.DungeonRoof.Value && !Plugin.DungeonTopDown.Value;
+
 	private void PlaceCryptCamera(float dt)
 	{
 		CryptRun? c = m_crypt;
@@ -1264,7 +1301,7 @@ internal sealed partial class SurfGame
 			}
 			yaw += c.Dirs[i] * 90f * Mathf.SmoothStep(0f, 1f, c.CamTurn[i]);
 		}
-		// 1.16.112 (Sam: the smoke cue isn't working out): the corner gust is gone.
+		// 1.16.112 (SAT: the smoke cue isn't working out): the corner gust is gone.
 		RemoveGust();
 		Vector3 focus = StagePoint(new Vector3(m_x * 0.6f, c.Floor + m_y * 0.4f, m_z));
 		if (!m_cryptFocusSet)
@@ -1278,8 +1315,21 @@ internal sealed partial class SurfGame
 		}
 		// Behind you and a little closer than outside, turning with you at each corner.
 		Quaternion turn = m_stage.rotation * Quaternion.Euler(0f, yaw, 0f);
-		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, Plugin.CameraHeight.Value + 0.6f, -Plugin.CameraDistance.Value * 0.85f);
+		// Under the roof, where there is one.
+		float camUp = Plugin.CameraHeight.Value + 0.6f;
+		if (c.Theme.Roofed && RoofsOn)
+		{
+			camUp = Mathf.Min(camUp, WallH + c.Theme.RoofLift - 0.8f);
+		}
+		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, camUp, -Plugin.CameraDistance.Value * 0.85f);
 		Vector3 look = m_cryptFocus + turn * new Vector3(0f, 1f, 7f);
+		// 1.16.x (SAT: dungeons need to be top down): high over the halls, about 60 degrees
+		// down, a little ahead of you, turning with you at each corner as before.
+		if (Plugin.DungeonTopDown.Value)
+		{
+			pos = m_cryptFocus + turn * new Vector3(0f, 15f, -7.5f);
+			look = m_cryptFocus + turn * new Vector3(0f, 0f, 3.5f);
+		}
 		Quaternion rot = Quaternion.LookRotation(look - pos);
 		float b = Mathf.SmoothStep(0f, 1f, m_cryptView);
 		m_camera.transform.position = Vector3.Lerp(m_camera.transform.position, pos, b) + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake * b : Vector3.zero);
@@ -1464,7 +1514,7 @@ internal sealed partial class SurfGame
 		{
 			return false;
 		}
-		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(1.3f, 1.1f, 1f), true, 1.6f);
+		GameObject go = Fitted(Picture(prefab), Quaternion.Euler(0f, 180f, 0f), new Vector3(2f, 1.6f, 1.5f), true, 2.6f); // 1.16.x (SAT: chests too small)
 		go.transform.localPosition = new Vector3(LaneX(lane), RoadY(z), z);
 		m_things.Add(new Thing { Go = go, Kind = Kind.Coin, Lane = lane, Z = z, HalfLength = 0.5f, Label = "Chest" });
 		return true;

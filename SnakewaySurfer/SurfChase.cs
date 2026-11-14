@@ -37,7 +37,7 @@ internal sealed partial class SurfGame
 
 	private static bool ChaseSeg(Segment s) => s.Boss && Progress.BossOf(s.Biome) is BossDef d && Chases(d);
 
-	// Only Eikthyr chases you (Sam, 1.13): the others wait for you ahead, as before.
+	// Only Eikthyr chases you (SAT, 1.13): the others wait for you ahead, as before.
 	private static bool Chases(BossDef def) => Plugin.BossChase.Value && def.Mode == "run";
 
 	private static float ChaseDistance(BossDef def) => def.Chase > 0f ? def.Chase : Mathf.Max(12f, 6f + 1.6f * def.MaxHeight);
@@ -62,7 +62,7 @@ internal sealed partial class SurfGame
 		{
 			return 0f;
 		}
-		// 1.16.79 (Sam: the battle area "should be much bigger to accommodate the extra lanes"):
+		// 1.16.79 (SAT: the battle area "should be much bigger to accommodate the extra lanes"):
 		// every boss whose roots split the path gets the room, not only the ones that chase
 		// (the Elder stands, so his extra lanes ran over the hills), with a lane's margin past them.
 		Segment s = SegAt(z);
@@ -125,6 +125,18 @@ internal sealed partial class SurfGame
 
 	// One of the boss's own attacks, by a word in its weapon or animation name (the first key
 	// that matches), else any.
+	private static bool Travels(string name)
+	{
+		foreach (string w in new[] { "teleport", "burrow", "rush", "dash", "jump", "leap", "charge", "dive" })
+		{
+			if (name.IndexOf(w, System.StringComparison.OrdinalIgnoreCase) >= 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private CreatureAttack? BossAttackFor(string keys)
 	{
 		if (m_bossInfo == null)
@@ -133,6 +145,15 @@ internal sealed partial class SurfGame
 		}
 		List<CreatureAttack> all = new(m_bossInfo.Melee);
 		all.AddRange(m_bossInfo.Ranged);
+		// 1.16.x (SAT: the Queen spazzed all over the road; the log showed her duel swing was
+		// "attack_teleport"): clips that carry the body off somewhere (teleport, burrow, rush,
+		// jump) aren't a blow you can read, so they're never picked while any other is left.
+		// (Unless such a clip is what was asked for, as for a charge.)
+		List<CreatureAttack> steady = all.FindAll(a => !Travels(a.Animation) && !Travels(a.Item));
+		if (steady.Count > 0 && !Travels(keys))
+		{
+			all = steady;
+		}
 		if (all.Count == 0)
 		{
 			return null;
@@ -950,8 +971,8 @@ internal sealed partial class SurfGame
 		m_bannerTime = 1.2f;
 	}
 
-	// The charge Sam loves: the boss lowers its head behind you, then charges up your lane,
-	// past you, and drops back in. 1.16.150 (Sam: it jumped to a new place as the charge began
+	// The charge SAT loves: the boss lowers its head behind you, then charges up your lane,
+	// past you, and drops back in. 1.16.150 (SAT: it jumped to a new place as the charge began
 	// and ended): the boss itself does it, no stand-in. It eases into your lane during the
 	// wind-up, runs past, then falls back beside the lanes to its usual place behind you.
 	private Thing? m_dash;
@@ -1256,7 +1277,7 @@ internal sealed partial class SurfGame
 
 	// Plays a game EffectList (its particles as silent pictures, its sounds through ours).
 	// False if it had nothing to show.
-	// 1.15.1 (Sam: the summoning was a little loud): its sounds play at 55%.
+	// 1.15.1 (SAT: the summoning was a little loud): its sounds play at 55%.
 	private const float SummonVolume = 0.55f;
 
 	private bool PlayEffectList(EffectList? list, Vector3 at)
