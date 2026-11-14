@@ -283,6 +283,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private float m_y;
 	private float m_vy;
 	private int m_lane = 1;
+	private float m_xVel;
 	private float m_slide;
 	// 1.16.1 (SAT): the slide is the game's dodge roll (its own animation and sound).
 	private bool m_rollPending;
@@ -1774,7 +1775,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_slide = Mathf.Max(0f, m_slide - dt);
 		}
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
-		m_x = Mathf.MoveTowards(m_x, InMaze ? SubX(m_subLane) : LaneX(m_lane), Plugin.LaneSwitchSpeed.Value * (Has("deer") ? 1.2f : 1f) * dt);
+		// 1.16.x (SAT: moving left and right is janky): eased in and out (critically damped,
+		// no overshoot) at no more than the lane switch speed, instead of starting and stopping dead.
+		float laneTo = InMaze ? SubX(m_subLane) : LaneX(m_lane);
+		float laneSpeed = Plugin.LaneSwitchSpeed.Value * (Has("deer") ? 1.2f : 1f);
+		m_x = dt > 0f ? Mathf.SmoothDamp(m_x, laneTo, ref m_xVel, 0.06f, laneSpeed, dt) : m_x;
+		if (Mathf.Abs(m_x - laneTo) < 0.01f)
+		{
+			m_x = laneTo;
+			m_xVel = 0f;
+		}
 		m_z += m_speed * dt;
 		CryptCorner(dt);
 		// When you were last in each lane, for stepping out of the way of a blow (Dodge XP).
@@ -1834,7 +1844,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				continue;
 			}
-			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX ? t.X : LaneX(t.Lane))) > (t.Kind == Kind.Coin && Has("magnet") ? LaneWidth * 1.5f : LaneWidth * 0.45f))
+			// (Bats flit about, but hit by their lane, the one marked under them: playtest, their hitbox was unclear.)
+			if (Mathf.Abs(t.Z - m_z) > t.HalfLength + 0.35f || Mathf.Abs(m_x - (t.FreeX && !t.Nuisance ? t.X : LaneX(t.Lane))) > (t.Kind == Kind.Coin && Has("magnet") ? LaneWidth * 1.5f : LaneWidth * 0.45f))
 			{
 				continue;
 			}
