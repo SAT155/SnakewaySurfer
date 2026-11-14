@@ -2098,6 +2098,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// A crash, unless the Invincible test setting is on: then the thing is just passed through.
 	private void Hit(Thing t, string why)
 	{
+		// 1.16.x (SAT: enemies before the campsite could still kill you): nothing hurts on the
+		// walk to the camp or while you rest there.
+		if (m_camping)
+		{
+			t.Collidable = false;
+			return;
+		}
 		// 1.16.x (SAT: rolling always has i-frames): nothing hurts during a roll on the ground,
 		// boss attacks, strikes and vines included. Only running into a dungeon's wall or
 		// wrecking at sea (no label, heavy) still counts.
