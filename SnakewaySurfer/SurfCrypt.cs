@@ -709,16 +709,7 @@ internal sealed partial class SurfGame
 					new Vector3(x, y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
 			}
 		}
-		if (!floored)
-		{
-			GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(slab.GetComponent<Collider>());
-			slab.layer = m_layer;
-			slab.transform.SetParent(root, false);
-			slab.transform.localPosition = new Vector3(0f, y - 0.1f, (z0 + z1) * 0.5f);
-			slab.transform.localScale = new Vector3(CryptHalf * 2f, 0.2f, z1 - z0);
-			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
-		}
+		FloorUnderlay(root, 0f, (z0 + z1) * 0.5f, CryptHalf * 2f, z1 - z0, y, floored);
 
 		// The roof, over the walls too; open for the first and last few metres, where the camera
 		// comes down from outside and goes back up.
@@ -1241,6 +1232,23 @@ internal sealed partial class SurfGame
 		m_avatarDrawnPos = tr.position;
 		m_avatarDrawnRot = tr.rotation;
 		m_avatarDrawn = true;
+	}
+
+	// Under every dungeon floor a plain stone slab: by itself when no floor pieces were found,
+	// else a little below them, so the gaps between rough stones (the burial chamber's are
+	// irregular) show stone instead of the black void under the stage (1.16.x, playtest: star-
+	// shaped black holes all over the burial chamber floor).
+	private void FloorUnderlay(Transform root, float cx, float cz, float sx, float sz, float y, bool floored)
+	{
+		GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+		Destroy(slab.GetComponent<Collider>());
+		slab.layer = m_layer;
+		slab.transform.SetParent(root, false);
+		slab.transform.localPosition = new Vector3(cx, y - (floored ? 0.22f : 0.1f), cz);
+		slab.transform.localScale = new Vector3(sx, 0.2f, sz);
+		Renderer r = slab.GetComponent<Renderer>();
+		r.sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 	}
 
 	// Top-down over the halls, like the sea: it turns with the way ahead around each corner.

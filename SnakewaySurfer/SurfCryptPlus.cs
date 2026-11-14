@@ -232,16 +232,7 @@ internal sealed partial class SurfGame
 					new Vector3(x0 + tx * (i + 0.5f), y - 0.25f, z0 + tz * (j + 0.5f))) != null;
 			}
 		}
-		if (!any)
-		{
-			GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(slab.GetComponent<Collider>());
-			slab.layer = m_layer;
-			slab.transform.SetParent(root, false);
-			slab.transform.localPosition = new Vector3((x0 + x1) * 0.5f, y - 0.1f, (z0 + z1) * 0.5f);
-			slab.transform.localScale = new Vector3(x1 - x0, 0.2f, z1 - z0);
-			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
-		}
+		FloorUnderlay(root, (x0 + x1) * 0.5f, (z0 + z1) * 0.5f, x1 - x0, z1 - z0, y, any);
 	}
 
 	// A dead end out to one side (s = -1 left, +1 right) of the hall, `width` wide round zc.
