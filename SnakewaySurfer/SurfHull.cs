@@ -553,6 +553,52 @@ internal sealed partial class SurfGame
 
 	// The hull's planks in a row above the wind rose: lost ones dark, the next one mended
 	// glowing while you're moored.
+	// 1.16.x (SAT: floating yellow text over the first few islands saying it's a repair hub
+	// and to raise sail): over the first three harbours, until you're past each.
+	private void HarbourLabels(float k)
+	{
+		if (m_mid == null || m_camera == null)
+		{
+			return;
+		}
+		int shown = 0;
+		foreach (Island i in m_islands)
+		{
+			if (shown >= 3)
+			{
+				break;
+			}
+			shown++;
+			if (!i.Built || i.C.y < m_z - 6f)
+			{
+				continue;
+			}
+			Vector3 sp = m_camera.WorldToScreenPoint(m_stage.TransformPoint(new Vector3(i.C.x, SeaY + i.Top + 5f, i.C.y)));
+			if (sp.z <= 0f)
+			{
+				continue;
+			}
+			float near = Mathf.Clamp01((Vector2.Distance(ShipCenter(), i.C) - 8f) / 10f);
+			float far = Mathf.Clamp01((AheadDistance * 0.8f - (i.C.y - m_z)) / 40f);
+			float a = near * far * s_guiAlpha;
+			if (a <= 0.01f)
+			{
+				continue;
+			}
+			Color old = m_mid.normal.textColor;
+			FontStyle fs = m_mid.fontStyle;
+			m_mid.fontStyle = FontStyle.Bold;
+			Rect r = new Rect(sp.x - 300f * k, Screen.height - sp.y - 60f * k, 600f * k, 120f * k);
+			m_mid.normal.textColor = new Color(0f, 0f, 0f, 0.8f * a);
+			const string label = "REPAIR HARBOUR\nsail into the gold ring to mend\nW: raise sail to leave";
+			GUI.Label(new Rect(r.x + 2f, r.y + 2f, r.width, r.height), label, m_mid);
+			m_mid.normal.textColor = new Color(1f, 0.85f, 0.3f, a);
+			GUI.Label(r, label, m_mid);
+			m_mid.normal.textColor = old;
+			m_mid.fontStyle = fs;
+		}
+	}
+
 	private void HullHud(float k, Rect rose)
 	{
 		if (ItemIcon("Wood") is not Sprite plank)

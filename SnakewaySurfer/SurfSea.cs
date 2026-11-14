@@ -1236,6 +1236,7 @@ internal sealed partial class SurfGame
 		}
 		// The hull's planks over the gauge (SurfHull.cs).
 		HullHud(k, rose);
+		HarbourLabels(k);
 		// The keys, small above the rose like the game's key hints, for the first moments aboard.
 		float hint = Mathf.Clamp01((16f - m_seaTime) / 3f);
 		if (hint > 0f && m_small != null)
