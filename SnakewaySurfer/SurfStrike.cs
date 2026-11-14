@@ -15,7 +15,9 @@ namespace SnakewaySurfer;
 internal sealed partial class SurfGame
 {
 	// How long a warning must have shown, in seconds.
-	private const float MinWarning = 0.4f;
+	// 1.16.x (playtest: an Elder's root came up under the runner with no chance to react): 0.8 s,
+	// time to see it and change lane or roll; it was 0.4 s.
+	private const float MinWarning = 0.8f;
 
 	private int m_unwarned;
 
