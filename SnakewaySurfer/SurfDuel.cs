@@ -36,6 +36,8 @@ internal sealed partial class SurfGame
 
 	private bool DuelBusy => Dueling || InCombo || m_recede > 0f;
 
+	private int m_duelHints;
+
 	private void ArmDuel()
 	{
 		m_duelTries = DuelTries;
@@ -47,6 +49,14 @@ internal sealed partial class SurfGame
 		if (m_boss != null)
 		{
 			ArmForMelee(m_boss);
+			// 1.16.x (playtest: nothing said how to use the surtling core on the Elder): Hugin
+			// says it the first two times a run.
+			if (m_duelHints < 2)
+			{
+				m_duelHints++;
+				m_banner = $"{m_boss.Name} comes at you! Block just before each swing lands to parry it, and your blow lands.";
+				m_bannerTime = 5f;
+			}
 		}
 		// It turns on you: no other attacks meanwhile.
 		m_bossAttackTimer = Mathf.Max(m_bossAttackTimer, 99f);

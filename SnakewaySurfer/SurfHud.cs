@@ -60,6 +60,7 @@ internal sealed partial class SurfGame
 	{
 		m_stamina = MaxStamina;
 		m_staminaIdle = 0f;
+		m_duelHints = 0;
 		m_sprinting = false;
 		m_blocking = false;
 		m_blockPressed = -99f;
@@ -116,6 +117,25 @@ internal sealed partial class SurfGame
 
 	// A creature's hit while you hold block: a parry if block went up just before it, else
 	// a block that costs stamina. Logs, gas and the like can't be blocked. True: no harm done.
+	private bool IsGiant(string label)
+	{
+		if (label.IndexOf("Troll", System.StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			return true;
+		}
+		foreach (BiomeRuntime b in m_biomes)
+		{
+			foreach ((GameObject _, string l) in b.Giants)
+			{
+				if (l == label)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private bool TryBlock(Thing t)
 	{
 		if (!m_blocking || t.Label.Length == 0 || t.JumpOrSlide)
@@ -123,7 +143,9 @@ internal sealed partial class SurfGame
 			return false;
 		}
 		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
-		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise;
+		// 1.16.x (playtest: trolls were blocked straight through): a giant from the biome's list
+		// (trolls, abominations...) is heavy wherever it turns up, ordinary rows included.
+		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise || IsGiant(t.Label);
 		if (m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			t.Collidable = false;

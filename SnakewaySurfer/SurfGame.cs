@@ -2110,8 +2110,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			t.Collidable = false;
 			m_shake = Mathf.Max(m_shake, 0.35f);
 			SetTrigger("stagger");
-			m_banner = $"Ouch! {m_lives} {(m_lives == 1 ? "life" : "lives")} left";
-			m_bannerTime = 1.5f;
+			// 1.16.x (playtest: died in the Elder's maze without knowing what happened): Hugin
+			// says what hit you and how to avoid it, not just the lives left.
+			string lives = $"{m_lives} {(m_lives == 1 ? "life" : "lives")} left";
+			m_banner = why.Length > 0 ? $"{why}\n{lives}" : $"Ouch! {lives}";
+			m_bannerTime = why.Length > 0 ? 3.5f : 1.5f;
 			return;
 		}
 		if (Has("valkyrie") && !m_valkyrieUsed)

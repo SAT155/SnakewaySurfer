@@ -393,7 +393,7 @@ public class Plugin : BaseUnityPlugin
 		SprintKey = Config.Bind("2 - Keys", "Sprint Key", KeyCode.LeftShift,
 			"Hold to sprint: faster, so you can get past an attack before it lands. Uses stamina.");
 		BlockKey = Config.Bind("2 - Keys", "Block Key", KeyCode.Mouse1,
-			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas and tar can't be blocked, and a bat in the face knocks your guard down for a moment.");
+			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas, tar and the blows of trolls and other giants can't be blocked (dodge them, or parry), and a bat in the face knocks your guard down for a moment.");
 		ThrowKey = Config.Bind("2 - Keys", "Throw Key", KeyCode.Mouse0,
 			"Throws a spear you picked up at the boss (Eikthyr): it flies down your lane, so throw when he's lined up with you.");
 		SprintSpeed = Config.Bind("1 - Run", "Sprint Speed", 1.35f,
