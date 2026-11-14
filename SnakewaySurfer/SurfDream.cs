@@ -437,6 +437,15 @@ internal sealed partial class SurfGame
 
 	private void OnGUI()
 	{
+		if (m_initPending > 0)
+		{
+			// Dark while the run is built (SurfGame.FinishInit).
+			if (Event.current.type == EventType.Repaint)
+			{
+				Fill(new Rect(0, 0, Screen.width, Screen.height), Color.black);
+			}
+			return;
+		}
 		float cover = Loading ? m_loadAlpha : 0f;
 		if (Loading && m_loadBlink)
 		{

@@ -384,10 +384,20 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 	}
 
+	// 1.16.x (SAT: a big freeze when surfsup is typed, then the dream): the screen goes dark
+	// first, and the run is built a couple of frames later behind it (FinishInit).
+	private int m_initPending;
+
 	private void Init(Player player)
 	{
 		Active = this;
 		m_player = player;
+		m_initPending = 2;
+	}
+
+	private void FinishInit()
+	{
+		Player player = m_player;
 		m_layer = Plugin.RenderLayer.Value;
 		m_runAnimSpeed = player.m_runSpeed > 0f ? player.m_runSpeed : 7f;
 
@@ -494,6 +504,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		if (Active == this)
 		{
 			Active = null;
+		}
+		if (m_initPending > 0)
+		{
+			// Never built: nothing to put back.
+			return;
 		}
 		EndTour(false);
 		RemoveRaven();
@@ -1391,6 +1406,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 			Destroy(gameObject);
 			return;
 		}
+		if (m_initPending > 0)
+		{
+			if (--m_initPending == 0)
+			{
+				FinishInit();
+			}
+			return;
+		}
 
 		bool consoleVisible = Console.IsVisible();
 		bool canInput = !consoleVisible && !m_consoleWasVisible && !(Chat.instance != null && Chat.instance.HasFocus());
@@ -1632,6 +1655,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 	private void LateUpdate()
 	{
+		if (m_initPending > 0)
+		{
+			return;
+		}
 		UpdateCryptFrames();
 		PlaceRaven();
 		if (Loading && m_loadBlink)
