@@ -134,6 +134,18 @@ internal sealed class SurfAudio
 		}
 	}
 
+	// Looks a sound up ahead of time ("a|b|c" as in Play), so its first play mid-run doesn't stall.
+	public void Warm(string name)
+	{
+		foreach (string option in name.Split('|'))
+		{
+			if (Load(option) != null)
+			{
+				return;
+			}
+		}
+	}
+
 	// Footsteps get their own source so they never cut off other sounds.
 	public void Play(string name, float volume = 1f, float pitch = 1f, bool step = false)
 	{

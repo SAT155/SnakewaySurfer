@@ -27,7 +27,7 @@ internal sealed partial class SurfGame
 		new Ability { Id = "raspberry", Name = "Raspberry bush luck", Icon = "Raspberry", Text = "Coins picked up in quick succession give +1 extra each", Price = 35, Trader = "Haldor" },
 		new Ability { Id = "deer", Name = "Deer hide boots", Icon = "DeerHide", Text = "Lane changes are 20% quicker", Price = 40, Trader = "Haldor" },
 		new Ability { Id = "boar", Name = "Boar sniff", Icon = "TrophyBoar", Text = "Summoning items turn up more often", Price = 40, Trader = "Hildir" },
-		new Ability { Id = "meadstam", Name = "Mead of stamina", Icon = "MeadStaminaMinor", Text = "Rolling and blocking cost half the stamina", Price = 70, Trader = "BogWitch" },
+		new Ability { Id = "meadstam", Name = "Mead of stamina", Icon = "MeadStaminaMinor", Text = "Jumping, rolling and blocking cost half the stamina", Price = 70, Trader = "BogWitch" },
 		new Ability { Id = "troll", Name = "Troll leather", Icon = "TrollHide", Text = "One free hit: the first knock does no harm", Price = 75, Trader = "Haldor" },
 		new Ability { Id = "feather", Name = "Feather fall", Icon = "Feathers", Text = "Jumps float a little longer", Price = 80, Trader = "Hildir" },
 		new Ability { Id = "magnet", Name = "Coin magnet", Icon = "Coins", Text = "Coins in the next lane fly to you", Price = 90, Trader = "Haldor" },

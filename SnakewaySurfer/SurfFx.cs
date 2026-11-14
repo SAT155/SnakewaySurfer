@@ -10,6 +10,49 @@ namespace SnakewaySurfer;
 internal sealed partial class SurfGame
 {
 	private static readonly Dictionary<string, GameObject?> s_fx = new();
+	private static Dictionary<string, GameObject>? s_roots;
+
+	// 1.16.x (playtest: hitches at checkpoints): every loaded root object by name, from one walk
+	// over all objects. Before, each effect name missing from the prefab list walked them all
+	// again the first time it played (a checkpoint's activation effect, a first hit...), and
+	// that walk is a long stall mid-run. Now it's done once, at the run's start (WarmRun).
+	private static Dictionary<string, GameObject> RootIndex()
+	{
+		if (s_roots == null)
+		{
+			s_roots = new Dictionary<string, GameObject>();
+			foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
+			{
+				if (go != null && go.transform.parent == null && !s_roots.ContainsKey(go.name))
+				{
+					s_roots[go.name] = go;
+				}
+			}
+		}
+		return s_roots;
+	}
+
+	// While the run loads: the lookups and copies the first checkpoint would otherwise do in
+	// the middle of the run.
+	private void WarmRun()
+	{
+		float t0 = Time.realtimeSinceStartup;
+		RootIndex();
+		m_audio.Warm("sfx_runestone_activate|sfx_gui_select");
+		m_audio.Warm("sfx_gui_inventory_close|sfx_gui_button");
+		if (CheckpointsOn)
+		{
+			if ((Pictures.Prefab("guard_stone") ?? Pictures.Prefab("piece_groundtorch_blue") ?? Pictures.Prefab("piece_groundtorch_wood")) is GameObject stone)
+			{
+				Picture(stone);
+			}
+			if (FindFx(CheckpointFx) is GameObject fx)
+			{
+				Picture(fx);
+			}
+		}
+		Plugin.Log.LogInfo($"Run warm-up: {(Time.realtimeSinceStartup - t0) * 1000f:0} ms.");
+	}
 
 	// An effect prefab by name: from the scene's prefab list, else any loaded object of that
 	// name (many effects aren't registered), looked up once.
@@ -26,14 +69,7 @@ internal sealed partial class SurfGame
 				found = Pictures.Prefab(name);
 				if (found == null)
 				{
-					foreach (GameObject go in Resources.FindObjectsOfTypeAll<GameObject>())
-					{
-						if (go != null && go.name == name && go.transform.parent == null)
-						{
-							found = go;
-							break;
-						}
-					}
+					RootIndex().TryGetValue(name, out found);
 				}
 				s_fx[name] = found;
 			}

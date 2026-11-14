@@ -32,9 +32,15 @@ internal sealed partial class SurfGame
 
 	// 1.16.69 (SAT: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
 	// when there isn't enough left.
-	private bool SpendRollStamina()
+	private bool SpendRollStamina() => SpendMoveStamina(Plugin.RollStamina.Value);
+
+	// 1.16.x (playtest: jumping was free while rolling cost stamina): a jump costs stamina too,
+	// as in the game, and is refused the same way when there isn't enough.
+	private bool SpendJumpStamina() => SpendMoveStamina(Plugin.JumpStamina.Value);
+
+	private bool SpendMoveStamina(float baseCost)
 	{
-		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
+		float cost = baseCost * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		if (cost <= 0f)
 		{
 			return true;

@@ -309,6 +309,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private bool m_consoleWasVisible;
 	private Vector3 m_camPos;
 	private bool m_camPlaced;
+	// The runner camera's eased parts (PlaceCamera).
+	private float m_camSide, m_camSideVel, m_camClear, m_camClearVel, m_camSlope, m_camSlopeVel, m_camLift, m_camLiftVel;
 	private SurfAudio m_audio = null!;
 	private string[]? m_dream;
 	private int m_lastTick;
@@ -1317,6 +1319,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		ResetShop(m_resumeNext);
 		ApplyResume();
 		ApplyTourStage();
+		WarmRun();
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
@@ -1696,7 +1699,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			if (KeyDown(KeyCode.W, KeyCode.UpArrow, KeyCode.Space))
 			{
-				if (grounded)
+				if (grounded && SpendJumpStamina())
 				{
 					m_vy = Mathf.Sqrt(2f * Gravity * Plugin.JumpHeight.Value);
 					m_slide = 0f;
@@ -3990,26 +3993,42 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camBack = Mathf.MoveTowards(m_camBack, back ? 1f : 0f, dt / 1.4f);
 		float swing = Mathf.SmoothStep(0f, 1f, m_camBack) * Mathf.PI;
 		float dist = Plugin.CameraDistance.Value * (1f + 0.25f * Mathf.Sin(swing));
-		float camX = m_x * 0.6f + Mathf.Sin(swing) * dist;
 		float camZ = m_z - Mathf.Cos(swing) * dist;
-		float lookX = m_x * 0.8f - Mathf.Sin(swing) * 7f;
 		float lookZ = m_z + Mathf.Cos(swing) * 7f;
-		// Follow the rolling road, but never dip into a rise behind you.
-		float road = Mathf.Max(RoadY(m_z), RoadY(camZ) + 0.8f);
-		Vector3 target = StagePoint(new Vector3(camX, road + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_y * 0.4f, camZ));
-		Vector3 look = StagePoint(new Vector3(lookX, RoadY(lookZ) + 1.0f, lookZ));
+		// 1.16.x (playtest: motion sickness from the camera's pitch bobbing and the yaw-then-jerk
+		// on lane changes): the camera slides sideways and up/down with you but never turns or
+		// tilts to do it. Its side, height and the road's slope are each eased on their own
+		// (critically damped, no overshoot), and the point it looks at moves with it by the
+		// same amounts, so a lane change or a bump in the road is a plain glide. Only the slow
+		// slope ease tips the view, over a second or more, on long rises and falls.
+		float ground = RoadY(m_z);
+		float clear = Mathf.Max(ground, RoadY(camZ) + 0.8f);
+		float slope = (RoadY(m_z + 14f) - ground) / 14f;
+		float lift = m_y * 0.25f;
 		if (!m_camPlaced)
 		{
-			m_camPos = target;
+			m_camSide = m_x;
+			m_camClear = clear;
+			m_camSlope = slope;
+			m_camLift = lift;
+			m_camSideVel = m_camClearVel = m_camSlopeVel = m_camLiftVel = 0f;
 			m_camPlaced = true;
 		}
-		else
+		else if (dt > 0f)
 		{
-			Vector3 smooth = Vector3.Lerp(m_camPos, target, 1f - Mathf.Exp(-10f * dt));
-			// Never lag behind along the track, only ease sideways and up/down.
-			smooth.z = target.z;
-			m_camPos = smooth;
+			m_camSide = Mathf.SmoothDamp(m_camSide, m_x, ref m_camSideVel, 0.2f, Mathf.Infinity, dt);
+			m_camClear = Mathf.SmoothDamp(m_camClear, clear, ref m_camClearVel, 0.45f, Mathf.Infinity, dt);
+			m_camSlope = Mathf.SmoothDamp(m_camSlope, slope, ref m_camSlopeVel, 1.4f, Mathf.Infinity, dt);
+			m_camLift = Mathf.SmoothDamp(m_camLift, lift, ref m_camLiftVel, 0.3f, Mathf.Infinity, dt);
 		}
+		float side = m_camSide * 0.6f;
+		float camX = side + Mathf.Sin(swing) * dist;
+		float lookX = side - Mathf.Sin(swing) * 7f;
+		float camY = m_camClear + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_camLift;
+		// The look point rises and falls with the camera, tipped only by the eased slope.
+		float lookY = m_camClear + 1.0f + m_camLift + m_camSlope * (lookZ - m_z) * 0.6f;
+		m_camPos = StagePoint(new Vector3(camX, camY, camZ));
+		Vector3 look = StagePoint(new Vector3(lookX, lookY, lookZ));
 		m_shake = Mathf.MoveTowards(m_shake, 0f, dt * 0.8f);
 		m_camera.transform.position = m_camPos + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake : Vector3.zero);
 		m_camera.transform.rotation = Quaternion.LookRotation(look - m_camPos);
@@ -4316,11 +4335,13 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		if (RenderSettings.fogMode == FogMode.Linear)
 		{
 			RenderSettings.fogStartDistance = 0f;
-			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead * 1.15f) : 100000f;
+			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead) : 100000f;
 		}
 		else if (any)
 		{
-			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 1.6f : 1.2f) / ahead);
+			// 1.16.x (playtest: things popping in): at least this thick, so what's built at the far
+			// end appears through about 87% fog instead of 80%.
+			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 2.0f : 1.45f) / ahead);
 		}
 		RenderSettings.fogDensity = density;
 		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;

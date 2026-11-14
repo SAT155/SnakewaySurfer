@@ -115,6 +115,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> DistanceHaze = null!;
 	internal static ConfigEntry<bool> WaveGuide = null!;
 	internal static ConfigEntry<float> RollStamina = null!;
+	internal static ConfigEntry<float> JumpStamina = null!;
 	internal static ConfigEntry<KeyCode> SprintKey = null!;
 	internal static ConfigEntry<KeyCode> BlockKey = null!;
 	internal static ConfigEntry<KeyCode> ThrowKey = null!;
@@ -398,7 +399,9 @@ public class Plugin : BaseUnityPlugin
 		SprintSpeed = Config.Bind("1 - Run", "Sprint Speed", 1.35f,
 			new ConfigDescription("How much faster you run while sprinting.", new AcceptableValueRange<float>(1f, 2f)));
 		MaxStamina = Config.Bind("1 - Run", "Stamina", 100f,
-			new ConfigDescription("Stamina for sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+			new ConfigDescription("Stamina for jumping, rolling, sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+		JumpStamina = Config.Bind("1 - Run", "Jump Stamina", 8f,
+			new ConfigDescription("Stamina used by each jump, as in the game. Without enough you can't jump. 0: jumps are free.", new AcceptableValueRange<float>(0f, 100f)));
 		SprintStamina = Config.Bind("1 - Run", "Sprint Stamina Per Second", 18f,
 			new ConfigDescription("Stamina used each second of sprinting.", new AcceptableValueRange<float>(0f, 100f)));
 		RollStamina = Config.Bind("1 - Run", "Roll Stamina", 12f,
@@ -412,7 +415,7 @@ public class Plugin : BaseUnityPlugin
 		SkillXp = Config.Bind("2 - Rewards", "Block And Dodge XP", true,
 			"Blocking and Dodge skill XP as the game gives it: 1 for each blocked hit, 2 for each parry (Blocking), and 1 for each attack you roll under, jump or step out of the way of (Dodge). Given with the Run XP when the run ends.");
 		StaminaRegen = Config.Bind("1 - Run", "Stamina Regen Per Second", 22f,
-			new ConfigDescription("Stamina recovered each second once you stop sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
+			new ConfigDescription("Stamina recovered each second once you stop jumping, rolling, sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
 		ParryWindow = Config.Bind("1 - Run", "Parry Window", 0.3f,
 			new ConfigDescription("Seconds before a hit in which pressing block parries it.", new AcceptableValueRange<float>(0.05f, 1f)));
 		ParryDuel = Config.Bind("1 - Run", "Parry Duel", true,
