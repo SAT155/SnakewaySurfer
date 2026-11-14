@@ -937,7 +937,7 @@ internal sealed partial class SurfGame
 		}
 		m_markerMaterial = new Material(shader) { name = "SurfMarker", color = new Color(1f, 0.25f, 0.05f, 0.6f), renderQueue = 3100 };
 		m_jumpMaterial = new Material(shader) { name = "SurfJump", color = new Color(1f, 0.78f, 0.05f, 0.65f), renderQueue = 3100 };
-		m_slideMaterial = new Material(shader) { name = "SurfSlide", color = new Color(0.2f, 0.6f, 1f, 0.6f), renderQueue = 3100 };
+		m_slideMaterial = new Material(shader) { name = "SurfSlide", color = new Color(0.35f, 0.6f, 0.9f, 0.3f), renderQueue = 3100 }; // 1.16.x (playtest: the bright cyan lanes were harsh): softer
 		m_gasMaterial = new Material(shader) { name = "SurfGas", color = new Color(0.45f, 0.75f, 0.2f, 0.3f), renderQueue = 3100 };
 		m_tarMaterial = new Material(shader) { name = "SurfTar", color = new Color(0.05f, 0.04f, 0.03f, 0.85f), renderQueue = 3100 };
 	}

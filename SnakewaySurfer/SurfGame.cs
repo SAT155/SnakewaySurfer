@@ -1964,7 +1964,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 					if (m_y < (t.ClearHeight > 0f ? t.ClearHeight : 0.75f))
 					{
 						m_audio.Play(t.CrashText.Length > 0 ? Sfx.HitMonster : Sfx.HitLog);
-						Hit(t, t.CrashText.Length > 0 ? t.CrashText : $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}!");
+						// (Playtest: "a log" in a crypt hall that had none; its low pieces are mud and rubble.)
+						Hit(t, t.CrashText.Length > 0 ? t.CrashText : InCrypt(m_z) && m_crypt != null
+							? $"You tripped over the rubble in the {m_crypt.Theme.Name}! (Jump or roll over it.)"
+							: $"You tripped over a log in the {m_biomes[BiomeAt(m_z)].Def.Name}! (Jump or roll over it.)");
 						return;
 					}
 					if (t.Label.Length > 0)

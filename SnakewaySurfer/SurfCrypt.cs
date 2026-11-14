@@ -179,6 +179,15 @@ internal sealed partial class SurfGame
 				return true;
 			}
 		}
+		// 1.16.x (playtest: kept getting hurt just behind the mud banks): the same clear stretch
+		// behind each bank you dig through, since nothing past it shows until it's open.
+		foreach (DigWall d in m_digs)
+		{
+			if (z > d.Z - 6f && z < d.Z + Mathf.Max(12f, m_speed * 1.4f + 6f))
+			{
+				return true;
+			}
+		}
 		// The lanes clear around a troll cave's troll.
 		if (!float.IsNaN(m_crypt.LurkerZ) && Mathf.Abs(z - m_crypt.LurkerZ) < 9f)
 		{
