@@ -309,6 +309,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private bool m_consoleWasVisible;
 	private Vector3 m_camPos;
 	private bool m_camPlaced;
+	// The runner camera's eased parts (PlaceCamera).
+	private float m_camSide, m_camSideVel, m_camClear, m_camClearVel, m_camSlope, m_camSlopeVel, m_camLift, m_camLiftVel;
 	private SurfAudio m_audio = null!;
 	private string[]? m_dream;
 	private int m_lastTick;
@@ -1317,6 +1319,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		ResetShop(m_resumeNext);
 		ApplyResume();
 		ApplyTourStage();
+		WarmRun();
 		SpawnAhead();
 		PlaceAvatar(0f);
 	}
@@ -1407,7 +1410,21 @@ internal sealed partial class SurfGame : MonoBehaviour
 		}
 		m_lastHealth = health;
 
-		if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
+		// 1.16.x (playtest: Escape ended the run instead of pausing it): mid-run the Exit Key
+		// pauses (again: carries on), and Q while paused stops the run. On the start menu and
+		// the crash screen it still leaves straight away.
+		bool midRun = (m_state == State.Running || m_state == State.Countdown) && !Loading && Plugin.AllowPause.Value;
+		if (canInput && midRun && m_paused && Input.GetKeyDown(KeyCode.Q))
+		{
+			Quit();
+			return;
+		}
+		if (canInput && midRun && Input.GetKeyDown(Plugin.ExitKey.Value))
+		{
+			m_menuPaused = false;
+			SetPaused(!m_paused);
+		}
+		else if (canInput && Input.GetKeyDown(Plugin.ExitKey.Value))
 		{
 			// 1.16.16: the start menu fades away first.
 			if (m_state == State.Menu && !Loading && m_menuClose < 0f)
@@ -1455,6 +1472,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 
+		UpdateWarm();
 		float dt = Mathf.Min(Time.deltaTime, 0.05f) * Plugin.GameSpeed.Value;
 		m_clock += dt;
 		m_stateTime += dt;
@@ -1608,7 +1626,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			AudioListener.pause = false;
 		}
-		m_banner = paused ? $"Paused\n{Plugin.PauseKey.Value} to carry on" : "";
+		m_banner = paused ? $"Paused\n{Plugin.ExitKey.Value} or {Plugin.PauseKey.Value}: carry on     Q: stop running" : "";
 		m_bannerTime = paused ? 9999f : 0f;
 	}
 
@@ -1696,7 +1714,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			}
 			if (KeyDown(KeyCode.W, KeyCode.UpArrow, KeyCode.Space))
 			{
-				if (grounded)
+				if (grounded && SpendJumpStamina())
 				{
 					m_vy = Mathf.Sqrt(2f * Gravity * Plugin.JumpHeight.Value);
 					m_slide = 0f;
@@ -2092,8 +2110,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			t.Collidable = false;
 			m_shake = Mathf.Max(m_shake, 0.35f);
 			SetTrigger("stagger");
-			m_banner = $"Ouch! {m_lives} {(m_lives == 1 ? "life" : "lives")} left";
-			m_bannerTime = 1.5f;
+			// 1.16.x (playtest: died in the Elder's maze without knowing what happened): Hugin
+			// says what hit you and how to avoid it, not just the lives left.
+			string lives = $"{m_lives} {(m_lives == 1 ? "life" : "lives")} left";
+			m_banner = why.Length > 0 ? $"{why}\n{lives}" : $"Ouch! {lives}";
+			m_bannerTime = why.Length > 0 ? 3.5f : 1.5f;
 			return;
 		}
 		if (Has("valkyrie") && !m_valkyrieUsed)
@@ -3990,26 +4011,42 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_camBack = Mathf.MoveTowards(m_camBack, back ? 1f : 0f, dt / 1.4f);
 		float swing = Mathf.SmoothStep(0f, 1f, m_camBack) * Mathf.PI;
 		float dist = Plugin.CameraDistance.Value * (1f + 0.25f * Mathf.Sin(swing));
-		float camX = m_x * 0.6f + Mathf.Sin(swing) * dist;
 		float camZ = m_z - Mathf.Cos(swing) * dist;
-		float lookX = m_x * 0.8f - Mathf.Sin(swing) * 7f;
 		float lookZ = m_z + Mathf.Cos(swing) * 7f;
-		// Follow the rolling road, but never dip into a rise behind you.
-		float road = Mathf.Max(RoadY(m_z), RoadY(camZ) + 0.8f);
-		Vector3 target = StagePoint(new Vector3(camX, road + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_y * 0.4f, camZ));
-		Vector3 look = StagePoint(new Vector3(lookX, RoadY(lookZ) + 1.0f, lookZ));
+		// 1.16.x (playtest: motion sickness from the camera's pitch bobbing and the yaw-then-jerk
+		// on lane changes): the camera slides sideways and up/down with you but never turns or
+		// tilts to do it. Its side, height and the road's slope are each eased on their own
+		// (critically damped, no overshoot), and the point it looks at moves with it by the
+		// same amounts, so a lane change or a bump in the road is a plain glide. Only the slow
+		// slope ease tips the view, over a second or more, on long rises and falls.
+		float ground = RoadY(m_z);
+		float clear = Mathf.Max(ground, RoadY(camZ) + 0.8f);
+		float slope = (RoadY(m_z + 14f) - ground) / 14f;
+		float lift = m_y * 0.25f;
 		if (!m_camPlaced)
 		{
-			m_camPos = target;
+			m_camSide = m_x;
+			m_camClear = clear;
+			m_camSlope = slope;
+			m_camLift = lift;
+			m_camSideVel = m_camClearVel = m_camSlopeVel = m_camLiftVel = 0f;
 			m_camPlaced = true;
 		}
-		else
+		else if (dt > 0f)
 		{
-			Vector3 smooth = Vector3.Lerp(m_camPos, target, 1f - Mathf.Exp(-10f * dt));
-			// Never lag behind along the track, only ease sideways and up/down.
-			smooth.z = target.z;
-			m_camPos = smooth;
+			m_camSide = Mathf.SmoothDamp(m_camSide, m_x, ref m_camSideVel, 0.2f, Mathf.Infinity, dt);
+			m_camClear = Mathf.SmoothDamp(m_camClear, clear, ref m_camClearVel, 0.45f, Mathf.Infinity, dt);
+			m_camSlope = Mathf.SmoothDamp(m_camSlope, slope, ref m_camSlopeVel, 1.4f, Mathf.Infinity, dt);
+			m_camLift = Mathf.SmoothDamp(m_camLift, lift, ref m_camLiftVel, 0.3f, Mathf.Infinity, dt);
 		}
+		float side = m_camSide * 0.6f;
+		float camX = side + Mathf.Sin(swing) * dist;
+		float lookX = side - Mathf.Sin(swing) * 7f;
+		float camY = m_camClear + Plugin.CameraHeight.Value * (1f + 0.15f * m_camBack) + 1.5f * Mathf.Sin(swing) + m_camLift;
+		// The look point rises and falls with the camera, tipped only by the eased slope.
+		float lookY = m_camClear + 1.0f + m_camLift + m_camSlope * (lookZ - m_z) * 0.6f;
+		m_camPos = StagePoint(new Vector3(camX, camY, camZ));
+		Vector3 look = StagePoint(new Vector3(lookX, lookY, lookZ));
 		m_shake = Mathf.MoveTowards(m_shake, 0f, dt * 0.8f);
 		m_camera.transform.position = m_camPos + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake : Vector3.zero);
 		m_camera.transform.rotation = Quaternion.LookRotation(look - m_camPos);
@@ -4185,12 +4222,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					// Starting on the coast: the longship's controls.
 					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: stop", m_mid);
+						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				else
 				{
 					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
-						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: stop running", m_mid);
+						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				break;
 			}
@@ -4213,17 +4250,54 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				break;
 			case State.Crashed:
-				Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
-				Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
-					$"{m_z:0} m, {m_coins} coins, reached {m_biomes[m_highestBiome].Def.Name}\n\n{m_rewardText}", m_mid);
-				(int cb, int cs, bool csea) = CrashPlace();
-				string fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
-				Shadowed(new Rect(w * 0.05f, h * 0.7f, w * 0.9f, 100 * k),
-					$"Space: run again     R: retry {Progress.Describe(cb, cs, csea)}{fromCheckpoint}     M: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				// 1.16.x (playtest: after a fall the view just looked up with no menu): the keys
+				// are drawn first, and nothing in the summary can stop them showing.
+				string fromCheckpoint = "";
+				string retry = "";
+				try
+				{
+					(int cb, int cs, bool csea) = CrashPlace();
+					fromCheckpoint = CanResume(cb, cs, csea) ? "     C: from the checkpoint" : "";
+					retry = " " + Progress.Describe(cb, cs, csea);
+				}
+				catch (System.Exception e)
+				{
+					LogGuiError("crash keys", e);
+				}
+				// (Playtest: the one long key row ran off both edges, and white text over the
+				// track was hard to read.) A dark panel behind it all, the keys on two lines.
+				if (Event.current.type == EventType.Repaint)
+				{
+					Fill(new Rect(w * 0.08f, h * 0.17f, w * 0.84f, h * 0.7f), new Color(0f, 0f, 0f, 0.55f * s_guiAlpha));
+				}
+				Shadowed(new Rect(w * 0.05f, h * 0.68f, w * 0.9f, 140 * k),
+					$"Space: run again     R: retry{retry}{fromCheckpoint}\nM: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				try
+				{
+					Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
+					string reached = m_highestBiome >= 0 && m_highestBiome < m_biomes.Count ? m_biomes[m_highestBiome].Def.Name : "the dream";
+					Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
+						$"{m_z:0} m, {m_coins} coins, reached {reached}\n\n{m_rewardText}", m_mid);
+				}
+				catch (System.Exception e)
+				{
+					LogGuiError("crash summary", e);
+				}
 				break;
 			case State.Menu:
 				MenuGui(k, w, h);
 				break;
+		}
+	}
+
+	private static readonly HashSet<string> s_guiErrors = new();
+
+	// Once per place: an error while drawing, which would otherwise blank the rest of the screen.
+	private static void LogGuiError(string where, System.Exception e)
+	{
+		if (s_guiErrors.Add(where))
+		{
+			Plugin.Log.LogError($"Drawing the {where} failed: {e}");
 		}
 	}
 
@@ -4316,11 +4390,13 @@ internal sealed class SurfCameraFog : MonoBehaviour
 		if (RenderSettings.fogMode == FogMode.Linear)
 		{
 			RenderSettings.fogStartDistance = 0f;
-			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead * 1.15f) : 100000f;
+			RenderSettings.fogEndDistance = any ? Mathf.Min(2.5f / Mathf.Max(0.001f, density), ahead) : 100000f;
 		}
 		else if (any)
 		{
-			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 1.6f : 1.2f) / ahead);
+			// 1.16.x (playtest: things popping in): at least this thick, so what's built at the far
+			// end appears through about 87% fog instead of 80%.
+			density = Mathf.Max(density, (RenderSettings.fogMode == FogMode.Exponential ? 2.0f : 1.45f) / ahead);
 		}
 		RenderSettings.fogDensity = density;
 		RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;

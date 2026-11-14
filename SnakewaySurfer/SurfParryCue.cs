@@ -89,7 +89,9 @@ internal sealed partial class SurfGame
 		{
 			m_markerMaterial.color = open ? s_markerParry : s_markerRed;
 		}
-		if (left < 0f)
+		// 1.16.x (SAT: the circle during the Elder can go): no ground ring any more; the lane
+		// markers turning gold are the cue.
+		if (left < 0f || true)
 		{
 			if (m_tileRing != null)
 			{

@@ -32,9 +32,15 @@ internal sealed partial class SurfGame
 
 	// 1.16.69 (SAT: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
 	// when there isn't enough left.
-	private bool SpendRollStamina()
+	private bool SpendRollStamina() => SpendMoveStamina(Plugin.RollStamina.Value);
+
+	// 1.16.x (playtest: jumping was free while rolling cost stamina): a jump costs stamina too,
+	// as in the game, and is refused the same way when there isn't enough.
+	private bool SpendJumpStamina() => SpendMoveStamina(Plugin.JumpStamina.Value);
+
+	private bool SpendMoveStamina(float baseCost)
 	{
-		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
+		float cost = baseCost * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		if (cost <= 0f)
 		{
 			return true;
@@ -54,6 +60,7 @@ internal sealed partial class SurfGame
 	{
 		m_stamina = MaxStamina;
 		m_staminaIdle = 0f;
+		m_duelHints = 0;
 		m_sprinting = false;
 		m_blocking = false;
 		m_blockPressed = -99f;
@@ -110,6 +117,25 @@ internal sealed partial class SurfGame
 
 	// A creature's hit while you hold block: a parry if block went up just before it, else
 	// a block that costs stamina. Logs, gas and the like can't be blocked. True: no harm done.
+	private bool IsGiant(string label)
+	{
+		if (label.IndexOf("Troll", System.StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			return true;
+		}
+		foreach (BiomeRuntime b in m_biomes)
+		{
+			foreach ((GameObject _, string l) in b.Giants)
+			{
+				if (l == label)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private bool TryBlock(Thing t)
 	{
 		if (!m_blocking || t.Label.Length == 0 || t.JumpOrSlide)
@@ -117,7 +143,9 @@ internal sealed partial class SurfGame
 			return false;
 		}
 		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
-		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise;
+		// 1.16.x (playtest: trolls were blocked straight through): a giant from the biome's list
+		// (trolls, abominations...) is heavy wherever it turns up, ordinary rows included.
+		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise || IsGiant(t.Label);
 		if (m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			t.Collidable = false;

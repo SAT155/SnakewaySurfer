@@ -709,16 +709,7 @@ internal sealed partial class SurfGame
 					new Vector3(x, y - 0.25f, z0 + tileZ * (i + 0.5f))) != null;
 			}
 		}
-		if (!floored)
-		{
-			GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(slab.GetComponent<Collider>());
-			slab.layer = m_layer;
-			slab.transform.SetParent(root, false);
-			slab.transform.localPosition = new Vector3(0f, y - 0.1f, (z0 + z1) * 0.5f);
-			slab.transform.localScale = new Vector3(CryptHalf * 2f, 0.2f, z1 - z0);
-			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
-		}
+		FloorUnderlay(root, 0f, (z0 + z1) * 0.5f, CryptHalf * 2f, z1 - z0, y, floored);
 
 		// The roof, over the walls too; open for the first and last few metres, where the camera
 		// comes down from outside and goes back up.
@@ -794,6 +785,19 @@ internal sealed partial class SurfGame
 			{
 				pile.Go = CryptPiece(root, theme.Pile, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), new Vector3(1.4f, 1.2f, 1.6f),
 					new Vector3(pile.Side * (CryptHalf - 0.75f), y, pile.Z), true, 2f);
+				// 1.16.x (SAT: those spawners look like bad guys): just the bones, without the
+				// spawner's red glow and smoke; the rising skeletons bring their own effect.
+				if (pile.Go != null)
+				{
+					foreach (ParticleSystem ps in pile.Go.GetComponentsInChildren<ParticleSystem>(true))
+					{
+						ps.gameObject.SetActive(false);
+					}
+					foreach (Light l in pile.Go.GetComponentsInChildren<Light>(true))
+					{
+						l.enabled = false;
+					}
+				}
 			}
 		}
 
@@ -1243,7 +1247,27 @@ internal sealed partial class SurfGame
 		m_avatarDrawn = true;
 	}
 
+	// Under every dungeon floor a plain stone slab: by itself when no floor pieces were found,
+	// else a little below them, so the gaps between rough stones (the burial chamber's are
+	// irregular) show stone instead of the black void under the stage (1.16.x, playtest: star-
+	// shaped black holes all over the burial chamber floor).
+	private void FloorUnderlay(Transform root, float cx, float cz, float sx, float sz, float y, bool floored)
+	{
+		GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+		Destroy(slab.GetComponent<Collider>());
+		slab.layer = m_layer;
+		slab.transform.SetParent(root, false);
+		slab.transform.localPosition = new Vector3(cx, y - (floored ? 0.22f : 0.1f), cz);
+		slab.transform.localScale = new Vector3(sx, 0.2f, sz);
+		Renderer r = slab.GetComponent<Renderer>();
+		r.sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+	}
+
 	// Top-down over the halls, like the sea: it turns with the way ahead around each corner.
+	// A roof only when the camera is down in the halls.
+	private static bool RoofsOn => Plugin.DungeonRoof.Value && !Plugin.DungeonTopDown.Value;
+
 	private void PlaceCryptCamera(float dt)
 	{
 		CryptRun? c = m_crypt;
@@ -1284,12 +1308,19 @@ internal sealed partial class SurfGame
 		Quaternion turn = m_stage.rotation * Quaternion.Euler(0f, yaw, 0f);
 		// Under the roof, where there is one.
 		float camUp = Plugin.CameraHeight.Value + 0.6f;
-		if (c.Theme.Roofed && Plugin.DungeonRoof.Value)
+		if (c.Theme.Roofed && RoofsOn)
 		{
 			camUp = Mathf.Min(camUp, WallH + c.Theme.RoofLift - 0.8f);
 		}
 		Vector3 pos = m_cryptFocus + turn * new Vector3(0f, camUp, -Plugin.CameraDistance.Value * 0.85f);
 		Vector3 look = m_cryptFocus + turn * new Vector3(0f, 1f, 7f);
+		// 1.16.x (SAT: dungeons need to be top down): high over the halls, about 60 degrees
+		// down, a little ahead of you, turning with you at each corner as before.
+		if (Plugin.DungeonTopDown.Value)
+		{
+			pos = m_cryptFocus + turn * new Vector3(0f, 15f, -7.5f);
+			look = m_cryptFocus + turn * new Vector3(0f, 0f, 3.5f);
+		}
 		Quaternion rot = Quaternion.LookRotation(look - pos);
 		float b = Mathf.SmoothStep(0f, 1f, m_cryptView);
 		m_camera.transform.position = Vector3.Lerp(m_camera.transform.position, pos, b) + (m_shake > 0.001f ? Random.insideUnitSphere * m_shake * b : Vector3.zero);

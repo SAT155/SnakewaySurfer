@@ -117,6 +117,24 @@ internal static class Pictures
 		return prefab;
 	}
 
+	// 1.16.x (playtest: lots of pop-in, worse on lower settings): the game's trees, rocks and
+	// pieces cull themselves once small on screen (their last LOD), so down the long straight
+	// track they blinked into view part way along it. Copies keep their lowest detail level
+	// all the way out instead; the fog hides the far end.
+	private static void KeepFarLod(GameObject copy)
+	{
+		foreach (LODGroup group in copy.GetComponentsInChildren<LODGroup>(true))
+		{
+			LOD[] lods = group.GetLODs();
+			if (lods.Length == 0)
+			{
+				continue;
+			}
+			lods[lods.Length - 1].screenRelativeTransitionHeight = 0.0001f;
+			group.SetLODs(lods);
+		}
+	}
+
 	// A lifeless copy under an inactive holder. Awake never runs on the copy because the holder
 	// is inactive, so no ZNetView registers with the network.
 	public static GameObject MakePicture(GameObject source, Transform inactiveHolder, int layer)
@@ -127,6 +145,7 @@ internal static class Pictures
 		copy.transform.localRotation = Quaternion.identity;
 		Strip(copy);
 		SetLayer(copy, layer);
+		KeepFarLod(copy);
 		foreach (Animator animator in copy.GetComponentsInChildren<Animator>(true))
 		{
 			animator.fireEvents = false;

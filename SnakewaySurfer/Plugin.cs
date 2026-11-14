@@ -58,6 +58,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> MistAmount = null!;
 	internal static ConfigEntry<bool> MistStorm = null!;
 	internal static ConfigEntry<bool> DungeonRoof = null!;
+	internal static ConfigEntry<bool> DungeonTopDown = null!;
 	internal static ConfigEntry<float> AmbienceVolume = null!;
 	internal static ConfigEntry<string> TrackPiece = null!;
 	internal static ConfigEntry<float> StageHeight = null!;
@@ -115,6 +116,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<bool> DistanceHaze = null!;
 	internal static ConfigEntry<bool> WaveGuide = null!;
 	internal static ConfigEntry<float> RollStamina = null!;
+	internal static ConfigEntry<float> JumpStamina = null!;
 	internal static ConfigEntry<KeyCode> SprintKey = null!;
 	internal static ConfigEntry<KeyCode> BlockKey = null!;
 	internal static ConfigEntry<KeyCode> ThrowKey = null!;
@@ -188,7 +190,7 @@ public class Plugin : BaseUnityPlugin
 		Countdown = Config.Bind("1 - Run", "Countdown", 3f,
 			new ConfigDescription("Seconds of countdown before each run.", new AcceptableValueRange<float>(0f, 10f)));
 		ExitKey = Config.Bind("1 - Run", "Exit Key", KeyCode.Escape,
-			"Stops the minigame and puts you back in the world. Stopping mid-run still counts the run for rewards.");
+			"Mid-run: pauses (press again to carry on; Q while paused stops the run). On the start menu and after a fall: puts you back in the world. Stopping mid-run still counts the run for rewards.");
 
 		StopWhenHurt = Config.Bind("1 - Run", "Stop When Hurt", true,
 			"Stop the minigame as soon as something damages your character in the real world. Health lost because food is wearing off doesn't count.");
@@ -247,8 +249,10 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("How many trees and rocks line the track. Lower it if the minigame runs slowly.", new AcceptableValueRange<float>(0.2f, 3f)));
 		MistAmount = Config.Bind("3 - Look", "Mistlands Mist", 1f,
 			new ConfigDescription("How much of the game's own mist drifts over the Mistlands (thick beside the track, thin over the lanes). 0 turns it off.", new AcceptableValueRange<float>(0f, 2f)));
+		DungeonTopDown = Config.Bind("3 - Look", "Dungeon Top Down", true,
+			"Burial chambers, sunken crypts, frost caves and infested mines are seen from high above, looking down over the halls (no roof). Off: a chase camera behind you, under the roof if Dungeon Roof is on.");
 		DungeonRoof = Config.Bind("3 - Look", "Dungeon Roof", true,
-			"Burial chambers, sunken crypts, frost caves and infested mines have a roof, and the camera stays under it. Off = open to the dark above, with the camera as high as outside.");
+			"Burial chambers, sunken crypts, frost caves and infested mines have a roof, and the camera stays under it. Off = open to the dark above, with the camera as high as outside. Only with Dungeon Top Down off.");
 		MistStorm = Config.Bind("3 - Look", "Mistlands Storm", true,
 			"The Mistlands' own thunderstorm hangs over the open Mistlands stretches: clouds that flicker white and violet, with thunder after.");
 		AmbienceVolume = Config.Bind("4 - Sound", "Biome Ambience", 1f,
@@ -392,13 +396,15 @@ public class Plugin : BaseUnityPlugin
 		SprintKey = Config.Bind("2 - Keys", "Sprint Key", KeyCode.LeftShift,
 			"Hold to sprint: faster, so you can get past an attack before it lands. Uses stamina.");
 		BlockKey = Config.Bind("2 - Keys", "Block Key", KeyCode.Mouse1,
-			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas and tar can't be blocked, and a bat in the face knocks your guard down for a moment.");
+			"Hold to block a creature's attack with your shield (holding it drains stamina, each blocked hit costs more, and you slow down, which helps to pick a way through). Press it just before the hit lands to parry: no stamina, and the attacker staggers. Logs, gas, tar and the blows of trolls and other giants can't be blocked (dodge them, or parry), and a bat in the face knocks your guard down for a moment.");
 		ThrowKey = Config.Bind("2 - Keys", "Throw Key", KeyCode.Mouse0,
 			"Throws a spear you picked up at the boss (Eikthyr): it flies down your lane, so throw when he's lined up with you.");
 		SprintSpeed = Config.Bind("1 - Run", "Sprint Speed", 1.35f,
 			new ConfigDescription("How much faster you run while sprinting.", new AcceptableValueRange<float>(1f, 2f)));
 		MaxStamina = Config.Bind("1 - Run", "Stamina", 100f,
-			new ConfigDescription("Stamina for sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+			new ConfigDescription("Stamina for jumping, rolling, sprinting and blocking. It recharges after a second of not using it.", new AcceptableValueRange<float>(10f, 500f)));
+		JumpStamina = Config.Bind("1 - Run", "Jump Stamina", 8f,
+			new ConfigDescription("Stamina used by each jump, as in the game. Without enough you can't jump. 0: jumps are free.", new AcceptableValueRange<float>(0f, 100f)));
 		SprintStamina = Config.Bind("1 - Run", "Sprint Stamina Per Second", 18f,
 			new ConfigDescription("Stamina used each second of sprinting.", new AcceptableValueRange<float>(0f, 100f)));
 		RollStamina = Config.Bind("1 - Run", "Roll Stamina", 12f,
@@ -412,7 +418,7 @@ public class Plugin : BaseUnityPlugin
 		SkillXp = Config.Bind("2 - Rewards", "Block And Dodge XP", true,
 			"Blocking and Dodge skill XP as the game gives it: 1 for each blocked hit, 2 for each parry (Blocking), and 1 for each attack you roll under, jump or step out of the way of (Dodge). Given with the Run XP when the run ends.");
 		StaminaRegen = Config.Bind("1 - Run", "Stamina Regen Per Second", 22f,
-			new ConfigDescription("Stamina recovered each second once you stop sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
+			new ConfigDescription("Stamina recovered each second once you stop jumping, rolling, sprinting and blocking for a second.", new AcceptableValueRange<float>(1f, 200f)));
 		ParryWindow = Config.Bind("1 - Run", "Parry Window", 0.3f,
 			new ConfigDescription("Seconds before a hit in which pressing block parries it.", new AcceptableValueRange<float>(0.05f, 1f)));
 		ParryDuel = Config.Bind("1 - Run", "Parry Duel", true,
