@@ -64,6 +64,7 @@ internal sealed partial class SurfGame
 		m_sprinting = false;
 		m_blocking = false;
 		m_blockPressed = -99f;
+		ClearTileCue();
 		m_guardDown = 0f;
 		m_blockSlow = 0f;
 		m_blockXp = 0f;
@@ -80,7 +81,7 @@ internal sealed partial class SurfGame
 		bool block = canInput && (Input.GetKey(Plugin.BlockKey.Value) || m_botBlock) && m_guardDown <= 0f;
 		if (block && !m_blocking)
 		{
-			m_blockPressed = m_runTime;
+			OnBlockPressed();
 		}
 		m_blocking = block;
 		if (m_blocking)
@@ -157,6 +158,7 @@ internal sealed partial class SurfGame
 			{
 				SetTrigger(m_bossAnim, "stagger");
 			}
+			NoteParry();
 			PlayBlock(true);
 			Flash(new Color(1f, 0.95f, 0.75f), 0.55f);
 			m_shake = Mathf.Max(m_shake, 0.15f);
