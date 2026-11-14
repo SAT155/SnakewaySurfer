@@ -529,7 +529,7 @@ internal sealed partial class SurfGame
 				float edge = r.Small ? Mathf.Clamp01(1f - Mathf.Abs(a) / span) : 1f;
 				// 1.16.76 (SAT: the waves were hard to understand): waves are harmless now, so their
 				// crests are a faint line of broken foam, not a bright band.
-				FoamQuad(pa + side * ((b - a) * 0.5f), side * ((b - a) * 0.55f), r.Dir * 0.9f, fade * edge * (0.12f + 0.2f * noise));
+				FoamQuad(pa + side * ((b - a) * 0.5f), side * ((b - a) * 0.55f), r.Dir * 0.7f, fade * edge * (0.05f + 0.1f * noise)); // 1.16.x (playtest: still read as something to dodge): fainter
 			}
 		}
 		if (m_foamMesh == null)
