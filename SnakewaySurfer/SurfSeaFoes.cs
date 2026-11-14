@@ -514,6 +514,29 @@ internal sealed partial class SurfGame
 		f.Phase = 0;
 		m_seaBoss = f;
 		ApplyStarsTint(f);
+		// 1.16.x (SAT: which serpent is the boss isn't clear from the model): dark crimson
+		// scales with a red glow about it, and Hugin names it.
+		foreach (Renderer r in f.Go.GetComponentsInChildren<Renderer>())
+		{
+			foreach (Material m in r.materials)
+			{
+				if (m.HasProperty("_Color"))
+				{
+					m.color = m.color * new Color(1.1f, 0.45f, 0.4f, 1f);
+				}
+			}
+		}
+		Light glow = new GameObject("BossGlow").AddComponent<Light>();
+		glow.gameObject.layer = m_layer;
+		glow.transform.SetParent(f.Go.transform, false);
+		glow.transform.localPosition = Vector3.up * 3f;
+		glow.type = LightType.Point;
+		glow.color = new Color(1f, 0.3f, 0.2f);
+		glow.range = 16f;
+		glow.intensity = 2.2f;
+		glow.cullingMask = 1 << m_layer;
+		m_banner = "The serpent of the deep! The red one: hit it with the ballista.";
+		m_bannerTime = 4f;
 		m_audio.Play("sfx_serpent_taunt|sfx_serpent_alerted", 1f, 0.75f);
 		m_shake = Mathf.Max(m_shake, 0.4f);
 		Plugin.Log.LogInfo($"The serpent rises: {f.Hp} hits to beat.");
