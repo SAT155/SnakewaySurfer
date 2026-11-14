@@ -2038,6 +2038,13 @@ internal sealed partial class SurfGame : MonoBehaviour
 						// Rolled under a shot or a swoop.
 						Dodged(t);
 					}
+					// 1.16.x (SAT: you should be able to jump over the arrow): a shot flying at chest
+					// height is cleared by a jump too.
+					if (!sliding && t.Speed != 0f && t.Label.Length > 0 && m_y > t.BaseY * 0.8f)
+					{
+						Dodged(t);
+						break;
+					}
 					if (!sliding)
 					{
 						m_audio.Play(string.IsNullOrEmpty(t.Label) ? Sfx.HitLog : Sfx.HitMonster);
@@ -3785,7 +3792,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			HalfLength = 0.45f,
 			Speed = speed,
 			Label = shooter.Label,
-			CrashText = $"A {shooter.Label}'s shot hit you in the {biome}! (Slide under them.)",
+			CrashText = $"A {shooter.Label}'s shot hit you in the {biome}! (Roll under it or jump over it.)",
 			FreeX = true,
 			X = startX,
 			TargetX = targetX,

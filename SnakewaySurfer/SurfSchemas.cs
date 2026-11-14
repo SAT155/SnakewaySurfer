@@ -485,6 +485,12 @@ internal sealed partial class SurfGame
 		{
 			lob.Markers.Add(MakeMarker(lane, z, 2.4f, t.Ranged == "tar" ? m_tarMaterial : m_markerMaterial));
 		}
+		// 1.16.x (SAT: the fuling priests' fires didn't show they cover several lanes): one ring
+		// on the ground over every lane the blast will cover, as the Elder's parry ring was.
+		if (t.Ranged == "fire" || t.Ranged == "bomb")
+		{
+			lob.Markers.Add(AreaRing(lanes, z));
+		}
 		GameObject? visual = null;
 		if (t.Attack?.Projectile != null)
 		{
@@ -505,6 +511,39 @@ internal sealed partial class SurfGame
 		m_lobs.Add(lob);
 	}
 
+	private static Material? s_areaRingMaterial;
+	private readonly Dictionary<GameObject, float> m_ringSize = new();
+
+	private GameObject AreaRing(int[] lanes, float z)
+	{
+		int lo = 2, hi = 0;
+		foreach (int l in lanes)
+		{
+			lo = Mathf.Min(lo, l);
+			hi = Mathf.Max(hi, l);
+		}
+		if (s_areaRingMaterial == null)
+		{
+			s_areaRingMaterial = new Material(Shader.Find("Sprites/Default")) { name = "SurfAreaRing", mainTexture = CueRing(), color = new Color(1f, 0.15f, 0.08f, 0.9f), renderQueue = 3106 };
+		}
+		GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Quad);
+		Destroy(ring.GetComponent<Collider>());
+		ring.name = "AreaRing";
+		ring.layer = m_layer;
+		ring.transform.SetParent(m_stage, false);
+		float size = (hi - lo + 1) * LaneWidth * 1.05f;
+		// Starts small and grows to the blast's full size as it lands (UpdateSchemaWorld).
+		ring.transform.localScale = new Vector3(size * 0.15f, size * 0.15f, 1f);
+		m_ringSize[ring] = size;
+		ring.transform.localPosition = new Vector3((LaneX(lo) + LaneX(hi)) * 0.5f, RoadY(z) + 0.12f, z);
+		ring.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+		Renderer r = ring.GetComponent<Renderer>();
+		r.sharedMaterial = s_areaRingMaterial;
+		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+		r.receiveShadows = false;
+		return ring;
+	}
+
 	private void UpdateSchemaWorld(float dt)
 	{
 		if (m_markerMaterial == null)
@@ -521,6 +560,14 @@ internal sealed partial class SurfGame
 			Lob lob = m_lobs[i];
 			lob.Time += dt;
 			float p = Mathf.Clamp01(lob.Time / lob.Duration);
+			foreach (GameObject m in lob.Markers)
+			{
+				if (m != null && m_ringSize.TryGetValue(m, out float full))
+				{
+					float g = Mathf.Lerp(0.15f, 1f, p);
+					m.transform.localScale = new Vector3(full * g, full * g, 1f);
+				}
+			}
 			if (lob.Go != null)
 			{
 				lob.Go.transform.localPosition = Vector3.Lerp(lob.From, lob.To, p) + Vector3.up * (4f * p * (1f - p) * 5f);
