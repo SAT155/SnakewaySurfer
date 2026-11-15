@@ -158,7 +158,61 @@ internal static class Program
 		Check(passable > tracks / 5, "the random tracks should include plenty of passable ones");
 		Check(passable >= simPassable * 0.6, "the service shouldn't refuse most of what a player can run");
 
-		Console.WriteLine(s_failed == 0 ? "All placement checks passed." : $"{s_failed} placement checks FAILED.");
+		// ---- biome content tables (BiomeContent.cs)
+		{
+			string[] order = { "Meadows", "Black Forest", "Swamp", "Mountains", "Plains", "Mistlands", "Ashlands", "Deep North" };
+			foreach (string b in order)
+			{
+				Check(BiomeContents.For(b) != null, $"{b} has a content table");
+			}
+			BiomeContent meadows = BiomeContents.For("Meadows")!;
+			foreach (string stray in new[] { "Greydwarf", "Greydwarf_Shaman", "Skeleton", "Troll", "Draugr", "Goblin" })
+			{
+				Check(!meadows.IsNative(stray), $"{stray} doesn't belong to the Meadows");
+			}
+			Check(meadows.IsNative("Boar") && meadows.IsNative("neck"), "the Meadows' own creatures are native (any case)");
+			Check(BiomeContents.For("Black Forest")!.IsNative("Greydwarf_Elite"), "a trailing * matches a name start");
+			Check(BiomeContents.For("Deep North")!.IsNative("Anything"), "a biome with no list takes what the game gives");
+			Check(!BiomeContents.For("Plains")!.IsNative("Wolf"), "no wolves on the Plains");
+			Check(BiomeContents.For("Black Forest")!.Swarms("Greydwarf") && !BiomeContents.For("Meadows")!.Swarms("Greydwarf"), "greydwarf swarms belong to the Black Forest");
+			Check(BiomeContents.For("Meadows")!.TraderAt(0)?.Prefab == "Haldor" && BiomeContents.For("Meadows")!.TraderAt(1)?.Prefab == "Hildir"
+				&& BiomeContents.For("Black Forest")!.TraderAt(3)?.Prefab == "Haldor" && BiomeContents.For("Plains")!.TraderAt(0) == null, "traders by biome and stars as before");
+			Check(string.Join(",", BiomeContents.For("Black Forest")!.Dungeons) == "burial chamber,troll cave", "the Black Forest's two dungeons, in turn");
+			// Every schema the old built-in setting had is still given, unchanged, and nothing else.
+			const string old = "Boar: hurdle charger; Neck: hurdle waiter; Greyling: hurdle charger; Deer: crosser; Hare: crosser; " +
+		"Greydwarf: swarm charger; Greydwarf_Elite: sweep stomper waiter; Greydwarf_Shaman: gas2 waiter; " +
+		"Troll: lob smash stomper charger; Skeleton: shooter waiter; Skeleton_NoArcher: waiter; Skeleton_Poison: waiter; " +
+		"Bjorn: charger sweep; " +
+		"Draugr: shooter waiter charger sideline; Draugr_Elite: waiter charger; Draugr_Ranged: shooter waiter sideline; " +
+		"Blob: hurdle gas3 waiter; BlobElite: hurdle gas3 waiter; Leech: hurdle swarm switcher behind; " +
+		"Abomination: ambush smash sweep; Wraith: chaser; " +
+		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; Fenring_Cultist: fire waiter; StoneGolem: ambush smash; Hatchling: flyshooter; " +
+		"Goblin: swarm shooter charger line; GoblinArcher: shooter waiter; GoblinBrute: slams stomper waiter; GoblinShaman: fire waiter; " +
+		"Lox: herd stomper charger; Deathsquito: behind; BlobTar: shooter tar hurdle waiter; Unbjorn: charger sweep gas2; " +
+		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; Charred_Archer: shooter waiter sideline; Charred_Mage: fire waiter; " +
+		"Dverger*: helper talk";
+			Dictionary<string, string> Parse(string v)
+			{
+				Dictionary<string, string> d = new(StringComparer.OrdinalIgnoreCase);
+				foreach (string part in v.Split(';'))
+				{
+					string[] kv = part.Split(':');
+					if (kv.Length == 2)
+					{
+						d[kv[0].Trim()] = kv[1].Trim();
+					}
+				}
+				return d;
+			}
+			Dictionary<string, string> was = Parse(old), now = Parse(BiomeContents.SchemaDefaults());
+			Check(was.Count == now.Count, $"schema defaults: {was.Count} before, {now.Count} now");
+			foreach (KeyValuePair<string, string> kv in was)
+			{
+				Check(now.TryGetValue(kv.Key, out string? v) && v == kv.Value, $"schema for {kv.Key} unchanged");
+			}
+		}
+
+		Console.WriteLine(s_failed == 0 ? "All checks passed." : $"{s_failed} checks FAILED.");
 		return s_failed == 0 ? 0 : 1;
 	}
 

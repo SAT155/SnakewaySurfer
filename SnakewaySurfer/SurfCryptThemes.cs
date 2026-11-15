@@ -276,13 +276,19 @@ internal sealed partial class SurfGame
 		DropLandSound = "sfx_tick_attack_land|sfx_seeker_land",
 	};
 
-	private CryptTheme? ThemeFor(string biome) =>
-		biome == s_burialChamber.Biome ? (m_forestDungeons % 2 == 0 ? s_burialChamber : s_trollCave)
-		: biome == s_sunkenCrypt.Biome ? s_sunkenCrypt
-		: biome == s_frostCave.Biome ? s_frostCave
-		: biome == s_infestedMine.Biome ? s_infestedMine
-		: biome == s_charredFortress.Biome ? s_charredFortress
-		: null;
+	// The biome's dungeon (its content table's Dungeons, BiomeContent.cs, taken in turn: the Black
+	// Forest's burial chambers and troll caves alternate).
+	private CryptTheme? ThemeFor(string biome)
+	{
+		string[] names = BiomeContents.For(biome)?.Dungeons ?? System.Array.Empty<string>();
+		if (names.Length == 0)
+		{
+			return null;
+		}
+		string name = names[m_forestDungeons % names.Length];
+		CryptTheme[] all = { s_burialChamber, s_trollCave, s_sunkenCrypt, s_frostCave, s_infestedMine, s_charredFortress };
+		return System.Array.Find(all, t => t.Name == name);
+	}
 
 	private float WallH => (m_crypt != null ? m_crypt.Theme.WallHeight : 2.4f) * 1.6f;
 

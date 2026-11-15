@@ -284,7 +284,7 @@ internal sealed partial class SurfGame
 			}
 			MakeCrypt(start, start + length, theme);
 			PlanCryptExtras(m_crypt!, s);
-			if (theme.Biome == s_burialChamber.Biome)
+			if ((BiomeContents.For(theme.Biome)?.Dungeons.Length ?? 0) > 1)
 			{
 				// (The Black Forest's burial chambers and troll caves take turns.)
 				m_forestDungeons++;

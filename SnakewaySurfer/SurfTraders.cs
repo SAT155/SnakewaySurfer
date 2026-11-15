@@ -12,17 +12,16 @@ namespace SnakewaySurfer;
 // you already have them all. The lanes around them stay clear, so it's a breather too.
 internal sealed partial class SurfGame
 {
+	// How each trader looks and sounds. Where and when they keep a stall is in the biome content
+	// tables (BiomeContent.cs, architecture step 2).
 	private sealed class TraderDef
 	{
-		public string Biome = "";
 		public string Prefab = "";
 		public string Camp = "";
 		// The game's own lines for them (used if their effect lists come up empty).
 		public string Greet = "";
 		public string Trade = "";
 		public string Bye = "";
-		public int MinStars;
-		public int MaxStars = 99;
 		public Color Lamp = new Color(1f, 0.75f, 0.4f);
 	}
 
@@ -30,27 +29,19 @@ internal sealed partial class SurfGame
 	{
 		new TraderDef
 		{
-			Biome = "Meadows", Prefab = "Hildir", Camp = "Hildir_camp", MinStars = 1,
+			Prefab = "Hildir", Camp = "Hildir_camp",
 			Greet = "sfx_hildir_hello", Trade = "sfx_hildir_trade|sfx_hildir_talk", Bye = "sfx_hildir_bye",
 			Lamp = new Color(1f, 0.72f, 0.5f),
 		},
-		// 1.16.150 (SAT never met a trader to try the shop): Haldor also keeps a stall in the
-		// 0-star Meadows, until Hildir takes over from 1 star.
 		new TraderDef
 		{
-			Biome = "Meadows", Prefab = "Haldor", Camp = "Vendor_BlackForest", MaxStars = 0,
+			Prefab = "Haldor", Camp = "Vendor_BlackForest",
 			Greet = "sfx_haldor_greet", Trade = "sfx_haldor_yea|sfx_haldor_laugh", Bye = "sfx_haldor_laugh",
 			Lamp = new Color(1f, 0.7f, 0.35f),
 		},
 		new TraderDef
 		{
-			Biome = "Black Forest", Prefab = "Haldor", Camp = "Vendor_BlackForest",
-			Greet = "sfx_haldor_greet", Trade = "sfx_haldor_yea|sfx_haldor_laugh", Bye = "sfx_haldor_laugh",
-			Lamp = new Color(1f, 0.7f, 0.35f),
-		},
-		new TraderDef
-		{
-			Biome = "Swamp", Prefab = "BogWitch", Camp = "BogWitch_Camp",
+			Prefab = "BogWitch", Camp = "BogWitch_Camp",
 			Greet = "sfx_bogwitch_greet", Trade = "sfx_bogwitch_trade", Bye = "sfx_bogwitch_random",
 			Lamp = new Color(0.65f, 1f, 0.55f),
 		},
@@ -133,7 +124,10 @@ internal sealed partial class SurfGame
 				return;
 			}
 			s.TraderChecked = true;
-			TraderDef? def = System.Array.Find(s_traders, d => d.Biome == biome && s.Stars >= d.MinStars && s.Stars <= d.MaxStars);
+			// Who keeps a stall here comes from the biome's content table (BiomeContent.cs); how
+			// they look and sound from s_traders.
+			TraderStall? stall = BiomeContents.For(biome)?.TraderAt(s.Stars);
+			TraderDef? def = stall == null ? null : System.Array.Find(s_traders, d => d.Prefab == stall.Prefab);
 			if (def == null || !open || Random.value > TraderChance)
 			{
 				continue;
