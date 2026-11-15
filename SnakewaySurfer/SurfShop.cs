@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.110 (Sam: "build the shop and make use of coins"; design in the trader abilities doc):
+// 1.16.110 (SAT: "build the shop and make use of coins"; design in the trader abilities doc):
 // coins you pick up go into a bank kept on your character. The traders by the track (any lane
 // now) stop the run and open a dreamy store window with three of their abilities. An ability
 // lasts until you beat that biome's boss or the run ends; a checkpoint retry keeps it. Its item
@@ -27,7 +27,7 @@ internal sealed partial class SurfGame
 		new Ability { Id = "raspberry", Name = "Raspberry bush luck", Icon = "Raspberry", Text = "Coins picked up in quick succession give +1 extra each", Price = 35, Trader = "Haldor" },
 		new Ability { Id = "deer", Name = "Deer hide boots", Icon = "DeerHide", Text = "Lane changes are 20% quicker", Price = 40, Trader = "Haldor" },
 		new Ability { Id = "boar", Name = "Boar sniff", Icon = "TrophyBoar", Text = "Summoning items turn up more often", Price = 40, Trader = "Hildir" },
-		new Ability { Id = "meadstam", Name = "Mead of stamina", Icon = "MeadStaminaMinor", Text = "Rolling and blocking cost half the stamina", Price = 70, Trader = "BogWitch" },
+		new Ability { Id = "meadstam", Name = "Mead of stamina", Icon = "MeadStaminaMinor", Text = "Jumping, rolling and blocking cost half the stamina", Price = 70, Trader = "BogWitch" },
 		new Ability { Id = "troll", Name = "Troll leather", Icon = "TrollHide", Text = "One free hit: the first knock does no harm", Price = 75, Trader = "Haldor" },
 		new Ability { Id = "feather", Name = "Feather fall", Icon = "Feathers", Text = "Jumps float a little longer", Price = 80, Trader = "Hildir" },
 		new Ability { Id = "magnet", Name = "Coin magnet", Icon = "Coins", Text = "Coins in the next lane fly to you", Price = 90, Trader = "Haldor" },
@@ -52,7 +52,8 @@ internal sealed partial class SurfGame
 
 	private bool Has(string id) => m_owned.Contains(id);
 
-	private float ParryWindowNow => Plugin.ParryWindow.Value * (Has("serpent") ? 2f : 1f);
+	// 1.16.x: never shorter than ParryFloor, so pressing on the glint (SurfParryCue.cs) is in time.
+	private float ParryWindowNow => Mathf.Max(ParryFloor, Plugin.ParryWindow.Value) * (Has("serpent") ? 2f : 1f);
 
 	private int Bank
 	{
@@ -246,7 +247,7 @@ internal sealed partial class SurfGame
 		Cursor.visible = true;
 		float a = Mathf.SmoothStep(0f, 1f, m_shopTime / 0.35f) * s_guiAlpha;
 		Fill(new Rect(0, 0, w, h), new Color(0.05f, 0.02f, 0.1f, 0.45f * a));
-		// 1.16.150 (Sam: long notes ran over the names): wider, taller rows, notes in smaller type
+		// 1.16.150 (SAT: long notes ran over the names): wider, taller rows, notes in smaller type
 		// under the name with room for two lines.
 		float pw = Mathf.Min(900f * k, w * 0.92f);
 		float rowH = 112f * k;

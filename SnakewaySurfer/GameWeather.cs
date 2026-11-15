@@ -43,6 +43,19 @@ internal static class GameWeather
 		Plugin.Log.LogInfo($"{name} weather '{env.m_name}': fog {fog:0.000} {fogColor}, ambient {env.m_ambColorDay}, sun {sunColor} x{env.m_lightIntensityDay:0.00}");
 	}
 
+	// The biome's main weather, for its ambient sound (SurfAmbience.cs).
+	public static EnvSetup? EnvOf(Heightmap.Biome biome)
+	{
+		try
+		{
+			return EnvMan.instance != null ? MainEnv(biome) : null;
+		}
+		catch (System.Exception)
+		{
+			return null;
+		}
+	}
+
 	private static EnvSetup? MainEnv(Heightmap.Biome biome)
 	{
 		EnvMan man = EnvMan.instance;

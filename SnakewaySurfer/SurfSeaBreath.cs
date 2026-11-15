@@ -3,7 +3,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.3 (Sam: "The serpent stops to perform its breath attack"): a serpent swims under the
+// 1.16.3 (SAT: "The serpent stops to perform its breath attack"): a serpent swims under the
 // water to a spot well ahead of the ship and a little off its course, comes up there and stops
 // dead. It rears and turns with the ship while a wide red streak runs down the water from its
 // jaws toward you, then blows a jet of freezing spray down the streak. Steer out of the streak
@@ -16,7 +16,7 @@ internal sealed partial class SurfGame
 	// Where a serpent comes up to breathe: ahead of the ship and a little to one side.
 	private Vector2 BreathSpot(SeaFoe f, float ahead)
 	{
-		return ShipCenter() + HeadingVector() * (ahead + m_boatSpeed * 0.5f) + new Vector2(f.Side * 4.5f, 0f);
+		return ShipCenter() + HeadingVector() * (ahead + m_sea.BoatSpeed * 0.5f) + new Vector2(f.Side * 4.5f, 0f);
 	}
 
 	private float BreathWindup(SeaFoe f) => f.Boss ? Mathf.Max(1.5f, 2f - 0.1f * SeaStars) : Mathf.Max(1.3f, 1.8f - 0.1f * SeaStars);
@@ -25,7 +25,7 @@ internal sealed partial class SurfGame
 	private void StartBreath(SeaFoe f)
 	{
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		f.Phase = 4;
 		f.T = 0f;
 		f.Struck = false;
@@ -43,13 +43,13 @@ internal sealed partial class SurfGame
 	private int UpdateBreath(SeaFoe f, float dt, string why)
 	{
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		float windup = BreathWindup(f);
 		float width = f.Boss ? 7f : 5f;
 		// Stopped dead, reared up out of the water: the ship comes on toward it.
 		f.Dir = Vector2.zero;
 		f.Y = Mathf.MoveTowards(f.Y, f.Boss ? 0f : -0.1f, dt * 5f);
-		// 1.16.74 (Sam: it shouldn't keep tracking once it starts): it barely turns after rearing
+		// 1.16.74 (SAT: it shouldn't keep tracking once it starts): it barely turns after rearing
 		// up, so the ship can sail out of the streak.
 		if (f.T < windup * 0.5f)
 		{

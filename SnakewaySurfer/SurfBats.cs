@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// Bats (1.14, Sam): always a swarm, and more of a nuisance than a danger. A cloud of them
+// Bats (1.14, SAT): always a swarm, and more of a nuisance than a danger. A cloud of them
 // flutters about two lanes at head height; flying into one costs no life, but it slows you,
 // takes some stamina, flaps in your face and knocks your guard down (1.16.1). Roll under them,
 // or pick the lane they're not in.
@@ -14,9 +14,12 @@ internal sealed partial class SurfGame
 	{
 		int other = lane == 1 ? (Random.value < 0.5f ? 0 : 2) : 1;
 		int count = Random.Range(6, 10);
+		Thing? first = null;
+		bool[] used = new bool[3];
 		for (int k = 0; k < count; k++)
 		{
 			int l = Random.value < 0.55f ? lane : other;
+			used[l] = true;
 			Thing t = SpawnCreature(e, l, z + Random.Range(-1f, 7f), Kind.High, Random.Range(1.25f, 2.1f), biomeIndex);
 			t.Nuisance = true;
 			t.Swoop = false;
@@ -25,6 +28,19 @@ internal sealed partial class SurfGame
 			t.X = LaneX(l);
 			t.Seed = Random.value * 20f;
 			t.HalfLength = 0.3f;
+			first ??= t;
+		}
+		// 1.16.x (playtest: where the bats hit wasn't clear): the soft roll marks on each lane
+		// they fill, the stretch they flit over.
+		if (first != null)
+		{
+			for (int l = 0; l < 3; l++)
+			{
+				if (used[l])
+				{
+					first.Markers.Add(MakeMarker(l, z + 3f, 9f, SlideMaterial));
+				}
+			}
 		}
 		if (e.Prefab != null && CreatureInfo.Of(e.Prefab).AlertSound is string sound && sound.Length > 0)
 		{
@@ -50,7 +66,7 @@ internal sealed partial class SurfGame
 		m_staminaIdle = 0f;
 		m_shake = Mathf.Max(m_shake, 0.12f);
 		Flash(new Color(0.12f, 0.08f, 0.1f), 0.45f);
-		// 1.16.1 (Sam): flapping in your face, they knock your guard down; it comes back up a
+		// 1.16.1 (SAT): flapping in your face, they knock your guard down; it comes back up a
 		// moment after (hold block again).
 		if (m_blocking)
 		{

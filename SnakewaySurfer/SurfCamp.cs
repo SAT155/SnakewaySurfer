@@ -5,7 +5,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.80, Sam's idea: on the serpent of the deep's last hit you throw a harpoon (the game's
+// 1.16.80, SAT's idea: on the serpent of the deep's last hit you throw a harpoon (the game's
 // Abyssal Harpoon) that trails a rope back to the ship, and she tows its floating body to the
 // Plains, where it's left on the sand. You come off the ship slowly, worn out, build a
 // campfire and sit: eat, drink, wait, a little more mead and more food. Then a dreamy question:
@@ -80,7 +80,7 @@ internal sealed partial class SurfGame
 	private Vector3 SternPoint()
 	{
 		Vector2 s = ShipCenter() - HeadingVector() * (m_shipLength * 0.45f);
-		return new Vector3(s.x, m_boatY + 1.3f, s.y);
+		return new Vector3(s.x, m_sea.BoatY + 1.3f, s.y);
 	}
 
 	private Vector3 TowedHead(SeaFoe f)
@@ -145,7 +145,7 @@ internal sealed partial class SurfGame
 				m_audio.Play("sfx_spear_hit|sfx_arrow_hit|sfx_wood_hit", 1f, 0.8f);
 				SpawnSplash(new Vector2(head.x, head.z), 1f);
 				m_shake = Mathf.Max(m_shake, 0.2f);
-				m_lurchV += Random.Range(-10f, 10f);
+				m_sea.LurchV += Random.Range(-10f, 10f);
 			}
 		}
 		else if (m_harpoon != null)
@@ -160,7 +160,7 @@ internal sealed partial class SurfGame
 		}
 		if (m_rope != null)
 		{
-			float tight = m_harpoonT >= HarpoonFlight ? Mathf.Clamp01(m_boatSpeed / 4f) : 0f;
+			float tight = m_harpoonT >= HarpoonFlight ? Mathf.Clamp01(m_sea.BoatSpeed / 4f) : 0f;
 			for (int i = 0; i < m_rope.positionCount; i++)
 			{
 				float t = i / (float)(m_rope.positionCount - 1);
@@ -213,7 +213,7 @@ internal sealed partial class SurfGame
 		}
 		float side = m_x >= 0f ? -1f : 1f;
 		float x = side * (TrackHalf + 7f);
-		float z = m_leapToZ + 3f;
+		float z = m_sea.LeapToZ + 3f;
 		f.Go.transform.localPosition = new Vector3(x, HillHeight(x, z) + 0.2f, z);
 		f.Go.transform.localRotation = Quaternion.Euler(0f, side < 0f ? 60f : -60f, 0f) * Quaternion.Euler(0f, 0f, 150f);
 		m_things.Add(new Thing { Go = f.Go, Kind = Kind.Scenery, Z = z, HalfLength = f.Length * 0.5f, Collidable = false });
@@ -262,7 +262,7 @@ internal sealed partial class SurfGame
 		m_campLoot = loot;
 	}
 
-	// 1.16.80 (Sam: "Some of the boss items are nice to have if they are used in crafting
+	// 1.16.80 (SAT: "Some of the boss items are nice to have if they are used in crafting
 	// something, except the eikthyr horns ... But not the crypt key or wishbone").
 	private static string BossCraftDrop(BossDef def) => def.Prefab switch
 	{
@@ -441,7 +441,7 @@ internal sealed partial class SurfGame
 	}
 
 	// The camp, bigger with the stars.
-	// 1.16.150 (Sam: in the Swamp the fire was built under water): over water the camp stands on
+	// 1.16.150 (SAT: in the Swamp the fire was built under water): over water the camp stands on
 	// a little mound of dry ground at the water's surface.
 	private float CampY(float z) => RoadY(z) + WaterWeight(z) * (WaterDepth + 0.06f);
 
@@ -725,7 +725,7 @@ internal sealed partial class SurfGame
 		s_guiAlpha = baseAlpha * open;
 		Shadowed(new Rect(w * 0.15f, h * 0.28f, w * 0.7f, 90 * k),
 			"This dreamworld will wait for you. Come back any time and carry on from here.", m_mid!);
-		// 1.16.91 (Sam's screenshot: the button words spilled out of their boxes): sizes of
+		// 1.16.91 (SAT's screenshot: the button words spilled out of their boxes): sizes of
 		// their own that fit, no wrapping on the names.
 		m_campLabel ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, wordWrap = false };
 		m_campNote ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Italic, wordWrap = true };

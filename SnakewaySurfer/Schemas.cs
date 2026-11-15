@@ -5,7 +5,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// What kind of challenge each creature poses, from the "Creature Schemas" setting (Sam picked
+// What kind of challenge each creature poses, from the "Creature Schemas" setting (SAT picked
 // these creature by creature). A creature can have several tags; where they are alternatives
 // (waiter or charger, smash or sweep) one is picked each time it turns up.
 //
@@ -47,21 +47,11 @@ internal sealed class Schema
 
 internal static class Schemas
 {
-	public const string Defaults =
-		"Boar: hurdle charger; Neck: hurdle waiter; Greyling: hurdle charger; Deer: crosser; Hare: crosser; " +
-		"Greydwarf: swarm charger; Greydwarf_Elite: sweep stomper waiter; Greydwarf_Shaman: gas2 waiter; " +
-		"Troll: lob smash stomper charger; Skeleton: shooter waiter; Skeleton_NoArcher: waiter; Skeleton_Poison: waiter; " +
-		"Bjorn: charger sweep; " +
-		"Draugr: shooter waiter charger sideline; Draugr_Elite: waiter charger; Draugr_Ranged: shooter waiter sideline; " +
-		"Blob: hurdle gas3 waiter; BlobElite: hurdle gas3 waiter; Leech: hurdle swarm switcher behind; " +
-		"Abomination: ambush smash sweep; Wraith: chaser; " +
-		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; Fenring_Cultist: fire waiter; StoneGolem: ambush smash; Hatchling: flyshooter; " +
-		"Goblin: swarm shooter charger line; GoblinArcher: shooter waiter; GoblinBrute: slams stomper waiter; GoblinShaman: fire waiter; " +
-		"Lox: herd stomper charger; Deathsquito: behind; BlobTar: shooter tar hurdle waiter; Unbjorn: charger sweep gas2; " +
-		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; Charred_Archer: shooter waiter sideline; Charred_Mage: fire waiter; " +
-		"Dverger*: helper talk";
+	// 1.16.x (architecture step 2): the schemas now live with their creatures in the biome
+	// content tables (BiomeContent.cs); this is every one of them, the setting's default.
+	public static readonly string Defaults = BiomeContents.SchemaDefaults();
 
-	// 1.16.1 (Sam's test): entries changed since earlier releases, swapped in where a settings
+	// 1.16.1 (SAT's test): entries changed since earlier releases, swapped in where a settings
 	// file still has the old one (an entry someone changed themselves is left alone).
 	private static readonly (string old, string now)[] s_changed =
 	{

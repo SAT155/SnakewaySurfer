@@ -126,6 +126,7 @@ internal sealed partial class SurfGame
 		}
 		// Two rocks shaken loose between you and it, the first over your lane.
 		float z = m_z + m_speed * 1.3f + 7f;
+		int before = m_things.Count;
 		for (int i = 0; i < 2 && z < m_lurker.Z - 6f; i++, z += Random.Range(6f, 9f))
 		{
 			int lane = i == 0 ? m_lane : Random.Range(0, 3);
@@ -134,5 +135,7 @@ internal sealed partial class SurfGame
 				SpawnIcicle(lane, z);
 			}
 		}
+		// (Architecture step 1: through the placement service like every other spawner.)
+		GateNew(before, "lurker rocks");
 	}
 }

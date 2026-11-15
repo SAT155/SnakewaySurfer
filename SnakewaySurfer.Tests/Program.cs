@@ -1,0 +1,448 @@
+using System;
+using System.Collections.Generic;
+using SnakewaySurfer;
+
+// Checks for the placement service. Two kinds:
+//  1. Hand-made tracks with a known answer.
+//  2. Thousands of random tracks. Each one the service calls passable is run by a simulated
+//     player that obeys the game's own jump, roll and lane-change limits and tries every
+//     possible sequence of moves. If that player can't get through, the service was wrong.
+internal static class Program
+{
+	private static int s_failed;
+
+	private static void Check(bool ok, string what)
+	{
+		if (!ok)
+		{
+			s_failed++;
+			Console.WriteLine("FAILED: " + what);
+		}
+	}
+
+	private static Placement Track(params (int lane, float from, float to, Need need)[] slots)
+	{
+		Placement p = new Placement();
+		p.Reset(0f);
+		foreach ((int lane, float from, float to, Need need) in slots)
+		{
+			p.Add(lane, from, to, need, "test");
+		}
+		return p;
+	}
+
+	private static int Main(string[] args)
+	{
+		Pace pace = Pace.At(12f);
+		Console.WriteLine($"At 12 m/s: jump clears {pace.JumpClear:0.0} m after {pace.JumpRise:0.0} m, lands after {pace.JumpTotal:0.0} m; roll {pace.RollClear:0.0} m, again after {pace.RollAgain:0.0} m; react {pace.React:0.0} m.");
+
+		// ---- hand-made
+		Check(Track().Passable(pace, out _), "an empty track is passable");
+		Check(Track((0, 30, 31, Need.Jump), (1, 30, 31, Need.Roll)).Passable(pace, out _), "a log and a flyer with a free lane");
+		Check(!Track((0, 30, 31, Need.Wall), (1, 30, 31, Need.Wall), (2, 30, 31, Need.Wall)).Passable(pace, out float stuck) && stuck > 29f && stuck < 32f, "three walls abreast stop the run, and it says where");
+		Check(Track((0, 30, 31, Need.Wall), (1, 30, 31, Need.Wall), (2, 30, 31, Need.Jump)).Passable(pace, out _), "two walls and a log");
+		Check(!Track((0, 30, 31, Need.Jump), (1, 30, 31, Need.Jump), (2, 30, 31, Need.Jump),
+			(0, 32, 33, Need.Roll), (1, 32, 33, Need.Roll), (2, 32, 33, Need.Roll)).Passable(pace, out _), "a jump then a roll 1 m on, in every lane, is unfair");
+		Check(Track((0, 30, 31, Need.Jump), (1, 30, 31, Need.Jump), (2, 30, 31, Need.Jump),
+			(0, 50, 51, Need.Roll), (1, 50, 51, Need.Roll), (2, 50, 51, Need.Roll)).Passable(pace, out _), "a jump then a roll 19 m on is fine");
+		Check(!Track((0, 30, 31, Need.Roll), (1, 30, 31, Need.Roll), (2, 30, 31, Need.Roll),
+			(0, 42, 43, Need.Roll), (1, 42, 43, Need.Roll), (2, 42, 43, Need.Roll)).Passable(pace, out _), "two rolls inside one roll's cooldown, in every lane, is unfair");
+		Check(Track((0, 30, 31, Need.Roll), (1, 30, 31, Need.Roll), (2, 30, 31, Need.Roll),
+			(0, 34, 35, Need.Roll), (1, 34, 35, Need.Roll), (2, 34, 35, Need.Roll)).Passable(pace, out _), "two rows one roll carries through");
+		Check(!Track((0, 30, 50, Need.Jump), (1, 30, 31, Need.Wall), (2, 30, 31, Need.Wall)).Passable(pace, out _), "nothing 20 m long can be jumped");
+		Check(!Track((0, 30, 31, Need.Wall), (1, 30, 31, Need.Wall), (1, 31.5f, 32.5f, Need.Wall), (2, 31.5f, 32.5f, Need.Wall), (0, 33, 34, Need.Wall), (1, 33, 34, Need.Wall)).Passable(pace, out _), "a zigzag quicker than lanes can be changed is unfair");
+		Check(Track((0, 30, 31, Need.Wall), (1, 30, 31, Need.Wall), (1, 45, 46, Need.Wall), (2, 45, 46, Need.Wall), (0, 60, 61, Need.Wall), (1, 60, 61, Need.Wall)).Passable(pace, out _), "a slow zigzag is fine");
+		Check(Track((0, 30, 33, Need.Either), (1, 30, 33, Need.Either), (2, 30, 33, Need.Either)).Passable(pace, out _), "gas across every lane is passable");
+		{
+			// Forgetting what is behind keeps what it implied.
+			Placement p = Track((0, 30, 31, Need.Roll), (1, 30, 31, Need.Roll), (2, 30, 31, Need.Roll));
+			p.Passed(38f, pace);
+			p.Add(0, 42, 43, Need.Roll, "late");
+			p.Add(1, 42, 43, Need.Roll, "late");
+			p.Add(2, 42, 43, Need.Roll, "late");
+			Check(!p.Passable(pace, out _), "the roll behind you still counts after the record moves on");
+		}
+
+		// ---- Admit: the one question every spawner asks
+		{
+			Placement p = Track();
+			Slot near = p.Add(1, 5, 6, Need.Jump, "near");
+			Slot far = p.Add(1, 40, 41, Need.Jump, "far");
+			List<Slot> gone = p.Admit(pace, new[] { near, far }, 0f, 12f * 0.8f);
+			Check(gone.Count == 1 && gone[0] == near && p.Slots.Count == 1, "Admit takes out what starts inside the reaction distance, and only that");
+		}
+		{
+			// Older walls close the track at 60 m; a new row may still not close it sooner.
+			Placement p = Track((0, 60, 61, Need.Wall), (1, 60, 61, Need.Wall), (2, 60, 61, Need.Wall));
+			Slot a = p.Add(0, 30, 31, Need.Wall, "row");
+			Slot b = p.Add(1, 30, 31, Need.Wall, "row");
+			Slot c = p.Add(2, 30, 31, Need.Wall, "row");
+			Slot after = p.Add(1, 80, 81, Need.Jump, "past the set piece");
+			List<Slot> gone = p.Admit(pace, new[] { a, b, c, after }, 0f, 0f);
+			p.Passable(pace, out float closed);
+			Check(gone.Count == 1 && !gone.Contains(after) && closed > 59f, "a row before a closed set piece is still judged; what lies past it is left alone");
+		}
+		{
+			Placement p = Track((0, 30, 31, Need.Wall), (1, 30, 31, Need.Wall));
+			Slot ok = p.Add(2, 50, 51, Need.Jump, "log");
+			Check(p.Admit(pace, new[] { ok }, 0f, 9.6f).Count == 0, "Admit keeps what leaves a fair way");
+			Slot bad = p.Add(2, 30, 31, Need.Wall, "third wall");
+			Check(p.Admit(pace, new[] { bad }, 0f, 9.6f).Count == 1 && p.Passable(pace, out _), "Admit refuses the wall that closes the last lane");
+		}
+
+		// ---- random tracks against a simulated player
+		Random rng = new Random(155);
+		int tracks = args.Length > 0 ? int.Parse(args[0]) : 300;
+		int passable = 0;
+		int simPassable = 0;
+		int wrong = 0;
+		int gated = 0;
+		int removed = 0;
+		int added = 0;
+		for (int n = 0; n < tracks; n++)
+		{
+			float speed = 8f + (float)rng.NextDouble() * 12f;
+			Pace p = Pace.At(speed);
+			List<(int lane, float from, float to, Need need)> slots = RandomTrack(rng, out _);
+			Placement place = Track(slots.ToArray());
+			bool says = place.Passable(p, out _);
+			bool sim = Player.CanRun(slots, speed);
+			passable += says ? 1 : 0;
+			simPassable += sim ? 1 : 0;
+			if (says && !sim)
+			{
+				wrong++;
+				if (wrong <= 3)
+				{
+					Console.WriteLine($"  called passable but the player can't run it (speed {speed:0.0}):");
+					foreach ((int lane, float from, float to, Need need) in slots)
+					{
+						Console.WriteLine($"    lane {lane} {from:0.0}-{to:0.0} {need}");
+					}
+				}
+			}
+
+			// The gate as the game uses it: rows arrive one at a time, and whatever closes the
+			// track is taken out again. The result must always be runnable.
+			Placement gate = new Placement();
+			gate.Reset(0f);
+			List<(int lane, float from, float to, Need need)> kept = new();
+			RandomTrack(rng, out List<List<(int lane, float from, float to, Need need)>> rows);
+			foreach (List<(int lane, float from, float to, Need need)> row in rows)
+			{
+				List<Slot> mine = new();
+				foreach ((int lane, float from, float to, Need need) in row)
+				{
+					mine.Add(gate.Add(lane, from, to, need, "row"));
+					added++;
+				}
+				foreach (Slot s in gate.Admit(p, mine, 0f, 0f))
+				{
+					mine.Remove(s);
+					removed++;
+				}
+				foreach (Slot s in mine)
+				{
+					kept.Add((s.Lane, s.From, s.To, s.Need));
+				}
+			}
+			if (!gate.Passable(p, out _) || !Player.CanRun(kept, speed))
+			{
+				gated++;
+			}
+		}
+		Console.WriteLine($"{tracks} random tracks: the service calls {passable} passable, the simulated player can run {simPassable}.");
+		Console.WriteLine($"Gate: {removed} of {added} things taken out to keep every track runnable.");
+		Check(wrong == 0, $"{wrong} tracks were called passable that the simulated player can't run");
+		Check(gated == 0, $"{gated} gated tracks were not runnable");
+		Check(passable > tracks / 5, "the random tracks should include plenty of passable ones");
+		Check(passable >= simPassable * 0.6, "the service shouldn't refuse most of what a player can run");
+
+		// ---- biome content tables (BiomeContent.cs)
+		{
+			string[] order = { "Meadows", "Black Forest", "Swamp", "Mountains", "Plains", "Mistlands", "Ashlands", "Deep North" };
+			foreach (string b in order)
+			{
+				Check(BiomeContents.For(b) != null, $"{b} has a content table");
+			}
+			BiomeContent meadows = BiomeContents.For("Meadows")!;
+			foreach (string stray in new[] { "Greydwarf", "Greydwarf_Shaman", "Skeleton", "Troll", "Draugr", "Goblin" })
+			{
+				Check(!meadows.IsNative(stray), $"{stray} doesn't belong to the Meadows");
+			}
+			Check(meadows.IsNative("Boar") && meadows.IsNative("neck"), "the Meadows' own creatures are native (any case)");
+			Check(BiomeContents.For("Black Forest")!.IsNative("Greydwarf_Elite"), "a trailing * matches a name start");
+			Check(BiomeContents.For("Deep North")!.IsNative("Anything"), "a biome with no list takes what the game gives");
+			Check(!BiomeContents.For("Plains")!.IsNative("Wolf"), "no wolves on the Plains");
+			Check(BiomeContents.For("Black Forest")!.Swarms("Greydwarf") && !BiomeContents.For("Meadows")!.Swarms("Greydwarf"), "greydwarf swarms belong to the Black Forest");
+			Check(BiomeContents.For("Meadows")!.TraderAt(0)?.Prefab == "Haldor" && BiomeContents.For("Meadows")!.TraderAt(1)?.Prefab == "Hildir"
+				&& BiomeContents.For("Black Forest")!.TraderAt(3)?.Prefab == "Haldor" && BiomeContents.For("Plains")!.TraderAt(0) == null, "traders by biome and stars as before");
+			Check(string.Join(",", BiomeContents.For("Black Forest")!.Dungeons) == "burial chamber,troll cave", "the Black Forest's two dungeons, in turn");
+			// Every schema the old built-in setting had is still given, unchanged, and nothing else.
+			const string old = "Boar: hurdle charger; Neck: hurdle waiter; Greyling: hurdle charger; Deer: crosser; Hare: crosser; " +
+		"Greydwarf: swarm charger; Greydwarf_Elite: sweep stomper waiter; Greydwarf_Shaman: gas2 waiter; " +
+		"Troll: lob smash stomper charger; Skeleton: shooter waiter; Skeleton_NoArcher: waiter; Skeleton_Poison: waiter; " +
+		"Bjorn: charger sweep; " +
+		"Draugr: shooter waiter charger sideline; Draugr_Elite: waiter charger; Draugr_Ranged: shooter waiter sideline; " +
+		"Blob: hurdle gas3 waiter; BlobElite: hurdle gas3 waiter; Leech: hurdle swarm switcher behind; " +
+		"Abomination: ambush smash sweep; Wraith: chaser; " +
+		"Wolf: hurdle switcher swarm charger; Fenring: leaper; Ulv: leaper; Fenring_Cultist: fire waiter; StoneGolem: ambush smash; Hatchling: flyshooter; " +
+		"Goblin: swarm shooter charger line; GoblinArcher: shooter waiter; GoblinBrute: slams stomper waiter; GoblinShaman: fire waiter; " +
+		"Lox: herd stomper charger; Deathsquito: behind; BlobTar: shooter tar hurdle waiter; Unbjorn: charger sweep gas2; " +
+		"Seeker: switcher swarm leaper charger; SeekerBrute: charger sweep; Tick: hurdle swarm headleap charger; Gjall: bomb tickdrop; Charred_Archer: shooter waiter sideline; Charred_Mage: fire waiter; " +
+		"Dverger*: helper talk";
+			Dictionary<string, string> Parse(string v)
+			{
+				Dictionary<string, string> d = new(StringComparer.OrdinalIgnoreCase);
+				foreach (string part in v.Split(';'))
+				{
+					string[] kv = part.Split(':');
+					if (kv.Length == 2)
+					{
+						d[kv[0].Trim()] = kv[1].Trim();
+					}
+				}
+				return d;
+			}
+			Dictionary<string, string> was = Parse(old), now = Parse(BiomeContents.SchemaDefaults());
+			Check(was.Count == now.Count, $"schema defaults: {was.Count} before, {now.Count} now");
+			foreach (KeyValuePair<string, string> kv in was)
+			{
+				Check(now.TryGetValue(kv.Key, out string? v) && v == kv.Value, $"schema for {kv.Key} unchanged");
+			}
+		}
+
+		// ---- attack records (AttackRecords.cs): SAT's rules
+		{
+			AttackRecord Rec(bool low = false, bool high = false, bool labelled = true, bool heavy = false, bool wall = false, bool gas = false, bool jumpable = false) =>
+				AttackRecord.From(new AttackTraits { Name = "t", Low = low, High = high, Labelled = labelled, Heavy = heavy, Wall = wall, JumpOrSlide = gas, Jumpable = jumpable, Lanes = new[] { 1 } });
+			// A roll on the ground always has i-frames, except a dungeon wall or a wreck (unlabelled and heavy).
+			Check(Rec().Has(Counter.Roll) && Rec(low: true).Has(Counter.Roll) && Rec(heavy: true).Has(Counter.Roll) && Rec(labelled: false).Has(Counter.Roll)
+				&& Rec(wall: true).Has(Counter.Roll), "a roll gets past creatures, giants, logs and labelled walls");
+			Check(!Rec(labelled: false, heavy: true).Has(Counter.Roll), "a roll doesn't pass a dungeon wall or a wreck");
+			// Giants and heavy blows: parry only.
+			AttackRecord giant = Rec(heavy: true);
+			Check(giant.Has(Counter.Parry) && !giant.Has(Counter.Block), "giants can't be blocked, only parried");
+			Check(Rec().Has(Counter.Block) && Rec().Has(Counter.Parry), "an ordinary creature's blow can be blocked or parried");
+			Check(!Rec(labelled: false).Has(Counter.Parry) && !Rec(labelled: false).Has(Counter.Block), "logs and bare obstacles can't be blocked");
+			Check(!Rec(gas: true).Has(Counter.Parry) && Rec(gas: true).Has(Counter.Jump) && Rec(gas: true).Has(Counter.Roll), "gas: jump or roll through, no shield");
+			Check(Rec(low: true).Has(Counter.Jump) && !Rec(high: true).Has(Counter.Jump) && Rec(jumpable: true).Has(Counter.Jump), "jump what's low");
+			Check(Rec().Has(Counter.Dodge) && Rec(labelled: false, heavy: true).Has(Counter.Dodge), "every attack can be dodged by changing lane");
+			// Fair warning: 0.8 s.
+			AttackRecord w = Rec();
+			Check(!w.Warned(10f), "not warned until a warning showed");
+			w.NoteWarning(9.3f);
+			w.NoteWarning(9.9f);
+			Check(!w.Warned(10f) && w.Warned(10.1f) && AttackRecord.MinWarning == 0.8f, "warned once the first warning has shown 0.8 s");
+			Check(Rec(heavy: true).CounterText() == "dodge/roll/parry", $"counter text: {Rec(heavy: true).CounterText()}");
+		}
+
+		// ---- Journey marks (JourneyGoals.cs)
+		{
+			for (int b = 0; b < 8; b++)
+			{
+				Check(JourneyGoals.For(b) != null, $"biome {b} has a challenge");
+			}
+			Challenge rolls = JourneyGoals.For(0)!;
+			Check(!JourneyGoals.Met(rolls, new JourneyTally { Rolls = 2 }, 0) && JourneyGoals.Met(rolls, new JourneyTally { Rolls = 3 }, 0), "Meadows: three rolls through");
+			Challenge dungeon = JourneyGoals.For(1)!;
+			Check(!JourneyGoals.Met(dungeon, new JourneyTally { FromStart = true, SawDungeon = true }, 0), "a clean dungeon only counts once the travel is behind you");
+			Check(JourneyGoals.Met(dungeon, new JourneyTally { FromStart = true, SawDungeon = true, HitsTravel = 1 }, 1), "hits outside the dungeon don't spoil it");
+			Check(!JourneyGoals.Met(dungeon, new JourneyTally { FromStart = true, HitsTravel = 1 }, 1), "no dungeon: the whole travel stage");
+			Check(!JourneyGoals.Met(JourneyGoals.For(4)!, new JourneyTally { FromStart = false }, 3), "a crossing picked up at an island doesn't count as clean");
+			Check(!JourneyGoals.Met(JourneyGoals.For(6)!, new JourneyTally(), 2) && JourneyGoals.Met(JourneyGoals.For(6)!, new JourneyTally(), 3), "a clean boss counts on the win");
+			Check(JourneyGoals.LivesNeeded(3, 3) == 2 && JourneyGoals.LivesNeeded(1, 1) == 1 && JourneyGoals.LivesNeeded(3, 2) == 2, "a life to spare: Lives - 1");
+			var marks = JourneyGoals.Parse("0:0:7,1:0:3,bad,2:9:1");
+			Check(JourneyGoals.Of(marks, 0, 0) == 7 && JourneyGoals.Of(marks, 1, 0) == 3 && marks.Count == 2, "marks parse, junk skipped");
+			Check(JourneyGoals.Add(marks, 1, 0, 6) == 4 && JourneyGoals.Of(marks, 1, 0) == 7, "marks are kept once earned, only new ones reported");
+			Check(JourneyGoals.Format(JourneyGoals.Parse(JourneyGoals.Format(marks))) == JourneyGoals.Format(marks), "marks round-trip");
+			Check(JourneyGoals.StarsOpened(marks, 0, 1) && !JourneyGoals.StarsOpened(marks, 2, 1) && JourneyGoals.StarsOpened(marks, 2, 0), "all three marks open the next star");
+			Check(!JourneyGoals.StarsOpened(JourneyGoals.Parse("0:3:7"), 0, 4), "never past 3 stars");
+		}
+
+		// ---- screen layout (SurfLayout.cs)
+		{
+			foreach ((int w, int h) in new[] { (1920, 1080), (2560, 1440), (3840, 2160), (1280, 720), (1440, 1080), (2560, 1080), (3440, 1440), (1280, 1024) })
+			{
+				foreach (Region r in Layout.All)
+				{
+					Box b = Layout.Of(r, w, h);
+					Check(b.Inside(w, h) && b.W > 0 && b.H > 0, $"{r} on screen at {w}x{h}");
+				}
+				foreach ((Region a, Region b) in Layout.Together)
+				{
+					Check(!Layout.Of(a, w, h).Overlaps(Layout.Of(b, w, h)), $"{a} and {b} don't overlap at {w}x{h}");
+				}
+				Box panel = Layout.Of(Region.CrashPanel, w, h);
+				foreach (Region r in new[] { Region.CrashCause, Region.CrashSummary, Region.CrashKeys })
+				{
+					Box b = Layout.Of(r, w, h);
+					Check(b.X >= panel.X && b.Right <= panel.Right && b.Y >= panel.Y && b.Bottom <= panel.Bottom, $"{r} inside the crash panel at {w}x{h}");
+				}
+				Box win = Layout.Of(Region.WinPanel, w, h);
+				foreach (Region r in new[] { Region.WinTitle, Region.WinMarks, Region.WinHaul, Region.WinSummary, Region.WinKeys })
+				{
+					Box b = Layout.Of(r, w, h);
+					Check(b.X >= win.X && b.Right <= win.Right && b.Y >= win.Y && b.Bottom <= win.Bottom, $"{r} inside the win panel at {w}x{h}");
+				}
+			}
+			Check(Layout.FitSize(34, 500, 40, 600, 50, 12) == 34, "text that fits keeps its size");
+			Check(Layout.FitSize(34, 1200, 40, 600, 50, 12) == 17, "too wide: half the size");
+			Check(Layout.FitSize(34, 600, 200, 600, 50, 12) == 12, "never under the minimum");
+			Check(Layout.FitSize(34, 610, 40, 600, 50, 12) < 34, "a little too wide still shrinks");
+		}
+
+		Console.WriteLine(s_failed == 0 ? "All checks passed." : $"{s_failed} checks FAILED.");
+		return s_failed == 0 ? 0 : 1;
+	}
+
+	// Rows like the game's, but meaner: closer together and fuller.
+	private static List<(int lane, float from, float to, Need need)> RandomTrack(Random rng, out List<List<(int lane, float from, float to, Need need)>> rows)
+	{
+		List<(int lane, float from, float to, Need need)> all = new();
+		rows = new();
+		float z = 20f;
+		int count = 2 + rng.Next(4);
+		for (int r = 0; r < count; r++)
+		{
+			List<(int lane, float from, float to, Need need)> row = new();
+			int filled = 2 + rng.Next(2);
+			int skip = rng.Next(3);
+			for (int lane = 0; lane < 3; lane++)
+			{
+				if (filled < 3 && lane == skip && (filled == 2 || rng.Next(2) == 0))
+				{
+					continue;
+				}
+				if (filled == 1 && lane != (skip + 1) % 3)
+				{
+					continue;
+				}
+				double roll = rng.NextDouble();
+				Need need = roll < 0.3 ? Need.Jump : roll < 0.55 ? Need.Roll : roll < 0.62 ? Need.Either : Need.Wall;
+				float half = need == Need.Either ? 1.6f : need == Need.Roll && rng.Next(3) == 0 ? 1.6f : 0.35f;
+				float at = z + (float)rng.NextDouble() * 3f;
+				row.Add((lane, at - half, at + half, need));
+			}
+			rows.Add(row);
+			all.AddRange(row);
+			z += rng.Next(2) == 0 ? 1.5f + (float)rng.NextDouble() * 6f : 8f + (float)rng.NextDouble() * 22f;
+		}
+		return all;
+	}
+}
+
+// A player that obeys the game's limits (SurfGame.cs: gravity 32, jump 1.6 m, logs cleared above
+// 0.75 m, gas above 0.7 m, a roll lasts 0.8 s and can start again 1.25 s after the last began,
+// lane changes 0.18 s apart) and tries every sequence of moves.
+internal static class Player
+{
+	private const float Tick = 0.02f;
+
+	public static bool CanRun(List<(int lane, float from, float to, Need need)> slots, float speed)
+	{
+		float end = 0f;
+		foreach ((int _, float _, float to, Need _) in slots)
+		{
+			end = Math.Max(end, to);
+		}
+		end += 3f;
+		float v = (float)Math.Sqrt(2f * 32f * 1.6f);
+		int jumpTicks = (int)Math.Ceiling(2f * v / 32f / Tick);
+		int rollTicks = (int)(0.8f / Tick);
+		int againTicks = (int)Math.Ceiling(1.25f / Tick);
+		int switchTicks = (int)Math.Ceiling(0.18f / Tick);
+		// State: lane, ticks into the jump (0 = on the ground), ticks since the roll began
+		// (againTicks = free to roll), ticks until the next lane change.
+		HashSet<int> now = new();
+		for (int lane = 0; lane < 3; lane++)
+		{
+			now.Add(Pack(lane, 0, againTicks, 0));
+		}
+		int steps = (int)Math.Ceiling(end / (speed * Tick));
+		for (int i = 1; i <= steps && now.Count > 0; i++)
+		{
+			float z = i * speed * Tick;
+			HashSet<int> then = new();
+			foreach (int s in now)
+			{
+				Unpack(s, out int lane, out int jump, out int roll, out int sw);
+				for (int d = -1; d <= 1; d++)
+				{
+					int nl = lane + d;
+					if (nl < 0 || nl > 2 || (d != 0 && sw > 0))
+					{
+						continue;
+					}
+					int nsw = d != 0 ? switchTicks : Math.Max(0, sw - 1);
+					// 0 = carry on, 1 = jump, 2 = roll.
+					for (int move = 0; move < 3; move++)
+					{
+						int nj = jump > 0 ? jump + 1 : 0;
+						if (nj > jumpTicks)
+						{
+							nj = 0;
+						}
+						int nr = Math.Min(againTicks, roll + 1);
+						if (move == 1)
+						{
+							if (jump > 0)
+							{
+								continue;
+							}
+							nj = 1;
+							// A jump ends the roll (its cooldown runs on).
+							if (nr < rollTicks)
+							{
+								nr = rollTicks;
+							}
+						}
+						else if (move == 2)
+						{
+							if (jump > 0 || roll < againTicks)
+							{
+								continue;
+							}
+							nr = 0;
+						}
+						float t = nj * Tick;
+						float y = nj > 0 ? v * t - 16f * t * t : 0f;
+						bool rolling = nr < rollTicks && nj == 0;
+						bool hit = false;
+						foreach ((int sl, float from, float to, Need need) in slots)
+						{
+							if (sl != nl || z < from || z > to)
+							{
+								continue;
+							}
+							if (need == Need.Wall
+								|| (need == Need.Jump && y <= 0.75f)
+								|| (need == Need.Roll && !rolling)
+								|| (need == Need.Either && y <= 0.7f && !rolling))
+							{
+								hit = true;
+								break;
+							}
+						}
+						if (!hit)
+						{
+							then.Add(Pack(nl, nj, nr, nsw));
+						}
+					}
+				}
+			}
+			now = then;
+		}
+		return now.Count > 0;
+	}
+
+	private static int Pack(int lane, int jump, int roll, int sw) => lane | (jump << 2) | (roll << 10) | (sw << 18);
+
+	private static void Unpack(int s, out int lane, out int jump, out int roll, out int sw)
+	{
+		lane = s & 3;
+		jump = (s >> 2) & 255;
+		roll = (s >> 10) & 255;
+		sw = (s >> 18) & 255;
+	}
+}
