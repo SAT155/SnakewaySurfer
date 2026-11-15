@@ -33,6 +33,8 @@ internal sealed partial class SurfGame
 	private const float MenuCloseTime = 0.85f;
 
 	private GUIStyle? m_midLine;
+	// 1.17: the marks held on each Journey, for its button.
+	private Dictionary<(int biome, int stars), int> m_menuMarks = new();
 
 	private void EnterMenu()
 	{
@@ -46,11 +48,20 @@ internal sealed partial class SurfGame
 		m_menuSeaCol = Crossing && allowed > SeaTo && !journeys ? SeaTo : -1;
 		if (journeys)
 		{
-			// Every opened biome, at no stars at least (step 3 brings marks for the star levels).
+			// Every opened biome at each star level its marks open (all three marks one star below),
+			// and wherever a checkpoint already reached.
 			for (int b = 0; b < allowed; b++)
 			{
-				m_unlocked.Add((b, 0));
+				for (int s = 0; s <= JourneyGoals.MaxStars; s++)
+				{
+					if (Progress.JourneyOpen(m_player, b, s, allowed))
+					{
+						m_unlocked.Add((b, s));
+						maxStars = Mathf.Max(maxStars, s);
+					}
+				}
 			}
+			m_menuMarks = Progress.Marks(m_player);
 		}
 		foreach ((int b, int s) in Progress.Checkpoints(m_player))
 		{
@@ -520,6 +531,16 @@ internal sealed partial class SurfGame
 		for (int i = 0; i < stars; i++)
 		{
 			Star(new Vector2(r.x + 18 * k + i * 22 * k, r.y + 18 * k), 18 * k, open ? new Color(1f, 0.82f, 0.2f) : new Color(0.4f, 0.4f, 0.4f));
+		}
+		if (open && JourneyWanted)
+		{
+			// The Journey's three marks, bottom right.
+			int marks = JourneyGoals.Of(m_menuMarks, biome, stars);
+			float size = 12f * k;
+			for (int i = 0; i < 3; i++)
+			{
+				Rune(new Vector2(r.xMax - 14 * k - (2 - i) * 20 * k, r.yMax - 14 * k), size, (marks & (1 << i)) != 0, true, 0f, k);
+			}
 		}
 	}
 

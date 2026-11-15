@@ -24,6 +24,17 @@ internal sealed partial class SurfGame
 	private float m_journeyWinIn = -1f;
 
 	private static readonly string[] s_stageNames = { "Travel", "Hunt", "Boss" };
+	private static readonly string[] s_markNames = { "finish", "challenge", "a life to spare" };
+
+	// 1.17 (step 3): the three marks (JourneyGoals.cs). Held: on this Journey from any run;
+	// run: earned in this run; new: earned for the first time in this run.
+	private JourneyTally m_tally;
+	private Challenge? m_challenge;
+	private int m_marksHeld;
+	private int m_marksRun;
+	private int m_marksNew;
+	private readonly float[] m_markFlash = new float[3];
+	private bool m_challengeSaid;
 
 	private bool JourneyWanted => Plugin.Mode.Value == RunMode.Journey && !Touring;
 
@@ -35,6 +46,14 @@ internal sealed partial class SurfGame
 		m_journeyStars = stars;
 		m_journeyStage = -1;
 		m_journeyWinIn = -1f;
+		// (Still set here: ApplyResume, right after the stretches are laid out, clears it.)
+		m_tally = new JourneyTally { FromStart = !m_resumeNext };
+		m_challenge = JourneyGoals.For(biome);
+		m_marksHeld = m_player != null ? JourneyGoals.Of(Progress.Marks(m_player), biome, stars) : 0;
+		m_marksRun = 0;
+		m_marksNew = 0;
+		System.Array.Clear(m_markFlash, 0, m_markFlash.Length);
+		m_challengeSaid = false;
 	}
 
 	// Metres one stage takes at the speed you'd run there (StartSpeed + SpeedPerBiome per biome
@@ -86,6 +105,21 @@ internal sealed partial class SurfGame
 				Plugin.Log.LogInfo($"Journey: {JourneyName()} {m_journeyStars}* stage {s_stageNames[stage]} at z={m_z:0} ({m_runTime:0} s).");
 			}
 		}
+		if (!m_challengeSaid && m_challenge != null)
+		{
+			// Hugin names the trial as the Journey starts.
+			m_challengeSaid = true;
+			RavenSay(m_challenge.Hugin, 6f);
+		}
+		if (InCrypt(m_z))
+		{
+			m_tally.SawDungeon = true;
+		}
+		for (int i = 0; i < 3; i++)
+		{
+			m_markFlash[i] = Mathf.MoveTowards(m_markFlash[i], 0f, dt * 1.2f);
+		}
+		CheckChallenge(stage == 3 ? 2 : stage);
 		// With no boss to fight (Boss Fights off), the Journey ends where the hunt would.
 		if (stage == 3 && m_journeyWinIn < 0f && !m_segments.Exists(x => x.Boss))
 		{
@@ -123,6 +157,17 @@ internal sealed partial class SurfGame
 		m_banner = "";
 		m_bannerTime = 0f;
 		m_hint = "";
+		int earned = JourneyGoals.Finish;
+		if (m_challenge != null && JourneyGoals.Met(m_challenge, m_tally, 3))
+		{
+			earned |= JourneyGoals.ChallengeMark;
+		}
+		if (m_lives >= JourneyGoals.LivesNeeded(Plugin.Lives.Value, Plugin.StartLives))
+		{
+			earned |= JourneyGoals.Life;
+		}
+		EarnMarks(earned);
+		Plugin.Log.LogInfo($"Journey marks held on {JourneyName()} {m_journeyStars}*: {MarkList(m_marksHeld)} (new this run: {MarkList(m_marksNew)}).");
 		GrantRunRewards();
 		m_audio.Play(Sfx.Biome, 1f, 1.2f);
 		Flash(new Color(1f, 0.85f, 0.45f), 0.35f);
@@ -134,7 +179,117 @@ internal sealed partial class SurfGame
 	{
 		biome = m_journeyBiome + 1;
 		sea = Crossing && biome == SeaTo;
-		return biome < LapBiomesNow();
+		int allowed = LapBiomesNow();
+		return biome < allowed && (m_player == null || Progress.JourneyOpen(m_player, biome, m_journeyStars, allowed));
+	}
+
+	// ---------------------------------------------------------------- marks
+
+	private void CheckChallenge(int stagesDone)
+	{
+		if (m_challenge != null && (m_marksRun & JourneyGoals.ChallengeMark) == 0 && JourneyGoals.Met(m_challenge, m_tally, stagesDone))
+		{
+			EarnMarks(JourneyGoals.ChallengeMark);
+		}
+	}
+
+	// Earned in this run: saved at once, the rune fills with a chime and a flash.
+	private void EarnMarks(int bits)
+	{
+		bits &= ~m_marksRun;
+		if (bits == 0 || m_player == null)
+		{
+			return;
+		}
+		int fresh = Progress.AddMarks(m_player, m_journeyBiome, m_journeyStars, bits);
+		bool opened = (m_marksHeld | bits) == JourneyGoals.AllMarks && m_marksHeld != JourneyGoals.AllMarks && m_journeyStars < JourneyGoals.MaxStars;
+		m_marksRun |= bits;
+		m_marksHeld |= bits;
+		m_marksNew |= fresh;
+		for (int i = 0; i < 3; i++)
+		{
+			if ((bits & (1 << i)) != 0)
+			{
+				m_markFlash[i] = 1f;
+				string what = i == 1 && m_challenge != null ? $"challenge ({m_challenge.Short})" : s_markNames[i];
+				Plugin.Log.LogInfo($"Journey mark: {JourneyName()} {m_journeyStars}* {what}{((fresh & (1 << i)) == 0 ? " (already held)" : "")}.");
+			}
+		}
+		m_audio.Play("sfx_runestone_activate|sfx_gui_select", 0.7f, 1.35f);
+		Flash(new Color(1f, 0.85f, 0.4f), 0.2f);
+		if (opened)
+		{
+			Plugin.Log.LogInfo($"Journey: all three marks on {JourneyName()} {m_journeyStars}*: {Progress.Describe(m_journeyBiome, m_journeyStars + 1)} is open.");
+		}
+	}
+
+	private string MarkList(int mask)
+	{
+		System.Collections.Generic.List<string> names = new();
+		for (int i = 0; i < 3; i++)
+		{
+			if ((mask & (1 << i)) != 0)
+			{
+				names.Add(i == 1 && m_challenge != null ? m_challenge.Short : s_markNames[i]);
+			}
+		}
+		return names.Count == 0 ? "none" : string.Join(", ", names);
+	}
+
+	// Counting for the challenges (called from the places the run already handles these).
+	private void NoteJourneyRoll() => m_tally.Rolls++;
+
+	private void NoteJourneyBlock() => m_tally.Blocks++;
+
+	private void NoteJourneyParry()
+	{
+		m_tally.Parries++;
+		if (m_journeyStage == 2 && m_boss != null)
+		{
+			m_tally.BossParries++;
+		}
+	}
+
+	private void NoteJourneyHit()
+	{
+		switch (m_journeyStage)
+		{
+			case 0:
+				m_tally.HitsTravel++;
+				if (InCrypt(m_z))
+				{
+					m_tally.HitsDungeon++;
+				}
+				break;
+			case 1:
+				m_tally.HitsHunt++;
+				break;
+			case 2:
+				m_tally.HitsBoss++;
+				break;
+		}
+	}
+
+	// A rune: a diamond, filled gold when held (bright when earned this run), a dark outline when
+	// not, with a ring of light while it's just been earned.
+	private static void Rune(Vector2 c, float size, bool held, bool bright, float flash, float k)
+	{
+		Matrix4x4 m = GUI.matrix;
+		GUIUtility.RotateAroundPivot(45f, c);
+		float h = size * 0.5f;
+		if (flash > 0f)
+		{
+			float g = h + (4f + 10f * (1f - flash)) * k;
+			Fill(new Rect(c.x - g, c.y - g, g * 2f, g * 2f), new Color(1f, 0.9f, 0.5f, 0.45f * flash));
+		}
+		Fill(new Rect(c.x - h - 2f * k, c.y - h - 2f * k, size + 4f * k, size + 4f * k), new Color(0f, 0f, 0f, 0.6f));
+		Fill(new Rect(c.x - h, c.y - h, size, size), held ? (bright ? new Color(1f, 0.82f, 0.25f, 1f) : new Color(0.75f, 0.62f, 0.3f, 0.75f)) : new Color(0.5f, 0.5f, 0.55f, 0.9f));
+		if (!held)
+		{
+			float i = h - 2.5f * k;
+			Fill(new Rect(c.x - i, c.y - i, i * 2f, i * 2f), new Color(0.08f, 0.08f, 0.1f, 0.85f));
+		}
+		GUI.matrix = m;
 	}
 
 	private void StartJourney(int biome, int stars) => StartFrom(biome, stars, Crossing && biome == SeaTo);
@@ -172,7 +327,10 @@ internal sealed partial class SurfGame
 		float pip = 14f * k;
 		float gap = 10f * k;
 		float pipsW = 3f * pip + 2f * gap;
-		Rect label = new Rect(box.x, box.y, box.width - pipsW - 16f * k, box.height);
+		float rune = 16f * k;
+		float runeGap = 12f * k;
+		float runesW = 3f * rune + 2f * runeGap + 22f * k;
+		Rect label = new Rect(box.x, box.y, box.width - pipsW - runesW - 16f * k, box.height);
 		m_stageStyle ??= new GUIStyle(m_small!) { alignment = TextAnchor.MiddleRight, wordWrap = false };
 		m_stageStyle.fontSize = m_small!.fontSize;
 		string stars = m_journeyStars > 0 ? $" {m_journeyStars}*" : "";
@@ -197,9 +355,45 @@ internal sealed partial class SurfGame
 				Fill(r, new Color(0.45f, 0.45f, 0.5f, 0.5f));
 			}
 		}
+		// The three marks after the pips.
+		float rx = x + pipsW + 22f * k + rune * 0.5f;
+		for (int i = 0; i < 3; i++)
+		{
+			int bit = 1 << i;
+			Rune(new Vector2(rx + i * (rune + runeGap), box.y + box.height * 0.5f), rune, (m_marksHeld & bit) != 0, (m_marksRun & bit) != 0, m_markFlash[i], k);
+		}
 	}
 
 	private GUIStyle? m_stageStyle;
+	private GUIStyle? m_markStyle;
+
+	// The three marks in a row, each with its name; new ones glow and breathe.
+	private void WinMarksGui()
+	{
+		Rect box = RectOf(Region.WinMarks);
+		float k = Screen.height / 1080f;
+		float slot = box.width / 3f;
+		float size = Mathf.Min(26f * k, box.height * 0.6f);
+		m_markStyle ??= new GUIStyle(m_small!) { alignment = TextAnchor.MiddleLeft, wordWrap = false, clipping = TextClipping.Clip };
+		m_markStyle.fontSize = m_small!.fontSize;
+		for (int i = 0; i < 3; i++)
+		{
+			int bit = 1 << i;
+			bool held = (m_marksHeld & bit) != 0;
+			bool fresh = (m_marksNew & bit) != 0;
+			float glow = fresh ? 0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * 3f + i) : 0f;
+			float x = box.x + slot * i + size;
+			if (Event.current.type == EventType.Repaint)
+			{
+				Rune(new Vector2(x, box.y + box.height * 0.5f), size, held, held, glow, k);
+			}
+			string name = i == 1 && m_challenge != null ? m_challenge.Short : s_markNames[i];
+			Color old = m_markStyle.normal.textColor;
+			m_markStyle.normal.textColor = held ? (fresh ? new Color(1f, 0.85f, 0.35f) : Color.white) : new Color(0.6f, 0.6f, 0.6f);
+			Shadowed(new Rect(x + size, box.y, slot - size * 2f, box.height), name, m_markStyle);
+			m_markStyle.normal.textColor = old;
+		}
+	}
 
 	private void WonGui()
 	{
@@ -212,6 +406,7 @@ internal sealed partial class SurfGame
 		try
 		{
 			FitShadowed(Region.WinTitle, $"{Progress.Describe(m_journeyBiome, m_journeyStars)}: Journey complete!", m_mid!);
+			WinMarksGui();
 			int secs = Mathf.RoundToInt(m_wonTime);
 			FitShadowed(Region.WinSummary, $"{secs / 60}:{secs % 60:00}     {m_coins} coins     {m_lives} {(m_lives == 1 ? "life" : "lives")} left\n\n{m_rewardText}", m_mid!);
 		}

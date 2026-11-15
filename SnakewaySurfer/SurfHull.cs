@@ -63,6 +63,8 @@ internal sealed partial class SurfGame
 		}
 		t.Collidable = false;
 		m_hullGrace = 1.1f;
+		// (A blow to the ship counts as a hit for a Journey's challenge.)
+		NoteJourneyHit();
 		m_hullFlash = 1f;
 		m_hull = Mathf.Max(0f, m_hull - (t.Heavy ? 2f : 1f));
 		m_shake = Mathf.Max(m_shake, 0.35f);

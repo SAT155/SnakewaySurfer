@@ -41,6 +41,8 @@ internal enum Region
 	// A Journey's win screen: its panel, and the title, summary and keys inside it.
 	WinPanel,
 	WinTitle,
+	// The three Journey marks, under the title.
+	WinMarks,
 	WinSummary,
 	WinKeys,
 }
@@ -78,6 +80,7 @@ internal static class Layout
 		(Region.CrashCause, Region.CrashSummary), (Region.CrashSummary, Region.CrashKeys), (Region.CrashCause, Region.CrashKeys),
 		(Region.Stage, Region.Stats), (Region.Stage, Region.Hugin), (Region.Stage, Region.Banner), (Region.Stage, Region.Hint),
 		(Region.WinTitle, Region.WinSummary), (Region.WinSummary, Region.WinKeys), (Region.WinTitle, Region.WinKeys),
+		(Region.WinTitle, Region.WinMarks), (Region.WinMarks, Region.WinSummary), (Region.WinMarks, Region.WinKeys),
 	};
 
 	public static Box Of(Region r, float w, float h)
@@ -128,8 +131,14 @@ internal static class Layout
 				return Of(Region.CrashPanel, w, h);
 			case Region.WinTitle:
 				return Of(Region.CrashCause, w, h);
+			case Region.WinMarks:
+				// (The top of the crash summary's box.)
+				return new Box(w * 0.1f, h * 0.32f, w * 0.8f, 50 * k);
 			case Region.WinSummary:
-				return Of(Region.CrashSummary, w, h);
+			{
+				Box s = Of(Region.CrashSummary, w, h);
+				return new Box(s.X, s.Y + 56 * k, s.W, s.H - 56 * k);
+			}
 			case Region.WinKeys:
 				return Of(Region.CrashKeys, w, h);
 			default:
