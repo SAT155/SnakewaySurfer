@@ -365,7 +365,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			BossDef? gate = Progress.BossOf(allowed - 1);
 			if (allowed < lap && gate != null)
 			{
-				terminal.AddString($"surfsup: this world's run reaches the {Biomes.Defaults[allowed - 1].Name}; defeat {gate.Name} in the world to go further.");
+				terminal.AddString($"surfsup: your run reaches the {Biomes.Defaults[allowed - 1].Name}; defeat {gate.Name} in the dream to go further.");
 			}
 		}
 

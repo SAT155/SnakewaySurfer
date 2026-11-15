@@ -73,7 +73,6 @@ internal sealed partial class SurfGame
 	private const int BossHitsNeeded = 3;
 
 	private float m_lastLandmarkZ = -999f;
-	private int m_furthestBoss = -1;
 	private readonly Dictionary<string, bool> m_bossFound = new();
 	// 1 = just moved on and still under the ground, rising to 0.
 	private float m_bossRise;
@@ -83,10 +82,9 @@ internal sealed partial class SurfGame
 	private void ResetSegments()
 	{
 		m_segments.Clear();
-		// Read once per run: the world's keys don't change while you surf.
-		m_furthestBoss = Plugin.IgnoreBossGate.Value ? Progress.Bosses.Length - 1 : Progress.FurthestBoss();
-		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
-		m_lapBiomes = Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
+		// Read at the start of a run, and again when a boss is beaten in the dream.
+		m_lapBiomes = LapBiomesNow();
+		Plugin.Log.LogInfo($"Dream progress: bosses beaten {Progress.DreamSummary()}; this run reaches the {Biomes.Defaults[Mathf.Clamp(m_lapBiomes - 1, 0, Biomes.Defaults.Length - 1)].Name}{(Plugin.IgnoreBossGate.Value ? " (Ignore Boss Gate on)" : "")}.");
 		int biome = Mathf.Clamp(m_startBiome, 0, m_lapBiomes - 1);
 		int stars = Plugin.LoopBiomes.Value <= 0 ? 0 : m_startStars;
 		// A start past the Mountains begins with the crossing, until you've made it this lap
@@ -105,6 +103,12 @@ internal sealed partial class SurfGame
 		EndBoss();
 	}
 
+	private int LapBiomesNow()
+	{
+		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
+		return Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
+	}
+
 	private Segment NewSegment(float start, int biome, int stars, bool boss, bool repeat)
 	{
 		Segment s = new Segment { Start = start, Biome = biome, Stars = stars, Boss = boss, Repeat = repeat };
@@ -120,7 +124,9 @@ internal sealed partial class SurfGame
 			return null;
 		}
 		BossDef? boss = Progress.BossOf(s.Biome);
-		if (boss == null || s.Biome > m_furthestBoss)
+		// 1.17: every biome you can reach ends with its boss, the last one included: beating it
+		// in the dream is what opens the next biome.
+		if (boss == null || s.Biome >= m_lapBiomes)
 		{
 			return null;
 		}
@@ -1532,6 +1538,14 @@ internal sealed partial class SurfGame
 		// Beaten: a checkpoint for what comes next, and a breather.
 		Segment seg = m_bossSeg!;
 		seg.Beaten = true;
+		// 1.17: the dream remembers: the next biome opens for this character in every world.
+		int bossIndex = System.Array.IndexOf(Progress.Bosses, def);
+		if (!seg.Rush && bossIndex >= 0 && m_player != null && Progress.SaveDreamBoss(m_player, bossIndex))
+		{
+			int before = m_lapBiomes;
+			m_lapBiomes = Mathf.Max(m_lapBiomes, LapBiomesNow());
+			Plugin.Log.LogInfo($"Dream progress: first win over {def.Name}; runs now reach the {Biomes.Defaults[Mathf.Clamp(m_lapBiomes - 1, 0, Biomes.Defaults.Length - 1)].Name} (was {before} biome(s)).");
+		}
 		Segment next = Following(seg);
 		m_bonusDistance += Plugin.BiomeLength.Value * 0.5f;
 		if (seg.Rush)
