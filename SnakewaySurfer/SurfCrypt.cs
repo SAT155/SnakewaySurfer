@@ -261,11 +261,13 @@ internal sealed partial class SurfGame
 			}
 			s.CryptChecked = true;
 			CryptTheme? theme = s.Biome < m_biomes.Count ? ThemeFor(m_biomes[s.Biome].Def.Name) : null;
-			if (s.Boss || s.Sea || s.Shore || s.Rush || theme == null)
+			// (1.17: not in a Journey's breather after its boss.)
+			if (s.Boss || s.Sea || s.Shore || s.Rush || theme == null || (m_journey && s.Repeat))
 			{
 				continue;
 			}
-			float len = Plugin.BiomeLength.Value;
+			// (A Journey: the dungeon is its travel stage, so it's sized to that.)
+			float len = m_journey ? s.Travel * 0.8f : Plugin.BiomeLength.Value;
 			// 1.16.109 (SAT: dungeons too short): about twice as long; a biome with a boss waits for
 			// its dungeon (its items only come after it), so it may run past the biome's usual end.
 			float length = Mathf.Clamp(Mathf.Round(len * 0.9f / GroundTile) * GroundTile, theme.MinLength * 1.8f, theme.MaxLength * 1.8f);

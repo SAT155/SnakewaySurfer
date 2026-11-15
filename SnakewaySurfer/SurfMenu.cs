@@ -40,7 +40,18 @@ internal sealed partial class SurfGame
 		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
 		int allowed = Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
 		int maxStars = 0;
-		m_menuSeaCol = Crossing && allowed > SeaTo ? SeaTo : -1;
+		// 1.17: in Journey mode each button is a Journey (a biome at a star level); the Plains one
+		// starts with its crossing, so the Ocean has no button of its own.
+		bool journeys = JourneyWanted;
+		m_menuSeaCol = Crossing && allowed > SeaTo && !journeys ? SeaTo : -1;
+		if (journeys)
+		{
+			// Every opened biome, at no stars at least (step 3 brings marks for the star levels).
+			for (int b = 0; b < allowed; b++)
+			{
+				m_unlocked.Add((b, 0));
+			}
+		}
 		foreach ((int b, int s) in Progress.Checkpoints(m_player))
 		{
 			if (b < allowed)
@@ -99,7 +110,7 @@ internal sealed partial class SurfGame
 				n++;
 			}
 		}
-		return Plugin.StartMenu.Value && n > 1;
+		return Plugin.StartMenu.Value && (n > 1 || (JourneyWanted && allowed > 1));
 	}
 
 	private void UpdateMenu(bool canInput)

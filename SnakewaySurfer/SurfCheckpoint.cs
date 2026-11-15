@@ -122,7 +122,8 @@ internal sealed partial class SurfGame
 		if (StoneStretch(here) && !m_halfPlanned.Contains(here))
 		{
 			// 1.16.109 (SAT): a biome's dungeon exit is its checkpoint, when it has one.
-			float half = !float.IsNaN(CryptExitFor(here)) ? CryptExitFor(here) + 12f : here.Start + Plugin.BiomeLength.Value * 0.5f;
+			// (1.17: in a Journey, where its travel stage ends: SurfJourney.cs.)
+			float half = HalfZ(here);
 			if (half < m_z + 15f || here.End < half + 20f)
 			{
 				m_halfPlanned.Add(here);

@@ -37,6 +37,12 @@ internal sealed partial class SurfGame
 		// 1.16.10: whether this stretch has had its chance of a trader (SurfTraders.cs).
 		public bool TraderChecked;
 
+		// 1.17: metres of the stretch (Endless: Biome Length), and of its Journey stages: travel to
+		// the halfway stone, then the hunt for the summoning items (SurfJourney.cs).
+		public float Length = Plugin.BiomeLength.Value;
+		public float Travel = Plugin.BiomeLength.Value * 0.5f;
+		public float Hunt = Plugin.BiomeLength.Value * 0.5f;
+
 		public float Level => Biome + 1.5f * Stars;
 	}
 
@@ -91,6 +97,13 @@ internal sealed partial class SurfGame
 		// (or picked the Ocean).
 		// The self-test picks its stops itself: only its crossing stop starts at sea.
 		bool sea = Crossing && biome == SeaTo && (m_startSea || (!Touring && (m_player == null || !Progress.Landed(m_player, stars, SeaTo))));
+		// 1.17: a Plains Journey always starts with its crossing (the travel stage), unless it picks
+		// up from a stone on land.
+		ResetJourney(biome, stars);
+		if (m_journey && Crossing && biome == SeaTo && !(m_resumeNext && m_player != null && Progress.Resume(m_player, out int rb, out _, out bool rsea, out _, out _) && rb == SeaTo && !rsea))
+		{
+			sea = true;
+		}
 		Segment first = sea ? ShoreSegment(stars) : NewSegment(0f, biome, stars, false, false);
 		first.PrevBiome = first.Biome;
 		first.PrevLevel = first.Level;
@@ -112,8 +125,13 @@ internal sealed partial class SurfGame
 	private Segment NewSegment(float start, int biome, int stars, bool boss, bool repeat)
 	{
 		Segment s = new Segment { Start = start, Biome = biome, Stars = stars, Boss = boss, Repeat = repeat };
+		if (m_journey && !boss)
+		{
+			s.Travel = s.Hunt = JourneyStageLength(biome, stars);
+			s.Length = s.Travel + s.Hunt;
+		}
 		// A biome with a boss ahead stays open until you have the summoning items.
-		s.End = boss || BossFor(s) != null ? float.MaxValue : start + Plugin.BiomeLength.Value;
+		s.End = boss || BossFor(s) != null ? float.MaxValue : start + s.Length;
 		return s;
 	}
 
@@ -138,8 +156,19 @@ internal sealed partial class SurfGame
 		return found ? boss : null;
 	}
 
-	// Pure: also used to look ahead (the checkpoint after a boss), so it must not change state.
+	// What the track lays after a stretch. In a Journey, after its boss (or, with no boss, after
+	// the hunt) comes a quiet stretch of the same biome to breathe in before the win screen.
 	private Segment Following(Segment s)
+	{
+		if (m_journey && !s.Rush && !s.Sea && !s.Shore && (s.Boss || s.Repeat || BossFor(s) == null))
+		{
+			return NewSegment(s.End, s.Biome, s.Stars, false, true);
+		}
+		return FollowingRun(s);
+	}
+
+	// Pure: also used to look ahead (the checkpoint after a boss), so it must not change state.
+	private Segment FollowingRun(Segment s)
 	{
 		if (s.Rush)
 		{
@@ -226,6 +255,16 @@ internal sealed partial class SurfGame
 				// A new land over the water: no blend with the one left behind.
 				next.PrevBiome = next.Biome;
 				next.PrevLevel = next.Level;
+				if (m_journey)
+				{
+					// The crossing was the Journey's travel: landfall starts the hunt.
+					next.Travel = 0f;
+					next.Length = next.Hunt;
+					if (next.End != float.MaxValue)
+					{
+						next.End = next.Start + next.Length;
+					}
+				}
 			}
 			m_segments.Add(next);
 		}
@@ -245,7 +284,7 @@ internal sealed partial class SurfGame
 		Segment s = SegAt(z);
 		// The rush counts as past the whole 3-star lap.
 		float ordinal = s.Rush ? (s.Stars + 1) * Mathf.Max(1, m_lapBiomes) : s.Stars * Mathf.Max(1, m_lapBiomes) + s.Biome;
-		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / Plugin.BiomeLength.Value);
+		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / s.Length);
 		return ordinal + frac;
 	}
 
@@ -254,7 +293,7 @@ internal sealed partial class SurfGame
 	private float SpeedProgressAt(float z)
 	{
 		Segment s = SegAt(z);
-		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / Plugin.BiomeLength.Value);
+		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / s.Length);
 		return s.Rush ? Mathf.Max(1, m_lapBiomes) + 3f : s.Biome + frac + s.Stars;
 	}
 
@@ -309,17 +348,18 @@ internal sealed partial class SurfGame
 				m_itemSeg = here;
 				m_items = 0;
 				// A good stretch of the biome first, then the items start turning up.
-				m_nextItemZ = Mathf.Max(m_nextItemZ, Mathf.Max(m_z + 30f, here.Start + Plugin.BiomeLength.Value * 0.45f));
+				// (A Journey: from the halfway stone on, the hunt.)
+				m_nextItemZ = Mathf.Max(m_nextItemZ, Mathf.Max(m_z + 30f, m_journey ? HalfZ(here) : here.Start + Plugin.BiomeLength.Value * 0.45f));
 			}
 			if (m_items >= boss.Amount)
 			{
 				// 1.16.19: far enough on that the track already built doesn't vanish in plain view.
-				CloseSegment(here, Mathf.Max(here.Start + Plugin.BiomeLength.Value, m_z + Mathf.Max(55f, AheadDistance * 0.5f)));
+				CloseSegment(here, Mathf.Max(m_journey ? HalfZ(here) : here.Start + Plugin.BiomeLength.Value, m_z + Mathf.Max(55f, AheadDistance * 0.5f)));
 				m_banner = $"{boss.Name} approaches!";
 				m_bannerTime = 2.5f;
 				m_audio.Play(Sfx.Biome, 1f, 0.7f);
 			}
-			else if (m_z > here.Start + Plugin.BiomeLength.Value && !(m_z < CryptExitFor(here) + 10f))
+			else if (m_z > HuntEnd(here) && !(m_z < CryptExitFor(here) + 10f))
 			{
 				m_itemNagTime -= dt;
 				if (m_itemNagTime <= 0f)
@@ -353,7 +393,7 @@ internal sealed partial class SurfGame
 		if (boss != null && m_itemStartSeg != s)
 		{
 			m_itemStartSeg = s;
-			m_itemStartZ = s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
+			m_itemStartZ = m_journey ? HalfZ(s) : s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
 		}
 		// 1.16.109 (SAT): with a dungeon in the biome, not before you're out the far end of it.
 		if (boss != null && !float.IsNaN(CryptExitFor(s)) && z < CryptExitFor(s) + 10f)
@@ -373,7 +413,12 @@ internal sealed partial class SurfGame
 		// 1.16.1 (SAT): the fewer a boss needs, the rarer each one is (two deer trophies are far
 		// apart; ten withered bones come as before).
 		float spacing = Mathf.Max(16f, Plugin.BiomeLength.Value / (boss.Amount * 1.7f)) * Mathf.Clamp(6f / Mathf.Max(1, boss.Amount), 1f, 3f);
-		if (z > s.Start + Plugin.BiomeLength.Value)
+		if (m_journey)
+		{
+			// A Journey's items all come within its hunt (with some left over for misses).
+			spacing = Mathf.Max(16f, s.Hunt * 0.7f / Mathf.Max(1, boss.Amount));
+		}
+		if (z > HuntEnd(s))
 		{
 			spacing *= 0.5f;
 		}
@@ -1546,7 +1591,7 @@ internal sealed partial class SurfGame
 			m_lapBiomes = Mathf.Max(m_lapBiomes, LapBiomesNow());
 			Plugin.Log.LogInfo($"Dream progress: first win over {def.Name}; runs now reach the {Biomes.Defaults[Mathf.Clamp(m_lapBiomes - 1, 0, Biomes.Defaults.Length - 1)].Name} (was {before} biome(s)).");
 		}
-		Segment next = Following(seg);
+		Segment next = FollowingRun(seg);
 		m_bonusDistance += Plugin.BiomeLength.Value * 0.5f;
 		if (seg.Rush)
 		{
@@ -1568,9 +1613,17 @@ internal sealed partial class SurfGame
 			// Beating Moder saves the crossing: a start there begins on the coast.
 			Progress.SaveCheckpoint(m_player, next.Sea ? SeaTo : next.Biome, next.Stars);
 			ClearResumePoint();
-			CampAfterBoss(seg, next, def);
+			if (m_journey)
+			{
+				// The Journey is won: a breather on the same ground, then the win screen.
+				JourneyBossBeaten();
+			}
+			else
+			{
+				CampAfterBoss(seg, next, def);
+			}
 			m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Sea ? SeaTo : next.Biome, next.Stars, next.Sea)}";
-			if (next.Rush)
+			if (next.Rush && !m_journey)
 			{
 				m_banner += "\nBut first... the boss rush!";
 			}
@@ -1589,7 +1642,7 @@ internal sealed partial class SurfGame
 		}
 		DestroySchemaLobs();
 		ClearChase();
-		if (next.Sea)
+		if (next.Sea && !m_journey)
 		{
 			// The coast: far enough on for the beach to slope down to the ship.
 			CloseSegment(seg, m_z + Mathf.Max(110f, AheadDistance * 0.6f));
