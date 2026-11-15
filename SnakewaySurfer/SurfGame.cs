@@ -1091,6 +1091,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 			{
 				foreach (SpawnEntry extra in SpawnTables.Parse(def.Locations, missing))
 				{
+					// (Only what the biome's content table lists, as for the spawn tables.)
+					if (!(BiomeContents.For(def.Name)?.IsNative(extra.Prefab.name) ?? true))
+					{
+						Plugin.Log.LogInfo($"{def.Name}: location monster {extra.Prefab.name} is not in its content table, left out.");
+						continue;
+					}
 					SpawnEntry? same = table.Find(e => e.Prefab == extra.Prefab);
 					if (same != null)
 					{
@@ -3358,6 +3364,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 	// What stars change in how a creature moves (SAT's notes): from 1 star some necks, draugr
 	// and the like drift slowly from lane to lane; on a starred lap the plain greydwarfs swarm
 	// across the lanes; from 2 stars they move and strike a little quicker.
+	// A creature its biome's content table sends as a weaving swarm at 0 stars on starred laps
+	// (BiomeContent.StarSwarmers; was "Greydwarf" anywhere).
+	private bool Swarmer(string prefab, float z)
+	{
+		string biome = InCrypt(z) && m_crypt != null ? m_crypt.Theme.Biome : m_biomes.Count > 0 ? m_biomes[BiomeAt(z)].Def.Name : "";
+		return BiomeContents.For(biome)?.Swarms(prefab) ?? false;
+	}
+
 	private void StarTraits(Thing t, int lap, int stars, string gait, string prefab)
 	{
 		if (t.Swoop || t.Info == null || t.Info.Flying || t.Kind != Kind.Block || t.Schema == null)
@@ -3365,7 +3379,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			return;
 		}
 		bool ranged = t.Attack != null && t.Attack.Ranged;
-		if (lap >= 1 && stars == 0 && !t.Switcher && !ranged && prefab == "Greydwarf")
+		if (lap >= 1 && stars == 0 && !t.Switcher && !ranged && Swarmer(prefab, t.Z))
 		{
 			t.Switcher = true;
 			t.FreeX = true;

@@ -11,5 +11,6 @@
     </PropertyGroup>
     <ItemGroup>
         <Compile Include="../SnakewaySurfer/SurfPlacement.cs" Link="SurfPlacement.cs" />
+        <Compile Include="../SnakewaySurfer/BiomeContent.cs" Link="BiomeContent.cs" />
     </ItemGroup>
 </Project>
