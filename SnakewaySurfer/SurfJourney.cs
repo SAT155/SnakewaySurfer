@@ -54,6 +54,26 @@ internal sealed partial class SurfGame
 		m_marksNew = 0;
 		System.Array.Clear(m_markFlash, 0, m_markFlash.Length);
 		m_challengeSaid = false;
+		ResetLesson(biome, stars, m_tally.FromStart);
+		m_coinFraction = 0f;
+	}
+
+	// 1.17 (step 4): sprinting gives a job in a Journey: coins picked up count Sprint Coin
+	// Multiplier times (the fractions carry over).
+	private float m_coinFraction;
+
+	private bool SprintCoinBonus => m_journey && m_sprinting && m_state == State.Running && Plugin.SprintCoinMultiplier.Value > 1.001f;
+
+	private int SprintCoins(int gain)
+	{
+		if (!SprintCoinBonus)
+		{
+			return gain;
+		}
+		m_coinFraction += gain * (Plugin.SprintCoinMultiplier.Value - 1f);
+		int extra = Mathf.FloorToInt(m_coinFraction);
+		m_coinFraction -= extra;
+		return gain + extra;
 	}
 
 	// Metres one stage takes at the speed you'd run there (StartSpeed + SpeedPerBiome per biome
@@ -105,6 +125,7 @@ internal sealed partial class SurfGame
 				Plugin.Log.LogInfo($"Journey: {JourneyName()} {m_journeyStars}* stage {s_stageNames[stage]} at z={m_z:0} ({m_runTime:0} s).");
 			}
 		}
+		UpdateLesson();
 		if (!m_challengeSaid && m_challenge != null)
 		{
 			// Hugin names the trial as the Journey starts.

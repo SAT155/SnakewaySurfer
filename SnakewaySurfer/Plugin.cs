@@ -31,6 +31,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<float> BiomeLength = null!;
 	internal static ConfigEntry<RunMode> Mode = null!;
 	internal static ConfigEntry<float> JourneyStageSeconds = null!;
+	internal static ConfigEntry<float> SprintCoinMultiplier = null!;
 	internal static ConfigEntry<float> StartSpeed = null!;
 	internal static ConfigEntry<float> SpeedPerBiome = null!;
 	internal static ConfigEntry<float> MaxSpeed = null!;
@@ -180,6 +181,8 @@ public class Plugin : BaseUnityPlugin
 			"Journey: each run is one biome at one star level, in three stages (travel, hunt for the boss's summoning items, the boss), and ends with a win screen once the boss falls. Endless: the run goes on from biome to biome and lap to lap, with the boss rush, until you fall.");
 		JourneyStageSeconds = Config.Bind("1 - Run", "Journey Stage Seconds", 100f,
 			new ConfigDescription("Journey mode: about how many seconds the travel stage and the hunt stage each last (their length follows your running speed in that biome). Endless runs use Biome Length.", new AcceptableValueRange<float>(20f, 600f)));
+		SprintCoinMultiplier = Config.Bind("1 - Run", "Sprint Coin Multiplier", 1.5f,
+			new ConfigDescription("Journey mode: coins picked up while sprinting count this many times (the coin count turns gold while it applies). 1: off.", new AcceptableValueRange<float>(1f, 3f)));
 		StartSpeed = Config.Bind("1 - Run", "Start Speed", 9f,
 			new ConfigDescription("Running speed at the start, in metres per second (a vanilla sprint is about 7).", new AcceptableValueRange<float>(3f, 30f)));
 		SpeedPerBiome = Config.Bind("1 - Run", "Speed Per Biome", 1.5f,
