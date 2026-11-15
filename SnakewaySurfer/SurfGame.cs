@@ -144,6 +144,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public bool Threat;
 		// A wall across a path (roots, vines): a roll doesn't get you through it.
 		public bool Wall;
+		// 1.17: really solid, even to a roll on the ground (the roll lesson's rocks, SurfLesson.cs).
+		public bool Solid;
+		// 1.17: part of the roll lesson's set piece 1 or 2 (SurfLesson.cs).
+		public int Lesson;
 		// Its attack record (AttackRecords.cs), kept up to date by RecordOf.
 		public AttackRecord? Rec;
 		public bool Dodged;
@@ -1920,7 +1924,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 							m_coins += 9;
 							m_audio.Play("sfx_chest_open|sfx_coins_pile_destroyed", 1f);
 						}
-						m_coins += CoinGain();
+						m_coins += SprintCoins(CoinGain());
 						m_audio.Play(Sfx.Coin, 1f, 1f + 0.03f * (m_coins % 5));
 						Destroy(t.Go);
 						m_things.RemoveAt(i);
@@ -2007,7 +2011,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 						}
 						break;
 					}
-					if (sliding)
+					if (sliding && !t.Solid)
 					{
 						// SAT: a roll dodges an attack, as in the game. 1.16.x (SAT: rolling always
 						// has i-frames, kept fair by its cooldown): anything at all.
@@ -2115,6 +2119,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 			if (m_slide > 0f)
 			{
 				NoteJourneyRoll();
+				RollThroughCue();
 			}
 		}
 	}
@@ -2144,9 +2149,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// boss attacks, strikes and vines included. Only running into a dungeon's wall or
 		// wrecking at sea (no label, heavy) still counts.
 		// (Architecture step 3: the rule is the attack record's Roll counter.)
-		if (m_slide > 0f && m_y < 0.4f && RecordOf(t).Has(Counter.Roll))
+		if (m_slide > 0f && m_y < 0.4f && !t.Solid && RecordOf(t).Has(Counter.Roll))
 		{
 			Dodged(t);
+			return;
+		}
+		// 1.17: the roll lesson's set pieces cost no life (SurfLesson.cs).
+		if (t.Lesson > 0)
+		{
+			LessonHit(t);
 			return;
 		}
 		// Nothing hurts that wasn't announced (SurfStrike.cs).
@@ -2766,6 +2777,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 				return;
 			}
 			m_quietToBoss = false;
+		}
+		// 1.17: the roll lesson keeps the track clear around its set pieces (SurfLesson.cs).
+		if (LessonHoldsRows(z))
+		{
+			return;
 		}
 		bool crypt = InCrypt(z);
 		if (crypt && CryptNoRow(z))
@@ -4292,14 +4308,19 @@ internal sealed partial class SurfGame : MonoBehaviour
 		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z), sea) : "";
 		string stretch = m_biomes.Count > 0 ? StretchHud() : "";
 		string lives = Plugin.StartLives > 1 || m_lives > 1 ? $"   ·   lives {m_lives}" : "";
-		string top = $"{biome}\n{m_z:0} m   ·   {m_coins} coins   ·   {m_speed:0.0} m/s{stretch}";
-		if (m_livesFlash > 0f && lives.Length > 0)
+		// 1.17: sprinting in a Journey earns more per coin: the count turns gold with its multiplier.
+		bool coinBonus = SprintCoinBonus;
+		string coins = coinBonus ? $"{m_coins} coins x{Plugin.SprintCoinMultiplier.Value:0.#}" : $"{m_coins} coins";
+		string top = $"{biome}\n{m_z:0} m   ·   {coins}   ·   {m_speed:0.0} m/s{stretch}";
+		if ((m_livesFlash > 0f && lives.Length > 0) || coinBonus)
 		{
 			// 1.16.10: gold for a moment after a trader gives you lives.
 			m_smallRich ??= new GUIStyle(m_small!) { richText = true };
 			m_smallRich.fontSize = m_small!.fontSize;
 			Color gold = Color.Lerp(Color.white, new Color(1f, 0.8f, 0.25f), Mathf.Clamp01(m_livesFlash * 1.5f));
-			ShadowedRich(RectOf(Region.Stats), top + lives, top + $"<color=#{ColorUtility.ToHtmlStringRGB(gold)}>{lives}</color>", m_smallRich);
+			string richTop = coinBonus ? $"{biome}\n{m_z:0} m   ·   <color=#FFD24A>{coins}</color>   ·   {m_speed:0.0} m/s{stretch}" : top;
+			string richLives = m_livesFlash > 0f ? $"<color=#{ColorUtility.ToHtmlStringRGB(gold)}>{lives}</color>" : lives;
+			ShadowedRich(RectOf(Region.Stats), top + lives, richTop + richLives, m_smallRich);
 		}
 		else
 		{
