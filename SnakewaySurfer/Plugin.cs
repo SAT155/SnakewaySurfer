@@ -12,7 +12,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.16.0";
+	public const string PluginVersion = "1.17.0";
 	// Filled in by the build with its run number, so logs and the self-test name the real release.
 	public static readonly int BuildNumber = 0;
 	public static string BuildVersion => BuildNumber > 0 ? PluginVersion.Substring(0, PluginVersion.LastIndexOf('.') + 1) + BuildNumber : PluginVersion + " (local build)";
@@ -160,7 +160,7 @@ public class Plugin : BaseUnityPlugin
 	{
 		instance = this;
 		Log = Logger;
-		// (BepInEx's own line always says 1.16.0; this is the build actually loaded.)
+		// (BepInEx's own line always says 1.17.0; this is the build actually loaded.)
 		Log.LogInfo($"SnakewaySurfer build {BuildVersion}.");
 
 		BiomeLength = Config.Bind("1 - Run", "Biome Length", 500f,
@@ -475,7 +475,7 @@ public class Plugin : BaseUnityPlugin
 		LoopBiomes = Config.Bind("1 - Run", "Loop Biomes", 6,
 			new ConfigDescription("How many biomes one lap of the run has (6 = Meadows to the Mistlands). After the last one the run goes back to the Meadows with 1-star creatures, then 2, then 3. 0: no loop, the run goes through every biome and stays in the last.", new AcceptableValueRange<int>(0, 8)));
 		BossFights = Config.Bind("1 - Run", "Boss Fights", true,
-			"Each biome ends with its boss once you've beaten that boss in this world: some coins become its summoning item (the game's own amount, e.g. 2 deer trophies for Eikthyr), you stay in the biome until you have them all, then you face the boss. Beating it saves a checkpoint for the next biome (\"surfsup\" starts at your latest one; \"surfsup swamp\" or \"surfsup 3 1\" picks one). Off: no items or bosses, the run goes straight on.");
+			"Each biome ends with its boss: some coins become its summoning item (the game's own amount, e.g. 2 deer trophies for Eikthyr), you stay in the biome until you have them all, then you face the boss. Beating it in the dream opens the next biome for this character (a boss already killed in the world opens it at once) and saves a checkpoint there (\"surfsup\" starts at your latest one; \"surfsup swamp\" or \"surfsup 3 1\" picks one). Off: no items or bosses, the run goes straight on.");
 		Lives = Config.Bind("1 - Run", "Lives", 3,
 			new ConfigDescription("Hits you can take before the run is over (three strikes and you're out). 1: the first hit ends it.", new AcceptableValueRange<int>(1, 9)));
 		Difficulty = Config.Bind("1 - Run", "Difficulty", 1,
@@ -493,7 +493,7 @@ public class Plugin : BaseUnityPlugin
 		BossSummon = Config.Bind("1 - Run", "Boss Summoning", true,
 			"A boss is summoned as in the game: its summoning items float up, the altar's sparkles and sounds play, and then the boss forms. Off: it just turns up.");
 		IgnoreBossGate = Config.Bind("9 - Debug", "Ignore Boss Gate", false,
-			"Testing: the run normally only reaches as far as the furthest boss beaten in this world (the Meadows only, until Eikthyr is dead). On: every biome and boss is open, and surfsup can start anywhere.");
+			"Testing: the run normally only reaches as far as the furthest boss beaten (in the dream or in the world), plus that next biome and its boss (the Meadows and Eikthyr at first). On: every biome and boss is open, and surfsup can start anywhere.");
 		GameSpeed = Config.Bind("9 - Debug", "Game Speed", 1f,
 			new ConfigDescription("Testing: speeds the whole minigame up (2 = twice as fast), to reach later biomes quickly. Distance and rewards count as normal.", new AcceptableValueRange<float>(0.25f, 8f)));
 		GameGroundTextures = Config.Bind("3 - Look", "Game Ground Textures", true,
