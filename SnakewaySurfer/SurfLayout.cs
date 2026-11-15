@@ -43,6 +43,8 @@ internal enum Region
 	WinTitle,
 	// The three Journey marks, under the title.
 	WinMarks,
+	// What the Journey earned, as item icons.
+	WinHaul,
 	WinSummary,
 	WinKeys,
 }
@@ -81,6 +83,7 @@ internal static class Layout
 		(Region.Stage, Region.Stats), (Region.Stage, Region.Hugin), (Region.Stage, Region.Banner), (Region.Stage, Region.Hint),
 		(Region.WinTitle, Region.WinSummary), (Region.WinSummary, Region.WinKeys), (Region.WinTitle, Region.WinKeys),
 		(Region.WinTitle, Region.WinMarks), (Region.WinMarks, Region.WinSummary), (Region.WinMarks, Region.WinKeys),
+		(Region.WinMarks, Region.WinHaul), (Region.WinHaul, Region.WinSummary), (Region.WinHaul, Region.WinKeys), (Region.WinTitle, Region.WinHaul),
 	};
 
 	public static Box Of(Region r, float w, float h)
@@ -137,7 +140,12 @@ internal static class Layout
 			case Region.WinSummary:
 			{
 				Box s = Of(Region.CrashSummary, w, h);
-				return new Box(s.X, s.Y + 56 * k, s.W, s.H - 56 * k);
+				return new Box(s.X, s.Y + 118 * k, s.W, s.H - 118 * k);
+			}
+			case Region.WinHaul:
+			{
+				Box s = Of(Region.CrashSummary, w, h);
+				return new Box(s.X, s.Y + 56 * k, s.W, 56 * k);
 			}
 			case Region.WinKeys:
 				return Of(Region.CrashKeys, w, h);

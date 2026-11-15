@@ -280,7 +280,7 @@ internal static class Program
 					Check(b.X >= panel.X && b.Right <= panel.Right && b.Y >= panel.Y && b.Bottom <= panel.Bottom, $"{r} inside the crash panel at {w}x{h}");
 				}
 				Box win = Layout.Of(Region.WinPanel, w, h);
-				foreach (Region r in new[] { Region.WinTitle, Region.WinMarks, Region.WinSummary, Region.WinKeys })
+				foreach (Region r in new[] { Region.WinTitle, Region.WinMarks, Region.WinHaul, Region.WinSummary, Region.WinKeys })
 				{
 					Box b = Layout.Of(r, w, h);
 					Check(b.X >= win.X && b.Right <= win.Right && b.Y >= win.Y && b.Bottom <= win.Bottom, $"{r} inside the win panel at {w}x{h}");

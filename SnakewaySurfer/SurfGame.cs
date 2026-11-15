@@ -1402,6 +1402,12 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			Crash("You stopped for a breather.");
 		}
+		// 1.17: what the Journeys won earned comes with you as you wake (Rewards.GivePending).
+		string? haul = m_player != null && !m_tourRan ? Rewards.GivePending(m_player) : null;
+		if (haul != null)
+		{
+			m_rewardText = (string.IsNullOrEmpty(m_rewardText) ? "" : m_rewardText + "\n") + "From the dream: " + haul;
+		}
 		if (!string.IsNullOrEmpty(m_rewardText) && m_player != null)
 		{
 			m_player.Message(MessageHud.MessageType.Center, m_rewardText.Replace("\n", "   "));

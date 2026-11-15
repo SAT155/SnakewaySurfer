@@ -336,9 +336,114 @@ internal sealed class StrangePortal : MonoBehaviour, Hoverable, Interactable
 
 	public bool UseItem(Humanoid user, ItemDrop.ItemData item) => false;
 
+	// ---------------------------------------------------------------- dream trophies (1.17)
+
+	// The trophy for each boss (Progress.Bosses order).
+	private static readonly string[] s_trophies =
+	{
+		"TrophyEikthyr", "TrophyTheElder", "TrophyBonemass", "TrophyDragonQueen", "TrophyGoblinKing", "TrophySeekerQueen", "TrophyFader",
+	};
+	private static GameObject? s_trophyHolder;
+	private readonly List<GameObject> m_trophies = new();
+	private string m_trophiesShown = "?";
+	private float m_trophyCheck;
+
+	// 1.17 (run structure step 5): each boss first beaten in the dream leaves its trophy hovering
+	// in a row before the portal, for the player who beat it. Only on this client: a stripped
+	// copy of the item's look (no ZNetView, ItemDrop, collider or body), never saved or sent, so
+	// players without the mod and the server never know of it.
+	private void UpdateTrophies()
+	{
+		m_trophyCheck -= Time.deltaTime;
+		if (m_trophyCheck <= 0f)
+		{
+			m_trophyCheck = 2f;
+			string beaten = "";
+			for (int i = 0; i < s_trophies.Length && i < Progress.Bosses.Length; i++)
+			{
+				if (Progress.DreamBeaten(i))
+				{
+					beaten += i.ToString();
+				}
+			}
+			if (beaten != m_trophiesShown)
+			{
+				m_trophiesShown = beaten;
+				BuildTrophies(beaten);
+			}
+		}
+		for (int i = 0; i < m_trophies.Count; i++)
+		{
+			if (m_trophies[i] != null)
+			{
+				m_trophies[i].transform.Rotate(0f, 40f * Time.deltaTime, 0f, Space.World);
+			}
+		}
+	}
+
+	private void BuildTrophies(string beaten)
+	{
+		foreach (GameObject go in m_trophies)
+		{
+			if (go != null)
+			{
+				Destroy(go);
+			}
+		}
+		m_trophies.Clear();
+		if (beaten.Length == 0)
+		{
+			return;
+		}
+		if (s_trophyHolder == null)
+		{
+			s_trophyHolder = new GameObject("SnakewaySurfer_TrophyHolder");
+			s_trophyHolder.SetActive(false);
+			DontDestroyOnLoad(s_trophyHolder);
+		}
+		int n = beaten.Length;
+		for (int j = 0; j < n; j++)
+		{
+			int index = beaten[j] - '0';
+			GameObject? prefab = Pictures.Item(s_trophies[index]);
+			if (prefab == null)
+			{
+				continue;
+			}
+			// Copied under an inactive holder, so nothing of the item wakes before it's stripped.
+			GameObject copy = Pictures.MakePicture(prefab, s_trophyHolder.transform, 0);
+			foreach (Collider c in copy.GetComponentsInChildren<Collider>(true))
+			{
+				DestroyImmediate(c);
+			}
+			foreach (Rigidbody rb in copy.GetComponentsInChildren<Rigidbody>(true))
+			{
+				DestroyImmediate(rb);
+			}
+			foreach (ZNetView nv in copy.GetComponentsInChildren<ZNetView>(true))
+			{
+				DestroyImmediate(nv);
+			}
+			GameObject anchor = new GameObject("SurfDreamTrophy");
+			anchor.transform.SetParent(transform, false);
+			// A row in front of the portal at chest height, centred.
+			anchor.transform.localPosition = new Vector3((j - (n - 1) * 0.5f) * 0.7f, 1.3f, 0.9f);
+			copy.transform.SetParent(anchor.transform, false);
+			copy.transform.localPosition = Vector3.zero;
+			copy.transform.localRotation = Quaternion.identity;
+			copy.SetActive(true);
+			m_trophies.Add(anchor);
+		}
+		Plugin.Log.LogInfo($"Strange Portal: showing {m_trophies.Count} dream trophy(ies).");
+	}
+
 	private void Update()
 	{
 		Player? p = Player.m_localPlayer;
+		if (p != null)
+		{
+			UpdateTrophies();
+		}
 		if (p == null || m_nview == null || !m_nview.IsValid() || SurfGame.Active != null)
 		{
 			return;

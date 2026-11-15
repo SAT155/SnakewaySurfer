@@ -178,6 +178,14 @@ internal sealed partial class SurfGame
 		m_banner = "";
 		m_bannerTime = 0f;
 		m_hint = "";
+		// 1.17 (step 5): the haul, given on waking; half for a Journey already won.
+		bool repeat = (m_marksHeld & JourneyGoals.Finish) != 0;
+		m_haul = Rewards.Haul(m_journeyBiome, m_journeyStars, repeat);
+		if (m_player != null && m_haul.Count > 0 && !m_tourRan)
+		{
+			Rewards.AddPending(m_player, m_haul);
+		}
+		Plugin.Log.LogInfo($"Journey reward: {Rewards.Describe(m_haul)}{(repeat ? " (half: won before)" : "")} (given on waking).");
 		int earned = JourneyGoals.Finish;
 		if (m_challenge != null && JourneyGoals.Met(m_challenge, m_tally, 3))
 		{
@@ -386,6 +394,34 @@ internal sealed partial class SurfGame
 	}
 
 	private GUIStyle? m_stageStyle;
+	private System.Collections.Generic.List<(GameObject prefab, int count)> m_haul = new();
+	private GUIStyle? m_haulStyle;
+
+	// The haul as a row of the game's item icons, each with its count.
+	private void WinHaulGui()
+	{
+		if (m_haul.Count == 0)
+		{
+			return;
+		}
+		Rect box = RectOf(Region.WinHaul);
+		float k = Screen.height / 1080f;
+		float size = Mathf.Min(48f * k, box.height - 4f * k);
+		float step = size + 70f * k;
+		float x = box.center.x - step * m_haul.Count * 0.5f;
+		m_haulStyle ??= new GUIStyle(m_small!) { alignment = TextAnchor.MiddleLeft, wordWrap = false };
+		m_haulStyle.fontSize = m_small!.fontSize;
+		foreach ((GameObject prefab, int count) in m_haul)
+		{
+			Rect icon = new Rect(x, box.y + (box.height - size) * 0.5f, size, size);
+			if (Event.current.type == EventType.Repaint && ItemIcon(prefab.name) is Sprite sprite)
+			{
+				DrawSprite(icon, sprite, new Color(1f, 1f, 1f, s_guiAlpha));
+			}
+			Shadowed(new Rect(icon.xMax + 6f * k, box.y, step - size - 6f * k, box.height), $"x{count}", m_haulStyle);
+			x += step;
+		}
+	}
 	private GUIStyle? m_markStyle;
 
 	// The three marks in a row, each with its name; new ones glow and breathe.
@@ -428,6 +464,7 @@ internal sealed partial class SurfGame
 		{
 			FitShadowed(Region.WinTitle, $"{Progress.Describe(m_journeyBiome, m_journeyStars)}: Journey complete!", m_mid!);
 			WinMarksGui();
+			WinHaulGui();
 			int secs = Mathf.RoundToInt(m_wonTime);
 			FitShadowed(Region.WinSummary, $"{secs / 60}:{secs % 60:00}     {m_coins} coins     {m_lives} {(m_lives == 1 ? "life" : "lives")} left\n\n{m_rewardText}", m_mid!);
 		}
