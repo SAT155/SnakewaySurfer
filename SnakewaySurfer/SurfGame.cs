@@ -4278,11 +4278,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_smallRich ??= new GUIStyle(m_small!) { richText = true };
 			m_smallRich.fontSize = m_small!.fontSize;
 			Color gold = Color.Lerp(Color.white, new Color(1f, 0.8f, 0.25f), Mathf.Clamp01(m_livesFlash * 1.5f));
-			ShadowedRich(new Rect(24 * k, 18 * k, 1400 * k, 200 * k), top + lives, top + $"<color=#{ColorUtility.ToHtmlStringRGB(gold)}>{lives}</color>", m_smallRich);
+			ShadowedRich(RectOf(Region.Stats), top + lives, top + $"<color=#{ColorUtility.ToHtmlStringRGB(gold)}>{lives}</color>", m_smallRich);
 		}
 		else
 		{
-			Shadowed(new Rect(24 * k, 18 * k, 1400 * k, 200 * k), top + lives, m_small);
+			FitShadowed(Region.Stats, top + lives, m_small);
 		}
 		HealthBarGui(26 * k, 18 * k + m_small!.CalcHeight(new GUIContent(top + lives), 1400 * k) + 8 * k, k);
 		if (m_coinPop > 0f)
@@ -4318,16 +4318,16 @@ internal sealed partial class SurfGame : MonoBehaviour
 			case State.Countdown:
 			{
 				int n = Mathf.CeilToInt(Plugin.Countdown.Value - m_stateTime);
-				Shadowed(new Rect(0, h * 0.25f, w, 120 * k), n > 0 ? n.ToString() : "Run!", m_big);
+				FitShadowed(Region.Countdown, n > 0 ? n.ToString() : "Run!", m_big);
 				if (m_segments.Count > 0 && m_segments[0].Shore)
 				{
 					// Starting on the coast: the longship's controls.
-					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
+					FitShadowed(Region.Prompts,
 						$"Run down to the longship, then:\nA / D: steer     W / S: sail (oars, half, full)     {KeyName(Plugin.ThrowKey.Value)}: ballista\n{KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)     {Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				else
 				{
-					Shadowed(new Rect(w * 0.15f, h * 0.62f, w * 0.7f, 200 * k),
+					FitShadowed(Region.Prompts,
 						$"A / D or ←/→: change lane     W / Space: jump     S / Ctrl: slide\n{Plugin.SprintKey.Value}: sprint     {KeyName(Plugin.BlockKey.Value)}: block (tap just before a hit to parry)\n{Plugin.ExitKey.Value}: pause", m_mid);
 				}
 				break;
@@ -4339,7 +4339,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				else if (m_bannerTime > 0f && (m_paused || (!RavenTalks && (m_bannerKeep || Plugin.PopupText.Value))))
 				{
-					Shadowed(new Rect(0, h * 0.2f - 90 * k, w, 300 * k), m_banner, m_big);
+					FitShadowed(Region.Banner, m_banner, m_big);
 				}
 				if (m_aimTime <= 0f && !m_paused)
 				{
@@ -4347,7 +4347,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				}
 				if (m_aimTime <= 0f && m_hint.Length > 0 && Plugin.PopupText.Value)
 				{
-					Shadowed(new Rect(0, h * 0.52f, w, 120 * k), m_hint, m_big);
+					FitShadowed(Region.Hint, m_hint, m_big);
 				}
 				break;
 			case State.Crashed:
@@ -4369,15 +4369,15 @@ internal sealed partial class SurfGame : MonoBehaviour
 				// track was hard to read.) A dark panel behind it all, the keys on two lines.
 				if (Event.current.type == EventType.Repaint)
 				{
-					Fill(new Rect(w * 0.08f, h * 0.17f, w * 0.84f, h * 0.7f), new Color(0f, 0f, 0f, 0.55f * s_guiAlpha));
+					Fill(RectOf(Region.CrashPanel), new Color(0f, 0f, 0f, 0.55f * s_guiAlpha));
 				}
-				Shadowed(new Rect(w * 0.05f, h * 0.68f, w * 0.9f, 140 * k),
+				FitShadowed(Region.CrashKeys,
 					$"Space: run again     R: retry{retry}{fromCheckpoint}\nM: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
 				try
 				{
-					Shadowed(new Rect(w * 0.1f, h * 0.2f, w * 0.8f, 120 * k), m_crashText, m_mid);
+					FitShadowed(Region.CrashCause, m_crashText, m_mid);
 					string reached = m_highestBiome >= 0 && m_highestBiome < m_biomes.Count ? m_biomes[m_highestBiome].Def.Name : "the dream";
-					Shadowed(new Rect(w * 0.1f, h * 0.32f, w * 0.8f, 300 * k),
+					FitShadowed(Region.CrashSummary,
 						$"{m_z:0} m, {m_coins} coins, reached {reached}\n\n{m_rewardText}", m_mid);
 				}
 				catch (System.Exception e)
@@ -4389,6 +4389,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				MenuGui(k, w, h);
 				break;
 		}
+		LayoutDebugGui();
 	}
 
 	private static readonly HashSet<string> s_guiErrors = new();

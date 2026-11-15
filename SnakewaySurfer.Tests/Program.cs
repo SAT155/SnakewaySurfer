@@ -237,6 +237,32 @@ internal static class Program
 			Check(Rec(heavy: true).CounterText() == "dodge/roll/parry", $"counter text: {Rec(heavy: true).CounterText()}");
 		}
 
+		// ---- screen layout (SurfLayout.cs)
+		{
+			foreach ((int w, int h) in new[] { (1920, 1080), (2560, 1440), (3840, 2160), (1280, 720), (1440, 1080), (2560, 1080), (3440, 1440), (1280, 1024) })
+			{
+				foreach (Region r in Layout.All)
+				{
+					Box b = Layout.Of(r, w, h);
+					Check(b.Inside(w, h) && b.W > 0 && b.H > 0, $"{r} on screen at {w}x{h}");
+				}
+				foreach ((Region a, Region b) in Layout.Together)
+				{
+					Check(!Layout.Of(a, w, h).Overlaps(Layout.Of(b, w, h)), $"{a} and {b} don't overlap at {w}x{h}");
+				}
+				Box panel = Layout.Of(Region.CrashPanel, w, h);
+				foreach (Region r in new[] { Region.CrashCause, Region.CrashSummary, Region.CrashKeys })
+				{
+					Box b = Layout.Of(r, w, h);
+					Check(b.X >= panel.X && b.Right <= panel.Right && b.Y >= panel.Y && b.Bottom <= panel.Bottom, $"{r} inside the crash panel at {w}x{h}");
+				}
+			}
+			Check(Layout.FitSize(34, 500, 40, 600, 50, 12) == 34, "text that fits keeps its size");
+			Check(Layout.FitSize(34, 1200, 40, 600, 50, 12) == 17, "too wide: half the size");
+			Check(Layout.FitSize(34, 600, 200, 600, 50, 12) == 12, "never under the minimum");
+			Check(Layout.FitSize(34, 610, 40, 600, 50, 12) < 34, "a little too wide still shrinks");
+		}
+
 		Console.WriteLine(s_failed == 0 ? "All checks passed." : $"{s_failed} checks FAILED.");
 		return s_failed == 0 ? 0 : 1;
 	}

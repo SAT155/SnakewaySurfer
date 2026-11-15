@@ -356,7 +356,7 @@ internal sealed partial class SurfGame
 		{
 			float bw = 520f * k;
 			Rect bar = new Rect((w - bw) * 0.5f, 62f * k, bw, 14f * k);
-			Shadowed(new Rect(0, 22f * k, w, 40f * k), m_seaBoss.Label, m_mid!);
+			FitShadowed(Region.BossName, m_seaBoss.Label, m_mid!);
 			Bar(bar, (float)m_seaBoss.Hp / Mathf.Max(1, m_seaBoss.MaxHp), Color.Lerp(new Color(0.75f, 0.08f, 0.05f), Color.white, m_seaBossFlash * 0.6f));
 			if (ItemIcon("TurretBoltWood|TurretBolt") is Sprite bolt)
 			{
@@ -369,7 +369,7 @@ internal sealed partial class SurfGame
 		{
 			float bw = 520f * k;
 			Rect bar = new Rect((w - bw) * 0.5f, 62f * k, bw, 14f * k);
-			Shadowed(new Rect(0, 22f * k, w, 40f * k), m_boss.Name, m_mid!);
+			FitShadowed(Region.BossName, m_boss.Name, m_mid!);
 			float health = 1f - (float)m_bossHits / Mathf.Max(1, BossHitsNeeded);
 			Bar(bar, health, Color.Lerp(new Color(0.75f, 0.08f, 0.05f), Color.white, m_iconPulse * 0.6f));
 			Sprite? hit = ItemIcon(m_boss.HitItem);

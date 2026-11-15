@@ -641,6 +641,11 @@ public class Plugin : BaseUnityPlugin
 				}
 				Kit.Run(args.Context);
 			});
+			new Terminal.ConsoleCommand("surflayout", "surflayout - testing: outline every SnakewaySurfer screen region (stats, Hugin, boss name, banner, hint, prompts, crash screen) with its name, all at once; again to hide them", args =>
+			{
+				SurfGame.LayoutDebug = !SurfGame.LayoutDebug;
+				args.Context?.AddString(SurfGame.LayoutDebug ? "SnakewaySurfer: screen regions shown." : "SnakewaySurfer: screen regions hidden.");
+			});
 			new Terminal.ConsoleCommand("surfprobe", "surfprobe - write this spot's weather, fog, light, camera effects, terrain material and nearby creatures to the log (for tuning SnakewaySurfer)", args =>
 			{
 				Probe.Run(args.Context);
