@@ -171,18 +171,73 @@ internal static class Progress
 
 	public static BossDef? BossOf(int biome) => biome >= 0 && biome < Bosses.Length ? Bosses[biome] : null;
 
-	// The index of the furthest boss beaten in this world (-1: none yet).
+	// The index of the furthest boss whose Journey is won: beaten in the dream by this character,
+	// or killed in this world (-1: none yet).
 	public static int FurthestBoss()
 	{
 		int furthest = -1;
 		for (int i = 0; i < Bosses.Length; i++)
 		{
-			if (Beaten(Bosses[i]))
+			if (Opened(i))
 			{
 				furthest = i;
 			}
 		}
 		return furthest;
+	}
+
+	// 1.17 (run-structure plan): the dream keeps its own progress. Beating a boss in the dream
+	// opens the next biome for this character in every world, whatever the world's keys say.
+	// "0,1,2": the indexes of the bosses beaten in the dream.
+	public const string DreamBossesKey = "SnakewaySurfer.DreamBosses";
+
+	public static bool DreamBeaten(int index)
+	{
+		Player? player = Player.m_localPlayer;
+		if (player == null || !player.m_customData.TryGetValue(DreamBossesKey, out string value))
+		{
+			return false;
+		}
+		foreach (string part in value.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+		{
+			if (int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out int i) && i == index)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	// Returns true the first time a boss is beaten in the dream.
+	public static bool SaveDreamBoss(Player player, int index)
+	{
+		if (DreamBeaten(index))
+		{
+			return false;
+		}
+		string add = index.ToString(CultureInfo.InvariantCulture);
+		player.m_customData[DreamBossesKey] = player.m_customData.TryGetValue(DreamBossesKey, out string value) && !string.IsNullOrEmpty(value) ? value + "," + add : add;
+		return true;
+	}
+
+	// The boss's Journey is won: in the dream, or by killing it in this world.
+	public static bool Opened(int index) => index >= 0 && index < Bosses.Length && (DreamBeaten(index) || Beaten(Bosses[index]));
+
+	public static string DreamSummary()
+	{
+		List<string> names = new();
+		for (int i = 0; i < Bosses.Length; i++)
+		{
+			if (DreamBeaten(i))
+			{
+				names.Add(Bosses[i].Name);
+			}
+			else if (Beaten(Bosses[i]))
+			{
+				names.Add(Bosses[i].Name + " (world)");
+			}
+		}
+		return names.Count > 0 ? string.Join(", ", names) : "none yet";
 	}
 
 	public static bool Beaten(BossDef boss)
@@ -201,7 +256,7 @@ internal static class Progress
 	}
 
 	// How many biomes of a lap you may run: the Meadows, plus one past each boss up to the
-	// furthest one beaten in this world.
+	// furthest one beaten (in the dream, or in this world). The last of them ends with its boss.
 	public static int AllowedBiomes(int lap)
 	{
 		if (Plugin.IgnoreBossGate.Value)
@@ -240,7 +295,22 @@ internal static class Progress
 		return "world";
 	}
 
+	// Saved checkpoints, plus the start of each biome a won Journey has opened (1.17: a boss
+	// killed in the world, or beaten in the dream in another world, opens its next biome at once).
 	public static List<(int biome, int stars)> Checkpoints(Player player)
+	{
+		List<(int biome, int stars)> list = SavedCheckpoints(player);
+		for (int i = 0; i < Bosses.Length && i + 1 < Biomes.Defaults.Length; i++)
+		{
+			if (Opened(i) && !list.Contains((i + 1, 0)))
+			{
+				list.Add((i + 1, 0));
+			}
+		}
+		return list;
+	}
+
+	private static List<(int biome, int stars)> SavedCheckpoints(Player player)
 	{
 		List<(int, int)> list = new() { (0, 0) };
 		if (player.m_customData.TryGetValue(Key(), out string value))
@@ -262,7 +332,7 @@ internal static class Progress
 
 	public static void SaveCheckpoint(Player player, int biome, int stars)
 	{
-		List<(int biome, int stars)> list = Checkpoints(player);
+		List<(int biome, int stars)> list = SavedCheckpoints(player);
 		if (list.Contains((biome, stars)))
 		{
 			return;
@@ -317,7 +387,7 @@ internal static class Progress
 				}
 			}
 		}
-		return Checkpoints(player).Exists(c => c.stars == stars && c.biome > plains);
+		return SavedCheckpoints(player).Exists(c => c.stars == stars && c.biome > plains);
 	}
 
 	// 1.16.79 (SAT): one ad hoc save in the middle of a biome (or at an island of the crossing),
@@ -441,7 +511,7 @@ internal static class Progress
 		if (biome >= allowed)
 		{
 			BossDef? boss = BossOf(biome - 1);
-			error = $"You can't reach the {Biomes.Defaults[biome].Name} yet: defeat {(boss != null ? boss.Name : "its boss")} in this world first.";
+			error = $"You can't reach the {Biomes.Defaults[biome].Name} yet: defeat {(boss != null ? boss.Name : "its boss")} in the dream (or in the world) first.";
 			return null;
 		}
 		if (!Checkpoints(player).Contains((biome, stars)))
@@ -490,7 +560,7 @@ internal static class Progress
 			{
 				player.m_customData.Remove(key);
 			}
-			return $"surfprogress: erased {keys.Count} SnakewaySurfer record(s) from this character (checkpoints and crossings in every world, golden shoes, the food timer, the first-run dream). Next surfsup is a first run again.";
+			return $"surfprogress: erased {keys.Count} SnakewaySurfer record(s) from this character (checkpoints and crossings in every world, bosses beaten in the dream, golden shoes, the food timer, the first-run dream). Next surfsup is a first run again.";
 		}
 		if (verb == "dream")
 		{
@@ -552,9 +622,23 @@ internal static class Progress
 				SaveLanded(player, stars);
 			}
 			player.m_customData[FirstRunKey] = "1";
-			int allowed = AllowedBiomes(lap);
-			string gate = biome >= allowed ? $" (this world only lets runs reach the {Biomes.Defaults[allowed - 1].Name} until its bosses are beaten; Ignore Boss Gate opens the rest)" : "";
-			return $"surfprogress: checkpoints in this world now run up to {Describe(biome, stars, sea)}{gate}.";
+			// 1.17: the dream's own progress: every boss before that biome is beaten in the dream.
+			List<string> dream = new();
+			int lastBoss = stars > 0 ? lap - 1 : biome - 1;
+			for (int i = 0; i <= lastBoss && i < Bosses.Length; i++)
+			{
+				dream.Add(i.ToString(CultureInfo.InvariantCulture));
+			}
+			if (dream.Count > 0)
+			{
+				player.m_customData[DreamBossesKey] = string.Join(",", dream);
+			}
+			else
+			{
+				player.m_customData.Remove(DreamBossesKey);
+			}
+			Plugin.Log.LogInfo($"Dream progress set: bosses beaten in the dream: {DreamSummary()}.");
+			return $"surfprogress: checkpoints in this world now run up to {Describe(biome, stars, sea)}; bosses beaten in the dream: {DreamSummary()}.";
 		}
 		if (verb.Length > 0)
 		{
@@ -562,7 +646,7 @@ internal static class Progress
 		}
 		int all = AllowedBiomes(Lap());
 		string first = player.m_customData.ContainsKey(FirstRunKey) ? "done" : "still to come";
-		return $"surfprogress: checkpoints in this world: {ListCheckpoints(player, Lap())}. Runs here reach the {Biomes.Defaults[all - 1].Name}. First-run dream: {first}.";
+		return $"surfprogress: bosses beaten: {DreamSummary()}. Checkpoints in this world: {ListCheckpoints(player, Lap())}. Runs reach the {Biomes.Defaults[all - 1].Name} and its boss. First-run dream: {first}.";
 	}
 
 	// The Plains (its ocean crossing comes before it).
