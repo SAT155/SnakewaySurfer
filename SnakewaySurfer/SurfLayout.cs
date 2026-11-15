@@ -36,6 +36,13 @@ internal enum Region
 	CrashCause,
 	CrashSummary,
 	CrashKeys,
+	// 1.17: a Journey's biome and stage with its three pips (top centre, under the stats).
+	Stage,
+	// A Journey's win screen: its panel, and the title, summary and keys inside it.
+	WinPanel,
+	WinTitle,
+	WinSummary,
+	WinKeys,
 }
 
 internal struct Box
@@ -69,6 +76,8 @@ internal static class Layout
 		(Region.Stats, Region.Hugin), (Region.Stats, Region.Banner), (Region.Stats, Region.Hint), (Region.Banner, Region.Hint),
 		(Region.Countdown, Region.Prompts), (Region.Stats, Region.Prompts),
 		(Region.CrashCause, Region.CrashSummary), (Region.CrashSummary, Region.CrashKeys), (Region.CrashCause, Region.CrashKeys),
+		(Region.Stage, Region.Stats), (Region.Stage, Region.Hugin), (Region.Stage, Region.Banner), (Region.Stage, Region.Hint),
+		(Region.WinTitle, Region.WinSummary), (Region.WinSummary, Region.WinKeys), (Region.WinTitle, Region.WinKeys),
 	};
 
 	public static Box Of(Region r, float w, float h)
@@ -112,6 +121,17 @@ internal static class Layout
 				return new Box(w * 0.1f, h * 0.32f, w * 0.8f, Math.Min(300 * k, h * 0.68f - h * 0.32f));
 			case Region.CrashKeys:
 				return new Box(w * 0.1f, h * 0.68f, w * 0.8f, Math.Min(140 * k, h * 0.87f - h * 0.68f));
+			case Region.Stage:
+				// (Between the stats' box and the banner's, which starts at 186 k.)
+				return new Box(w * 0.3f, 152 * k, w * 0.4f, 30 * k);
+			case Region.WinPanel:
+				return Of(Region.CrashPanel, w, h);
+			case Region.WinTitle:
+				return Of(Region.CrashCause, w, h);
+			case Region.WinSummary:
+				return Of(Region.CrashSummary, w, h);
+			case Region.WinKeys:
+				return Of(Region.CrashKeys, w, h);
 			default:
 				return new Box(0, 0, w, h);
 		}

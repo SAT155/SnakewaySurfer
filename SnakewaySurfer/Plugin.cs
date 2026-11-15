@@ -7,6 +7,14 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
+// 1.17 (run structure step 2): a run is a Journey (one biome at one star level, ending after its
+// boss), or Endless (the old run: laps, the boss rush, the golden shoes).
+public enum RunMode
+{
+	Journey,
+	Endless,
+}
+
 [BepInPlugin(PluginGUID, PluginName, PluginVersion)]
 public class Plugin : BaseUnityPlugin
 {
@@ -21,6 +29,8 @@ public class Plugin : BaseUnityPlugin
 	internal static ManualLogSource Log = null!;
 
 	internal static ConfigEntry<float> BiomeLength = null!;
+	internal static ConfigEntry<RunMode> Mode = null!;
+	internal static ConfigEntry<float> JourneyStageSeconds = null!;
 	internal static ConfigEntry<float> StartSpeed = null!;
 	internal static ConfigEntry<float> SpeedPerBiome = null!;
 	internal static ConfigEntry<float> MaxSpeed = null!;
@@ -166,6 +176,10 @@ public class Plugin : BaseUnityPlugin
 		BiomeLength = Config.Bind("1 - Run", "Biome Length", 500f,
 			new ConfigDescription("Metres of track per biome. The run goes Meadows, Black Forest, Swamp, Mountains, Plains, Mistlands, Ashlands, Deep North, and Deep North never ends.",
 				new AcceptableValueRange<float>(100f, 5000f)));
+		Mode = Config.Bind("1 - Run", "Run Mode", RunMode.Journey,
+			"Journey: each run is one biome at one star level, in three stages (travel, hunt for the boss's summoning items, the boss), and ends with a win screen once the boss falls. Endless: the run goes on from biome to biome and lap to lap, with the boss rush, until you fall.");
+		JourneyStageSeconds = Config.Bind("1 - Run", "Journey Stage Seconds", 100f,
+			new ConfigDescription("Journey mode: about how many seconds the travel stage and the hunt stage each last (their length follows your running speed in that biome). Endless runs use Biome Length.", new AcceptableValueRange<float>(20f, 600f)));
 		StartSpeed = Config.Bind("1 - Run", "Start Speed", 9f,
 			new ConfigDescription("Running speed at the start, in metres per second (a vanilla sprint is about 7).", new AcceptableValueRange<float>(3f, 30f)));
 		SpeedPerBiome = Config.Bind("1 - Run", "Speed Per Biome", 1.5f,

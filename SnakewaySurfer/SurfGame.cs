@@ -23,6 +23,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		Crashed,
 		// Choosing where to start (SurfMenu.cs).
 		Menu,
+		// 1.17: a Journey's boss is beaten: the win screen (SurfJourney.cs).
+		Won,
 	}
 
 	private enum Kind
@@ -1367,6 +1369,17 @@ internal sealed partial class SurfGame : MonoBehaviour
 			StartWreck();
 		}
 		SetTrigger("stagger");
+		GrantRunRewards();
+		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
+	}
+
+	// The end of a run, fallen or won: the coins are banked and the run's XP granted.
+	private void GrantRunRewards()
+	{
+		if (!m_tourRan && m_state == State.Won)
+		{
+			DepositCoins();
+		}
 		// Run XP for the running: time at sea is sailing.
 		// (A self-test earns nothing: SurfTest.cs.)
 		m_rewardText = m_tourRan ? "" : Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_sea.SeaTime), m_biomes.ConvertAll(b => b.Def),
@@ -1377,7 +1390,6 @@ internal sealed partial class SurfGame : MonoBehaviour
 			m_lootText = "";
 		}
 		m_blockXp = m_dodgeXp = 0f;
-		Plugin.Log.LogInfo($"Run over after {m_z:0} m ({m_runTime:0} s, {m_coins} coins, biome {m_highestBiome}): {why}");
 	}
 
 	private void Quit()
@@ -1566,6 +1578,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					UpdateRun(dt, canInput);
 				}
+				UpdateJourney(dt);
+				break;
+			case State.Won:
+				UpdateWon(canInput);
 				break;
 			case State.Crashed:
 				UpdateTomb(dt);
@@ -4300,8 +4316,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 
 		float w = Screen.width;
 		float h = Screen.height;
-		if (m_state != State.Crashed && m_state != State.Menu && Event.current.type == EventType.Repaint)
+		if (m_state != State.Crashed && m_state != State.Menu && m_state != State.Won && Event.current.type == EventType.Repaint)
 		{
+			StageGui(k);
 			HudGui(k, w, h);
 			AbilityIconsGui(24f * k, 84f * k, k);
 			WetGui(24f * k, 118f * k, k);
@@ -4371,8 +4388,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 				{
 					Fill(RectOf(Region.CrashPanel), new Color(0f, 0f, 0f, 0.55f * s_guiAlpha));
 				}
-				FitShadowed(Region.CrashKeys,
-					$"Space: run again     R: retry{retry}{fromCheckpoint}\nM: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
+				FitShadowed(Region.CrashKeys, m_journey
+					? $"Space / R: this Journey again{fromCheckpoint}\nM: pick a Journey     {Plugin.ExitKey.Value}: back to the longhouse"
+					: $"Space: run again     R: retry{retry}{fromCheckpoint}\nM: pick a start     {Plugin.ExitKey.Value}: back to the longhouse", m_mid);
 				try
 				{
 					FitShadowed(Region.CrashCause, m_crashText, m_mid);
@@ -4387,6 +4405,9 @@ internal sealed partial class SurfGame : MonoBehaviour
 				break;
 			case State.Menu:
 				MenuGui(k, w, h);
+				break;
+			case State.Won:
+				WonGui();
 				break;
 		}
 		LayoutDebugGui();

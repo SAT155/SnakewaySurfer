@@ -117,7 +117,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			string biome = s.Biome < m_biomes.Count ? m_biomes[s.Biome].Def.Name : "";
-			bool open = !(s.Boss || s.Sea || s.Shore || s.Rush);
+			bool open = !(s.Boss || s.Sea || s.Shore || s.Rush || (m_journey && s.Repeat));
 			if (open && !s.CryptChecked && Plugin.Dungeons.Value && m_biomes.Count >= 2 && ThemeFor(biome) != null)
 			{
 				// (Its dungeon isn't planned yet.)
@@ -133,7 +133,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			// In the first half of the stretch, so a short run still meets them.
-			float end = s.End < float.MaxValue ? s.End : s.Start + Plugin.BiomeLength.Value;
+			float end = s.End < float.MaxValue ? s.End : s.Start + s.Length;
 			float lo = Mathf.Max(s.Start + 40f, horizon + 50f);
 			float hi = Mathf.Min(end - 60f, Mathf.Max(lo + 60f, s.Start + (end - s.Start) * 0.5f));
 			// Not in or near its dungeon.
