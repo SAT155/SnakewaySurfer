@@ -212,6 +212,31 @@ internal static class Program
 			}
 		}
 
+		// ---- attack records (AttackRecords.cs): SAT's rules
+		{
+			AttackRecord Rec(bool low = false, bool high = false, bool labelled = true, bool heavy = false, bool wall = false, bool gas = false, bool jumpable = false) =>
+				AttackRecord.From(new AttackTraits { Name = "t", Low = low, High = high, Labelled = labelled, Heavy = heavy, Wall = wall, JumpOrSlide = gas, Jumpable = jumpable, Lanes = new[] { 1 } });
+			// A roll on the ground always has i-frames, except a dungeon wall or a wreck (unlabelled and heavy).
+			Check(Rec().Has(Counter.Roll) && Rec(low: true).Has(Counter.Roll) && Rec(heavy: true).Has(Counter.Roll) && Rec(labelled: false).Has(Counter.Roll)
+				&& Rec(wall: true).Has(Counter.Roll), "a roll gets past creatures, giants, logs and labelled walls");
+			Check(!Rec(labelled: false, heavy: true).Has(Counter.Roll), "a roll doesn't pass a dungeon wall or a wreck");
+			// Giants and heavy blows: parry only.
+			AttackRecord giant = Rec(heavy: true);
+			Check(giant.Has(Counter.Parry) && !giant.Has(Counter.Block), "giants can't be blocked, only parried");
+			Check(Rec().Has(Counter.Block) && Rec().Has(Counter.Parry), "an ordinary creature's blow can be blocked or parried");
+			Check(!Rec(labelled: false).Has(Counter.Parry) && !Rec(labelled: false).Has(Counter.Block), "logs and bare obstacles can't be blocked");
+			Check(!Rec(gas: true).Has(Counter.Parry) && Rec(gas: true).Has(Counter.Jump) && Rec(gas: true).Has(Counter.Roll), "gas: jump or roll through, no shield");
+			Check(Rec(low: true).Has(Counter.Jump) && !Rec(high: true).Has(Counter.Jump) && Rec(jumpable: true).Has(Counter.Jump), "jump what's low");
+			Check(Rec().Has(Counter.Dodge) && Rec(labelled: false, heavy: true).Has(Counter.Dodge), "every attack can be dodged by changing lane");
+			// Fair warning: 0.8 s.
+			AttackRecord w = Rec();
+			Check(!w.Warned(10f), "not warned until a warning showed");
+			w.NoteWarning(9.3f);
+			w.NoteWarning(9.9f);
+			Check(!w.Warned(10f) && w.Warned(10.1f) && AttackRecord.MinWarning == 0.8f, "warned once the first warning has shown 0.8 s");
+			Check(Rec(heavy: true).CounterText() == "dodge/roll/parry", $"counter text: {Rec(heavy: true).CounterText()}");
+		}
+
 		Console.WriteLine(s_failed == 0 ? "All checks passed." : $"{s_failed} checks FAILED.");
 		return s_failed == 0 ? 0 : 1;
 	}

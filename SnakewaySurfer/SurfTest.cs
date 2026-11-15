@@ -488,7 +488,7 @@ internal sealed partial class SurfGame
 		string line = $"{(t.Label.Length > 0 ? t.Label : "(obstacle)")} [{t.Kind}{(t.Wall ? ", wall" : "")}{(t.Heavy ? ", heavy" : "")}{(t.Move.Length > 0 ? ", " + t.Move : "")}] in {biome}"
 			+ $"{(InCrypt(m_z) ? " dungeon" : "")}{(m_bossSeg != null ? " boss fight" : "")}{(m_atSea ? " at sea" : "")}, {m_z:0} m, lane {m_lane} (its lane {t.Lane}), "
 			+ $"you were {(m_y > 0.3f ? $"in the air ({m_y:0.0} m)" : m_slide > 0f ? "rolling" : "running")}, in view for {(seen >= 0f ? seen.ToString("0.0") + " s" : "?")}"
-			+ $", {WarnedFor()}{(BotOn ? "; autopilot: " + m_botNote : "")}; \"{why}\"";
+			+ $", {WarnedFor()}, counters {RecordOf(t).CounterText()}{(BotOn ? "; autopilot: " + m_botNote : "")}; \"{why}\"";
 		Plugin.Log.LogInfo("Hit: " + line);
 		if (!Touring)
 		{
@@ -514,6 +514,11 @@ internal sealed partial class SurfGame
 		}
 		// Attack zones (clouds, sweeps, boss strikes) are short-lived and warned by lane markers.
 		bool threat = t.Collidable && (t.Kind == Kind.Block || t.Kind == Kind.Low || t.Kind == Kind.High) && !(t.Threat && t.Life > 0f && t.Info == null);
+		// (Architecture step 3: every threat has its attack record from the first frame it's seen.)
+		if (t.Kind == Kind.Block || t.Kind == Kind.Low || t.Kind == Kind.High)
+		{
+			RecordOf(t);
+		}
 		if (Touring && t.Info != null && t.Label.Length > 0)
 		{
 			string biome = m_biomes[Mathf.Clamp(BiomeAt(t.Z), 0, m_biomes.Count - 1)].Def.Name + (InCrypt(t.Z) ? " dungeon" : "") + (SegAt(t.Z).Boss ? " boss" : "");

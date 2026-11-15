@@ -139,14 +139,17 @@ internal sealed partial class SurfGame
 
 	private bool TryBlock(Thing t)
 	{
-		if (!m_blocking || t.Label.Length == 0 || t.JumpOrSlide)
+		// (Architecture step 3: what a shield can meet is the attack record's Parry and Block
+		// counters, AttackRecords.cs.)
+		AttackRecord rec = RecordOf(t);
+		if (!m_blocking || !rec.Has(Counter.Parry))
 		{
 			return false;
 		}
 		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
 		// 1.16.x (playtest: trolls were blocked straight through): a giant from the biome's list
 		// (trolls, abominations...) is heavy wherever it turns up, ordinary rows included.
-		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise || IsGiant(t.Label);
+		bool heavy = !rec.Has(Counter.Block);
 		if (m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			t.Collidable = false;

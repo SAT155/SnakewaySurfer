@@ -142,6 +142,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		public bool Threat;
 		// A wall across a path (roots, vines): a roll doesn't get you through it.
 		public bool Wall;
+		// Its attack record (AttackRecords.cs), kept up to date by RecordOf.
+		public AttackRecord? Rec;
 		public bool Dodged;
 		public float RippleTimer;
 		// 1.16.3: a swimmer's body swinging as it goes (SurfRipples.cs).
@@ -2121,7 +2123,8 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// 1.16.x (SAT: rolling always has i-frames): nothing hurts during a roll on the ground,
 		// boss attacks, strikes and vines included. Only running into a dungeon's wall or
 		// wrecking at sea (no label, heavy) still counts.
-		if (m_slide > 0f && m_y < 0.4f && !(t.Label.Length == 0 && t.Heavy))
+		// (Architecture step 3: the rule is the attack record's Roll counter.)
+		if (m_slide > 0f && m_y < 0.4f && RecordOf(t).Has(Counter.Roll))
 		{
 			Dodged(t);
 			return;
