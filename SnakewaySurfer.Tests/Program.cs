@@ -63,6 +63,33 @@ internal static class Program
 			Check(!p.Passable(pace, out _), "the roll behind you still counts after the record moves on");
 		}
 
+		// ---- Admit: the one question every spawner asks
+		{
+			Placement p = Track();
+			Slot near = p.Add(1, 5, 6, Need.Jump, "near");
+			Slot far = p.Add(1, 40, 41, Need.Jump, "far");
+			List<Slot> gone = p.Admit(pace, new[] { near, far }, 0f, 12f * 0.8f);
+			Check(gone.Count == 1 && gone[0] == near && p.Slots.Count == 1, "Admit takes out what starts inside the reaction distance, and only that");
+		}
+		{
+			// Older walls close the track at 60 m; a new row may still not close it sooner.
+			Placement p = Track((0, 60, 61, Need.Wall), (1, 60, 61, Need.Wall), (2, 60, 61, Need.Wall));
+			Slot a = p.Add(0, 30, 31, Need.Wall, "row");
+			Slot b = p.Add(1, 30, 31, Need.Wall, "row");
+			Slot c = p.Add(2, 30, 31, Need.Wall, "row");
+			Slot after = p.Add(1, 80, 81, Need.Jump, "past the set piece");
+			List<Slot> gone = p.Admit(pace, new[] { a, b, c, after }, 0f, 0f);
+			p.Passable(pace, out float closed);
+			Check(gone.Count == 1 && !gone.Contains(after) && closed > 59f, "a row before a closed set piece is still judged; what lies past it is left alone");
+		}
+		{
+			Placement p = Track((0, 30, 31, Need.Wall), (1, 30, 31, Need.Wall));
+			Slot ok = p.Add(2, 50, 51, Need.Jump, "log");
+			Check(p.Admit(pace, new[] { ok }, 0f, 9.6f).Count == 0, "Admit keeps what leaves a fair way");
+			Slot bad = p.Add(2, 30, 31, Need.Wall, "third wall");
+			Check(p.Admit(pace, new[] { bad }, 0f, 9.6f).Count == 1 && p.Passable(pace, out _), "Admit refuses the wall that closes the last lane");
+		}
+
 		// ---- random tracks against a simulated player
 		Random rng = new Random(155);
 		int tracks = args.Length > 0 ? int.Parse(args[0]) : 300;
@@ -109,10 +136,9 @@ internal static class Program
 					mine.Add(gate.Add(lane, from, to, need, "row"));
 					added++;
 				}
-				while (mine.Count > 0 && !gate.Passable(p, out _))
+				foreach (Slot s in gate.Admit(p, mine, 0f, 0f))
 				{
-					gate.Remove(mine[mine.Count - 1]);
-					mine.RemoveAt(mine.Count - 1);
+					mine.Remove(s);
 					removed++;
 				}
 				foreach (Slot s in mine)
