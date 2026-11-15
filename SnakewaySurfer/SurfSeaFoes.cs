@@ -107,7 +107,7 @@ internal sealed partial class SurfGame
 		// (From an island's checkpoint the voyage picks up that far out: SurfCheckpoint.cs.)
 		float along = m_z - sea.Start + m_seaSkip;
 		float len = Mathf.Max(200f, Plugin.OceanLength.Value);
-		if (m_seaBossBeaten && sea.End == float.MaxValue && m_seaPhase == 2)
+		if (m_seaBossBeaten && sea.End == float.MaxValue && m_sea.Phase == 2)
 		{
 			SeaBossDone();
 		}
@@ -116,7 +116,7 @@ internal sealed partial class SurfGame
 		// serpents, and the storm gathers from 60% of the way (past the second island) to full at
 		// 78%. It clears once the serpent of the deep is beaten.
 		float goal = m_seaBossBeaten ? 0f : Mathf.Clamp01((along - len * 0.6f) / (len * 0.18f));
-		m_storm = Mathf.MoveTowards(m_storm, goal, dt / (m_seaBossBeaten ? 9f : 7f));
+		m_sea.Storm = Mathf.MoveTowards(m_sea.Storm, goal, dt / (m_seaBossBeaten ? 9f : 7f));
 		if (!m_seaBossBeaten && m_seaBoss == null && along >= len)
 		{
 			if (Plugin.SeaSerpent.Value && Pictures.Prefab("Serpent") != null)
@@ -128,16 +128,16 @@ internal sealed partial class SurfGame
 				SeaBossDone();
 			}
 		}
-		if (m_storm > 0.5f)
+		if (m_sea.Storm > 0.5f)
 		{
 			m_rollerTimer -= dt;
 			if (m_rollerTimer <= 0f)
 			{
 				m_rollerTimer = fight ? Random.Range(8f, 11f) : Random.Range(5f, 7.5f) / (1f + 0.12f * SeaStars);
-				SpawnRoller(WindVector(), Random.Range(1.6f, 2.4f) * m_storm, Random.Range(4.5f, 5.5f));
+				SpawnRoller(WindVector(), Random.Range(1.6f, 2.4f) * m_sea.Storm, Random.Range(4.5f, 5.5f));
 			}
 		}
-		if (m_storm > 0.6f)
+		if (m_sea.Storm > 0.6f)
 		{
 			m_strikeTimer -= dt;
 			if (m_strikeTimer <= 0f)
@@ -776,9 +776,9 @@ internal sealed partial class SurfGame
 	private void Ram(Vector2 at, string why)
 	{
 		Vector2 away = ShipCenter() - at;
-		m_boatSpeed *= 0.3f;
-		m_lurchV += (Vector2.Dot(away, new Vector2(HeadingVector().y, -HeadingVector().x)) > 0f ? 1f : -1f) * 90f;
-		m_heading = Mathf.Clamp(m_heading + Mathf.Sign(Vector2.Dot(away, new Vector2(HeadingVector().y, -HeadingVector().x)) + 0.01f) * 25f, -MaxHeading, MaxHeading);
+		m_sea.BoatSpeed *= 0.3f;
+		m_sea.LurchV += (Vector2.Dot(away, new Vector2(HeadingVector().y, -HeadingVector().x)) > 0f ? 1f : -1f) * 90f;
+		m_sea.Heading = Mathf.Clamp(m_sea.Heading + Mathf.Sign(Vector2.Dot(away, new Vector2(HeadingVector().y, -HeadingVector().x)) + 0.01f) * 25f, -MaxHeading, MaxHeading);
 		SpawnSplash(at, 1.4f);
 		m_audio.Play("sfx_ship_impact|sfx_wood_hit", 1f, 0.8f);
 		m_shake = Mathf.Max(m_shake, 0.5f);
@@ -807,7 +807,7 @@ internal sealed partial class SurfGame
 		}
 		bool unharmed = m_lives == lives && Mathf.Approximately(m_hull, hull) && m_state == State.Running && Mathf.Approximately(m_hurtTime, hurt) && !Plugin.Invincible.Value;
 		// The blow (or the guard taking it) rocks the ship.
-		m_lurchV += (Random.value < 0.5f ? -1f : 1f) * (unharmed ? 35f : 80f);
+		m_sea.LurchV += (Random.value < 0.5f ? -1f : 1f) * (unharmed ? 35f : 80f);
 		m_shake = Mathf.Max(m_shake, unharmed ? 0.2f : 0.4f);
 		return unharmed ? 1 : 0;
 	}
@@ -864,7 +864,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		float windup = Mathf.Max(1.1f, 1.6f - 0.1f * SeaStars);
 		switch (f.Phase)
 		{
@@ -875,7 +875,7 @@ internal sealed partial class SurfGame
 				Vector2 spot = f.Move == "breath" ? BreathSpot(f, 30f) : ship + new Vector2(f.Side * 14f, 6f) + shipVel * 0.8f;
 				Vector2 to = spot - f.P;
 				// 1.16.74 (SAT: "quite a bit slower"): it closes on the ship gently.
-				float speed = m_boatSpeed + 4f;
+				float speed = m_sea.BoatSpeed + 4f;
 				f.Dir = to.normalized * speed;
 				// 1.16.3 (SAT: "it should squiggle along, not straight-line it"): it weaves as it
 				// swims, straightening out as it gets there.
@@ -1039,7 +1039,7 @@ internal sealed partial class SurfGame
 			return;
 		}
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		float windup = Mathf.Max(1.2f, 1.7f - 0.1f * SeaStars);
 		switch (f.Phase)
 		{
@@ -1051,7 +1051,7 @@ internal sealed partial class SurfGame
 				float angle = Angle2(f.P - ship) + f.Side * 40f * dt;
 				Vector2 want = ship + Dir2(angle) * (20f + 4f * Mathf.Sin(f.T * 1.9f + f.Bob)) + shipVel * 0.5f;
 				Vector2 to = want - f.P;
-				float speed = m_boatSpeed + 10f;
+				float speed = m_sea.BoatSpeed + 10f;
 				f.Facing = Mathf.MoveTowardsAngle(f.Facing, Angle2(to) + Mathf.Sin(f.T * 2.2f + f.Bob) * 25f, 180f * dt);
 				f.P += to.normalized * Mathf.Min(speed * dt, to.magnitude);
 				f.Dir = to.normalized * speed;
@@ -1191,7 +1191,7 @@ internal sealed partial class SurfGame
 				{
 					f.Aim = ship;
 				}
-				f.P = Vector2.MoveTowards(f.P, f.Aim, (m_boatSpeed + 14f) * dt);
+				f.P = Vector2.MoveTowards(f.P, f.Aim, (m_sea.BoatSpeed + 14f) * dt);
 				GameObject ring = f.Markers.Count > 1 && f.Markers[1] != null ? f.Markers[1] : WaterMarker(true);
 				if (f.Markers.Count < 2)
 				{
@@ -1216,7 +1216,7 @@ internal sealed partial class SurfGame
 					if (ShipDistance(f.Aim) < 2.3f)
 					{
 						int result = SeaHit(f, true, $"The {f.Label} of the deep burst up under the ship!");
-						m_lurchV += 160f * (Random.value < 0.5f ? -1f : 1f);
+						m_sea.LurchV += 160f * (Random.value < 0.5f ? -1f : 1f);
 						if (result == 2)
 						{
 							f.T = -2f;
@@ -1237,7 +1237,7 @@ internal sealed partial class SurfGame
 	private void UpdateFlyer(SeaFoe f, float dt)
 	{
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		if (f.Dead)
 		{
 			f.Y -= dt * 9f;
@@ -1430,7 +1430,7 @@ internal sealed partial class SurfGame
 		// Beside where the ship will be: off to one side, so turning away from the ring clears it.
 		Vector2 f = HeadingVector();
 		Vector2 side = new Vector2(f.y, -f.x) * ((Random.value < 0.5f ? -1f : 1f) * Random.Range(1.5f, 7f));
-		Vector2 at = ShipCenter() + f * (m_boatSpeed * 1.3f + Random.Range(-4f, 4f)) + side;
+		Vector2 at = ShipCenter() + f * (m_sea.BoatSpeed * 1.3f + Random.Range(-4f, 4f)) + side;
 		SeaStrike s = new SeaStrike { At = at, Warn = Mathf.Max(1.15f, 1.5f - 0.1f * SeaStars), Marker = WaterMarker(true) };
 		PlaceWaterMarker(s.Marker, at, 7f, 7f, 0f);
 		m_seaStrikes.Add(s);
@@ -1545,14 +1545,14 @@ internal sealed partial class SurfGame
 			{
 				m_aimLine.gameObject.SetActive(false);
 			}
-			m_aimWorld = m_heading;
+			m_aimWorld = m_sea.Heading;
 			return;
 		}
 		if (canInput)
 		{
 			m_aimWorld += MouseLook().x;
 		}
-		m_aimWorld = m_heading + Mathf.Clamp(Mathf.DeltaAngle(m_heading, m_aimWorld), -AimArc, AimArc);
+		m_aimWorld = m_sea.Heading + Mathf.Clamp(Mathf.DeltaAngle(m_sea.Heading, m_aimWorld), -AimArc, AimArc);
 		if (m_aimLine == null)
 		{
 			GameObject go = new GameObject("BallistaAim") { layer = m_layer };
@@ -1570,35 +1570,35 @@ internal sealed partial class SurfGame
 		m_aimLine.gameObject.SetActive(true);
 		Vector2 f = Dir2(m_aimWorld);
 		Vector2 bow = ShipCenter() + HeadingVector() * (m_shipLength * 0.5f);
-		float y = m_boatY + 1.3f;
+		float y = m_sea.BoatY + 1.3f;
 		for (int i = 0; i < 14; i++)
 		{
 			float t = i / 13f;
 			Vector2 p = bow + f * (2f + t * AimReach);
 			m_aimLine.SetPosition(i, new Vector3(p.x, y - t * 0.9f, p.y));
 		}
-		float a = m_reload <= 0f ? 0.75f : 0.25f;
+		float a = m_sea.Reload <= 0f ? 0.75f : 0.25f;
 		m_aimLine.startColor = new Color(1f, 0.92f, 0.7f, a);
 		m_aimLine.endColor = new Color(1f, 0.6f, 0.3f, a * 0.35f);
 	}
 
 	private void FireSeaBallista()
 	{
-		m_reload = BallistaReload;
+		m_sea.Reload = BallistaReload;
 		Vector2 f = Dir2(m_aimWorld);
 		Vector2 bow = ShipCenter() + HeadingVector() * (m_shipLength * 0.5f);
 		GameObject go = MakeBallistaBolt();
-		float y = m_boatY + 1.6f;
+		float y = m_sea.BoatY + 1.6f;
 		go.transform.localPosition = new Vector3(bow.x, y, bow.y);
 		go.transform.localRotation = Quaternion.LookRotation(new Vector3(f.x, 0f, f.y));
-		m_ballistaBolts.Add(new BallistaBolt { Go = go, P = bow, V = f * SeaBoltSpeed + HeadingVector() * m_boatSpeed, Y = y, Life = 1.1f });
+		m_ballistaBolts.Add(new BallistaBolt { Go = go, P = bow, V = f * SeaBoltSpeed + HeadingVector() * m_sea.BoatSpeed, Y = y, Life = 1.1f });
 		GameObject? fx = FindFx("fx_turret_fire");
 		if (fx != null)
 		{
 			PlayFx(fx, new Vector3(bow.x, y, bow.y), Quaternion.LookRotation(new Vector3(f.x, 0f, f.y)), 2f);
 		}
 		m_audio.Play("fx_turret_fire|sfx_bow_fire|sfx_crossbow_fire", 0.8f, Random.Range(0.95f, 1.05f));
-		m_lurchV += Random.Range(-4f, 4f);
+		m_sea.LurchV += Random.Range(-4f, 4f);
 	}
 
 	private void UpdateBallistaBolts(float dt)
@@ -1797,7 +1797,7 @@ internal sealed partial class SurfGame
 		}
 		// Above the swell all along its length (a long streak on one height dipped under the
 		// waves).
-		float top = Mathf.Max(SeaHeight(centre.x, centre.y), SeaY) + 0.35f + 1.4f * m_storm;
+		float top = Mathf.Max(SeaHeight(centre.x, centre.y), SeaY) + 0.35f + 1.4f * m_sea.Storm;
 		m.transform.localPosition = new Vector3(centre.x, top, centre.y);
 		m.transform.localRotation = Quaternion.Euler(90f, angle, 0f);
 		m.transform.localScale = new Vector3(width, Mathf.Max(0.5f, length), 1f);

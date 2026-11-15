@@ -16,7 +16,7 @@ internal sealed partial class SurfGame
 	// Where a serpent comes up to breathe: ahead of the ship and a little to one side.
 	private Vector2 BreathSpot(SeaFoe f, float ahead)
 	{
-		return ShipCenter() + HeadingVector() * (ahead + m_boatSpeed * 0.5f) + new Vector2(f.Side * 4.5f, 0f);
+		return ShipCenter() + HeadingVector() * (ahead + m_sea.BoatSpeed * 0.5f) + new Vector2(f.Side * 4.5f, 0f);
 	}
 
 	private float BreathWindup(SeaFoe f) => f.Boss ? Mathf.Max(1.5f, 2f - 0.1f * SeaStars) : Mathf.Max(1.3f, 1.8f - 0.1f * SeaStars);
@@ -25,7 +25,7 @@ internal sealed partial class SurfGame
 	private void StartBreath(SeaFoe f)
 	{
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		f.Phase = 4;
 		f.T = 0f;
 		f.Struck = false;
@@ -43,7 +43,7 @@ internal sealed partial class SurfGame
 	private int UpdateBreath(SeaFoe f, float dt, string why)
 	{
 		Vector2 ship = ShipCenter();
-		Vector2 shipVel = HeadingVector() * m_boatSpeed;
+		Vector2 shipVel = HeadingVector() * m_sea.BoatSpeed;
 		float windup = BreathWindup(f);
 		float width = f.Boss ? 7f : 5f;
 		// Stopped dead, reared up out of the water: the ship comes on toward it.

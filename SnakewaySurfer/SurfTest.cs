@@ -400,7 +400,7 @@ internal sealed partial class SurfGame
 			names.Add($"{a.Key} x{a.Value}");
 		}
 		string biome = m_biomes.Count > 0 ? m_biomes[Mathf.Clamp(BiomeAt(m_z), 0, m_biomes.Count - 1)].Def.Name : "?";
-		string flags = (m_atSea ? " at-sea" : "") + (m_camping ? " camping" : "") + (m_shopOpen ? " shop" : "") + (InCrypt(m_z) ? " dungeon" : "")
+		string flags = (m_sea.AtSea ? " at-sea" : "") + (m_camping ? " camping" : "") + (m_shopOpen ? " shop" : "") + (InCrypt(m_z) ? " dungeon" : "")
 			+ (m_bossSeg != null ? " boss" : "") + (InMaze ? " maze" : "") + (m_ravenOn ? " raven" : "");
 		TourLine($"  {file}: {m_tourTime:0.0} s, state {m_state}, {biome}, {m_z:0} m, lane {m_lane}, lives {m_lives}, speed {m_speed:0.0},{flags}; ahead: {(names.Count > 0 ? string.Join(", ", names) : "nothing")}");
 		StartCoroutine(Capture(Path.Combine(m_tourDir, file)));
@@ -486,7 +486,7 @@ internal sealed partial class SurfGame
 		string biome = m_biomes.Count > 0 ? m_biomes[Mathf.Clamp(BiomeAt(m_z), 0, m_biomes.Count - 1)].Def.Name : "?";
 		float seen = t.Born >= 0f ? m_clock - t.Born : -1f;
 		string line = $"{(t.Label.Length > 0 ? t.Label : "(obstacle)")} [{t.Kind}{(t.Wall ? ", wall" : "")}{(t.Heavy ? ", heavy" : "")}{(t.Move.Length > 0 ? ", " + t.Move : "")}] in {biome}"
-			+ $"{(InCrypt(m_z) ? " dungeon" : "")}{(m_bossSeg != null ? " boss fight" : "")}{(m_atSea ? " at sea" : "")}, {m_z:0} m, lane {m_lane} (its lane {t.Lane}), "
+			+ $"{(InCrypt(m_z) ? " dungeon" : "")}{(m_bossSeg != null ? " boss fight" : "")}{(m_sea.AtSea ? " at sea" : "")}, {m_z:0} m, lane {m_lane} (its lane {t.Lane}), "
 			+ $"you were {(m_y > 0.3f ? $"in the air ({m_y:0.0} m)" : m_slide > 0f ? "rolling" : "running")}, in view for {(seen >= 0f ? seen.ToString("0.0") + " s" : "?")}"
 			+ $", {WarnedFor()}, counters {RecordOf(t).CounterText()}{(BotOn ? "; autopilot: " + m_botNote : "")}; \"{why}\"";
 		Plugin.Log.LogInfo("Hit: " + line);
@@ -508,7 +508,7 @@ internal sealed partial class SurfGame
 	private void NoteNewThing(Thing t)
 	{
 		t.Born = m_clock;
-		if (m_state != State.Running || m_atSea)
+		if (m_state != State.Running || m_sea.AtSea)
 		{
 			return;
 		}
@@ -616,7 +616,7 @@ internal sealed partial class SurfGame
 	{
 		m_botKeys.Clear();
 		m_botBlock = false;
-		if (!BotOn || m_state != State.Running || m_atSea || m_camping || m_shopOpen || m_aimTime > 0f)
+		if (!BotOn || m_state != State.Running || m_sea.AtSea || m_camping || m_shopOpen || m_aimTime > 0f)
 		{
 			return;
 		}

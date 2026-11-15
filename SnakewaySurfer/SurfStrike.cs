@@ -53,7 +53,7 @@ internal sealed partial class SurfGame
 
 	private bool FairlyWarned(Thing t)
 	{
-		if (!Plugin.FairWarning.Value || m_atSea || t.Label.Length == 0 || !(t.Threat || t.Life > 0f))
+		if (!Plugin.FairWarning.Value || m_sea.AtSea || t.Label.Length == 0 || !(t.Threat || t.Life > 0f))
 		{
 			return true;
 		}

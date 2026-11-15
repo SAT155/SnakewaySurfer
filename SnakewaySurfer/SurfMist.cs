@@ -141,14 +141,14 @@ internal sealed partial class SurfGame
 
 	private void UpdateMist(float dt)
 	{
-		bool storm = Plugin.MistStorm.Value && m_state == State.Running && m_biomes.Count > 0 && !m_atSea && m_bossEnvDef == null
+		bool storm = Plugin.MistStorm.Value && m_state == State.Running && m_biomes.Count > 0 && !m_sea.AtSea && m_bossEnvDef == null
 			&& m_biomes[BiomeAt(m_z)].Def.Name == "Mistlands" && !InCrypt(m_z);
 		if (storm || m_mistStorm.Count > 0)
 		{
 			UpdateMistStorm(storm);
 		}
 		float amount = Plugin.MistAmount.Value;
-		if (amount <= 0f || m_state != State.Running || m_biomes.Count == 0 || m_atSea)
+		if (amount <= 0f || m_state != State.Running || m_biomes.Count == 0 || m_sea.AtSea)
 		{
 			return;
 		}

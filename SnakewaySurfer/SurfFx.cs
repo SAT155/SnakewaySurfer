@@ -398,10 +398,10 @@ internal sealed partial class SurfGame
 			return;
 		}
 		float side = Random.value < 0.5f ? -1f : 1f;
-		float z = m_z + (m_atSea ? Random.Range(5f, 60f) : ChaseSign * Random.Range(25f, 70f));
+		float z = m_z + (m_sea.AtSea ? Random.Range(5f, 60f) : ChaseSign * Random.Range(25f, 70f));
 		// At sea, out on the water either side of the ship, where the camera above can see it.
-		float x = m_atSea ? m_x + side * Random.Range(28f, 60f) : side * Random.Range(TrackHalf + 10f, TrackHalf + 40f);
-		Vector3 ground = new Vector3(x, m_atSea ? SeaHeight(x, z) : LandAt(x, z, out _, out _), z);
+		float x = m_sea.AtSea ? m_x + side * Random.Range(28f, 60f) : side * Random.Range(TrackHalf + 10f, TrackHalf + 40f);
+		Vector3 ground = new Vector3(x, m_sea.AtSea ? SeaHeight(x, z) : LandAt(x, z, out _, out _), z);
 		PlayFx(bolt, ground, Quaternion.identity, 3f);
 		// 1.15.2: a visible streak from the clouds, not just the flash.
 		LightningBolt(ground + new Vector3(Random.Range(-10f, 10f), 70f, 0f), ground, 0.9f, 0.4f, 0f, m_bossEnvDef?.Tint ?? new Color(0.6f, 0.8f, 1f));

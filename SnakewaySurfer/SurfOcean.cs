@@ -92,7 +92,7 @@ internal sealed partial class SurfGame
 	private float SeaHeight(float x, float z)
 	{
 		float t = m_seaClock;
-		float calm = Mathf.Lerp(0.22f, 0.75f, m_storm) + 0.12f * m_windStrength;
+		float calm = Mathf.Lerp(0.22f, 0.75f, m_sea.Storm) + 0.12f * m_sea.WindStrength;
 		float h = calm * (0.55f * Mathf.Sin(x * 0.11f + z * 0.07f + t * 1.3f)
 			+ 0.3f * Mathf.Sin(-x * 0.05f + z * 0.16f + t * 1.9f)
 			+ 0.15f * Mathf.Sin(x * 0.23f - z * 0.19f + t * 2.7f));
@@ -217,9 +217,9 @@ internal sealed partial class SurfGame
 			// Darker and greyer under the storm; the ripples drift with the wind.
 			Color calm = new Color(0.10f, 0.27f, 0.33f, 0.88f);
 			Color storm = new Color(0.07f, 0.13f, 0.15f, 0.92f);
-			m_oceanMaterial.color = Color.Lerp(calm, storm, m_storm);
+			m_oceanMaterial.color = Color.Lerp(calm, storm, m_sea.Storm);
 			// The ripples drift with the wind, and stay put on the water as the grid moves.
-			m_rippleDrift += WindVector() * (dt * (0.02f + 0.03f * m_windStrength));
+			m_rippleDrift += WindVector() * (dt * (0.02f + 0.03f * m_sea.WindStrength));
 			m_rippleDrift = new Vector2(Mathf.Repeat(m_rippleDrift.x, 1f), Mathf.Repeat(m_rippleDrift.y, 1f));
 			Vector2 offset = m_rippleDrift + new Vector2(cx, cz) / RippleTile;
 			m_oceanMaterial.mainTextureOffset = new Vector2(Mathf.Repeat(offset.x, 1f), Mathf.Repeat(offset.y, 1f));
@@ -461,7 +461,7 @@ internal sealed partial class SurfGame
 	// of the channel show as lines of breaking surf.
 	private void UpdateWindStreaks(float dt)
 	{
-		if (!m_atSea)
+		if (!m_sea.AtSea)
 		{
 			return;
 		}
@@ -471,18 +471,18 @@ internal sealed partial class SurfGame
 			m_reefTimer += 0.07f;
 			float side = Random.value < 0.5f ? -1f : 1f;
 			Vector2 reef = new Vector2(side * (SeaHalfWidth + 2.5f + Random.Range(0f, 3.5f)), m_z + Random.Range(-20f, 55f));
-			AddFoam(reef, Random.Range(1.2f, 2.4f), Random.Range(1.2f, 2f), 0.45f + 0.2f * m_storm, 1.4f, new Vector2(0f, 0f), new Vector2(0f, 1f), Random.Range(2f, 4f));
+			AddFoam(reef, Random.Range(1.2f, 2.4f), Random.Range(1.2f, 2f), 0.45f + 0.2f * m_sea.Storm, 1.4f, new Vector2(0f, 0f), new Vector2(0f, 1f), Random.Range(2f, 4f));
 		}
 		m_streakTimer -= dt;
 		// More streaks the harder it blows, and a rush of them while the wind turns.
-		float rate = (0.05f + 0.12f * (1f - m_windStrength) - 0.03f * m_storm) * (1f - 0.6f * m_windShift);
+		float rate = (0.05f + 0.12f * (1f - m_sea.WindStrength) - 0.03f * m_sea.Storm) * (1f - 0.6f * m_sea.WindShift);
 		while (m_streakTimer <= 0f)
 		{
 			m_streakTimer += Mathf.Max(0.02f, rate);
 			Vector2 wind = WindVector();
 			Vector2 at = new Vector2(m_x + Random.Range(-38f, 38f), m_z + Random.Range(-18f, 46f));
-			float speed = 3f + 7f * m_windStrength + 4f * m_storm;
-			AddFoam(at, Random.Range(0.25f, 0.4f), Random.Range(1.6f, 2.6f), 0.22f + 0.12f * m_storm, 0f, wind * speed, wind, Random.Range(2.5f, 5f));
+			float speed = 3f + 7f * m_sea.WindStrength + 4f * m_sea.Storm;
+			AddFoam(at, Random.Range(0.25f, 0.4f), Random.Range(1.6f, 2.6f), 0.22f + 0.12f * m_sea.Storm, 0f, wind * speed, wind, Random.Range(2.5f, 5f));
 		}
 	}
 
@@ -574,9 +574,9 @@ internal sealed partial class SurfGame
 		Vector2 boat = new Vector2(m_x, m_z);
 		// Measured against the boat's own speed along the wave's way: a following sea always
 		// overtakes the ship, as real ones do.
-		Vector2 boatVel = HeadingVector() * m_boatSpeed;
+		Vector2 boatVel = HeadingVector() * m_sea.BoatSpeed;
 		float along = Vector2.Dot(boatVel, dir);
-		float speed = Mathf.Max(small ? 9f : 7.5f + 2.5f * m_storm, along + 4f);
+		float speed = Mathf.Max(small ? 9f : 7.5f + 2.5f * m_sea.Storm, along + 4f);
 		float closing = Mathf.Max(3f, speed - along);
 		float crest = from.HasValue ? Vector2.Dot(from.Value, dir) : Vector2.Dot(boat, dir) - closing * eta;
 		Roller r = new Roller { Dir = dir, Crest = crest, StartCrest = crest, Speed = speed, Height = height, Small = small, Origin = from ?? boat };

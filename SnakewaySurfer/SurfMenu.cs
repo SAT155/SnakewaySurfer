@@ -217,7 +217,7 @@ internal sealed partial class SurfGame
 	private (int biome, int stars, bool sea) CrashPlace()
 	{
 		Segment s = SegAt(m_z);
-		if (m_atSea || s.Sea || s.Shore)
+		if (m_sea.AtSea || s.Sea || s.Shore)
 		{
 			return (SeaTo, s.Stars, true);
 		}
