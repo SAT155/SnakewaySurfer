@@ -170,6 +170,51 @@ internal sealed class Placement
 		return at[0].Count + at[1].Count + at[2].Count > 0;
 	}
 
+	// The one question every spawner asks: may these new things (already added) stand here,
+	// now? Returns the ones that must come out again, nearest the trouble first:
+	//  - anything starting less than `warn` metres ahead of the runner at `runnerZ` (no time to
+	//    see it; the game passes speed x MinWarning);
+	//  - then, one at a time, whatever leaves no fair way through.
+	// If older things already close the track (a set piece with its own rules), the new ones are
+	// still judged: they may not close it any sooner than it was closed before them.
+	// Taken-out slots are removed from the record.
+	public List<Slot> Admit(Pace pace, IReadOnlyList<Slot> fresh, float runnerZ, float warn)
+	{
+		List<Slot> mine = new(fresh);
+		List<Slot> gone = new();
+		for (int i = mine.Count - 1; i >= 0; i--)
+		{
+			if (mine[i].From < runnerZ + warn)
+			{
+				gone.Add(mine[i]);
+				m_slots.Remove(mine[i]);
+				mine.RemoveAt(i);
+			}
+		}
+		foreach (Slot s in mine)
+		{
+			m_slots.Remove(s);
+		}
+		bool wasOpen = Passable(pace, out float closedAt);
+		m_slots.AddRange(mine);
+		while (mine.Count > 0 && !Passable(pace, out float stuck) && (wasOpen || stuck < closedAt - Step * 0.5f))
+		{
+			Slot worst = mine[0];
+			foreach (Slot s in mine)
+			{
+				if (Math.Abs((s.From + s.To) * 0.5f - stuck) < Math.Abs((worst.From + worst.To) * 0.5f - stuck))
+				{
+					worst = s;
+				}
+			}
+			mine.Remove(worst);
+			m_slots.Remove(worst);
+			gone.Add(worst);
+		}
+		Removed += gone.Count;
+		return gone;
+	}
+
 	private List<State>[] Run(List<State>[] start, float from, float to, Pace pace, out float stuckAt)
 	{
 		stuckAt = from;
