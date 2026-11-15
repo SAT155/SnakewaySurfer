@@ -1362,14 +1362,14 @@ internal sealed partial class SurfGame : MonoBehaviour
 			DepositCoins();
 		}
 		m_crashText = why;
-		if (m_atSea && m_seaPhase == 2)
+		if (m_sea.AtSea && m_sea.Phase == 2)
 		{
 			StartWreck();
 		}
 		SetTrigger("stagger");
 		// Run XP for the running: time at sea is sailing.
 		// (A self-test earns nothing: SurfTest.cs.)
-		m_rewardText = m_tourRan ? "" : Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_seaTime), m_biomes.ConvertAll(b => b.Def),
+		m_rewardText = m_tourRan ? "" : Rewards.Grant(m_player, m_z + m_bonusDistance, m_highestBiome, Mathf.Max(0f, m_runTime - m_sea.SeaTime), m_biomes.ConvertAll(b => b.Def),
 			Plugin.SkillXp.Value ? m_blockXp : 0f, Plugin.SkillXp.Value ? m_dodgeXp : 0f, m_runBiomes);
 		if (m_lootText.Length > 0)
 		{
@@ -1546,7 +1546,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				break;
 			}
 			case State.Running:
-				if (m_atSea)
+				if (m_sea.AtSea)
 				{
 					UpdateSea(dt, canInput);
 				}
@@ -1597,10 +1597,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 			// Aiming the ballista stops the run, and everything on the track with it.
 			UpdateThings(dt);
 		}
-		if (m_atSea && m_state != State.Running && m_seaPhase == 2)
+		if (m_sea.AtSea && m_state != State.Running && m_sea.Phase == 2)
 		{
 			// Wrecked or not, the ship still rides the waves.
-			m_turnRate = Mathf.MoveTowards(m_turnRate, 0f, 120f * dt);
+			m_sea.TurnRate = Mathf.MoveTowards(m_sea.TurnRate, 0f, 120f * dt);
 			PlaceShip(dt, m_x, m_z);
 			UpdateSeaLoops(dt);
 			UpdateWreck(dt);
@@ -3909,7 +3909,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 				m_rollReadyAt = Time.time;
 			}
 		}
-		if (m_state != State.Running || m_lives >= Plugin.StartLives || m_atSea)
+		if (m_state != State.Running || m_lives >= Plugin.StartLives || m_sea.AtSea)
 		{
 			m_lifeRegen = 0f;
 			return;
@@ -4192,11 +4192,11 @@ internal sealed partial class SurfGame : MonoBehaviour
 		// The boss's own weather over its arena (and its lightning).
 		BossDef? weatherDef = arena > 0f ? bd0 : null;
 		float weatherWeight = arena;
-		if (m_atSea && m_storm > 0f)
+		if (m_sea.AtSea && m_sea.Storm > 0f)
 		{
 			// The storm of the crossing comes in like a boss's weather.
 			weatherDef = s_seaStorm;
-			weatherWeight = m_storm;
+			weatherWeight = m_sea.Storm;
 		}
 		float weather = UpdateBossWeather(dt, weatherDef, weatherWeight);
 		ApplyBossWeather(weather, ref fog, ref fogColor, ref ambient, ref sunColor, ref sunIntensity, ref sky);
@@ -4267,7 +4267,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		m_mid!.fontSize = Mathf.RoundToInt(34 * k);
 		m_small!.fontSize = Mathf.RoundToInt(26 * k);
 
-		bool sea = m_biomes.Count > 0 && (m_atSea || SegAt(m_z).Sea);
+		bool sea = m_biomes.Count > 0 && (m_sea.AtSea || SegAt(m_z).Sea);
 		string biome = m_biomes.Count > 0 ? Progress.Describe(BiomeAt(m_z), StarsAt(m_z), sea) : "";
 		string stretch = m_biomes.Count > 0 ? StretchHud() : "";
 		string lives = Plugin.StartLives > 1 || m_lives > 1 ? $"   ·   lives {m_lives}" : "";

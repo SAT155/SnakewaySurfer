@@ -53,7 +53,7 @@ internal sealed partial class SurfGame
 	// Called from Hit: at sea the ship takes the blow. True when it's dealt with.
 	private bool HullTakes(Thing t, string why)
 	{
-		if (!m_atSea || m_seaPhase != 2)
+		if (!m_sea.AtSea || m_sea.Phase != 2)
 		{
 			return false;
 		}
@@ -97,9 +97,9 @@ internal sealed partial class SurfGame
 	}
 
 	// How much lower she sits, and her list, as the hull fails.
-	private float HullSink => m_atSea ? (1f - m_hull / HullMax) * 0.45f + WreckSink : 0f;
+	private float HullSink => m_sea.AtSea ? (1f - m_hull / HullMax) * 0.45f + WreckSink : 0f;
 
-	private float HullList => m_atSea ? (1f - m_hull / HullMax) * 5f + (m_wreck >= 0f ? 28f * Mathf.SmoothStep(0f, 1f, m_wreck / 3.5f) : 0f) : 0f;
+	private float HullList => m_sea.AtSea ? (1f - m_hull / HullMax) * 5f + (m_wreck >= 0f ? 28f * Mathf.SmoothStep(0f, 1f, m_wreck / 3.5f) : 0f) : 0f;
 
 	// 1.16.78 (SAT: "When your ship dies, it should sink and a couple of those weird crates
 	// float up"): wrecked, she lists and goes down by the bow, and the game's cargo crates (what
@@ -355,15 +355,15 @@ internal sealed partial class SurfGame
 				float aside = Mathf.Sign(c.x - i.C.x + 0.01f);
 				m_x += away.x * over + (away.y < 0f ? aside * -away.y * over : 0f);
 				m_z += Mathf.Max(0f, away.y * over);
-				m_heading = Mathf.MoveTowards(m_heading, aside * MaxHeading * 0.7f, 140f * dt);
-				if (m_scrape <= 0f)
+				m_sea.Heading = Mathf.MoveTowards(m_sea.Heading, aside * MaxHeading * 0.7f, 140f * dt);
+				if (m_sea.Scrape <= 0f)
 				{
 					m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.6f, 0.75f);
 					SpawnSplash(c - push.normalized * m_shipBeam, 0.9f);
-					m_lurchV += Mathf.Sign(push.x + 0.01f) * 30f;
-					m_boatSpeed *= 0.5f;
+					m_sea.LurchV += Mathf.Sign(push.x + 0.01f) * 30f;
+					m_sea.BoatSpeed *= 0.5f;
 				}
-				m_scrape = 0.6f;
+				m_sea.Scrape = 0.6f;
 			}
 			if (d < i.R * IslandShore + MooringReach)
 			{
@@ -380,12 +380,12 @@ internal sealed partial class SurfGame
 				i.SetSail = false;
 			}
 		}
-		if (near != null && m_sail != Sail.Oars && m_moored != near && !near.SetSail && m_hull < HullMax)
+		if (near != null && m_sea.SailSet != Sail.Oars && m_moored != near && !near.SetSail && m_hull < HullMax)
 		{
-			m_sail = Sail.Oars;
+			m_sea.SailSet = Sail.Oars;
 			SailSound();
 		}
-		if (near != null && m_moored == near && m_sail != Sail.Oars)
+		if (near != null && m_moored == near && m_sea.SailSet != Sail.Oars)
 		{
 			near.SetSail = true;
 		}
@@ -393,7 +393,7 @@ internal sealed partial class SurfGame
 		{
 			IslandCheckpoint(near);
 		}
-		if (near == null || m_sail != Sail.Oars)
+		if (near == null || m_sea.SailSet != Sail.Oars)
 		{
 			m_moored = null;
 			RepairHammer(false);
@@ -405,7 +405,7 @@ internal sealed partial class SurfGame
 			m_repairTick = 0.6f;
 			m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.4f, 1.2f);
 		}
-		if (m_hull >= HullMax || m_boatSpeed > 1.5f)
+		if (m_hull >= HullMax || m_sea.BoatSpeed > 1.5f)
 		{
 			RepairHammer(false);
 			return;
@@ -440,7 +440,7 @@ internal sealed partial class SurfGame
 		{
 			PlayFx(dust, at + Vector3.up * 0.3f, Quaternion.identity, 2f);
 		}
-		m_lurchV += Random.Range(-6f, 6f);
+		m_sea.LurchV += Random.Range(-6f, 6f);
 		if (m_hull >= HullMax)
 		{
 			// Whole again: the game's own "repaired" chime.

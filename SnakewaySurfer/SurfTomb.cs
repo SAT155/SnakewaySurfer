@@ -14,7 +14,7 @@ internal sealed partial class SurfGame
 	private void RaiseTomb()
 	{
 		ClearTomb();
-		if (m_atSea || m_avatar == null)
+		if (m_sea.AtSea || m_avatar == null)
 		{
 			return;
 		}

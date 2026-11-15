@@ -424,7 +424,7 @@ internal sealed partial class SurfGame
 		}
 
 		// At sea: the wind, the ship and its sail (SurfSea.cs).
-		if (m_atSea && m_seaPhase == 2)
+		if (m_sea.AtSea && m_sea.Phase == 2)
 		{
 			SeaHud(k, w, h);
 		}

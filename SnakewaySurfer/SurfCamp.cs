@@ -80,7 +80,7 @@ internal sealed partial class SurfGame
 	private Vector3 SternPoint()
 	{
 		Vector2 s = ShipCenter() - HeadingVector() * (m_shipLength * 0.45f);
-		return new Vector3(s.x, m_boatY + 1.3f, s.y);
+		return new Vector3(s.x, m_sea.BoatY + 1.3f, s.y);
 	}
 
 	private Vector3 TowedHead(SeaFoe f)
@@ -145,7 +145,7 @@ internal sealed partial class SurfGame
 				m_audio.Play("sfx_spear_hit|sfx_arrow_hit|sfx_wood_hit", 1f, 0.8f);
 				SpawnSplash(new Vector2(head.x, head.z), 1f);
 				m_shake = Mathf.Max(m_shake, 0.2f);
-				m_lurchV += Random.Range(-10f, 10f);
+				m_sea.LurchV += Random.Range(-10f, 10f);
 			}
 		}
 		else if (m_harpoon != null)
@@ -160,7 +160,7 @@ internal sealed partial class SurfGame
 		}
 		if (m_rope != null)
 		{
-			float tight = m_harpoonT >= HarpoonFlight ? Mathf.Clamp01(m_boatSpeed / 4f) : 0f;
+			float tight = m_harpoonT >= HarpoonFlight ? Mathf.Clamp01(m_sea.BoatSpeed / 4f) : 0f;
 			for (int i = 0; i < m_rope.positionCount; i++)
 			{
 				float t = i / (float)(m_rope.positionCount - 1);
@@ -213,7 +213,7 @@ internal sealed partial class SurfGame
 		}
 		float side = m_x >= 0f ? -1f : 1f;
 		float x = side * (TrackHalf + 7f);
-		float z = m_leapToZ + 3f;
+		float z = m_sea.LeapToZ + 3f;
 		f.Go.transform.localPosition = new Vector3(x, HillHeight(x, z) + 0.2f, z);
 		f.Go.transform.localRotation = Quaternion.Euler(0f, side < 0f ? 60f : -60f, 0f) * Quaternion.Euler(0f, 0f, 150f);
 		m_things.Add(new Thing { Go = f.Go, Kind = Kind.Scenery, Z = z, HalfLength = f.Length * 0.5f, Collidable = false });

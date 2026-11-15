@@ -21,7 +21,7 @@ internal sealed partial class SurfGame
 	private bool InWater => m_biomes.Count > 0 && m_y < 0.2f && (WaterWeight(m_z) > 0.5f || InShallows);
 
 	// 1.16: wading through the shallows of a crossing's beach.
-	private bool InShallows => !m_atSea && ShoreWeight(m_z) > 0f && RoadY(m_z) < SeaHeight(m_x, m_z) - 0.05f;
+	private bool InShallows => !m_sea.AtSea && ShoreWeight(m_z) > 0f && RoadY(m_z) < SeaHeight(m_x, m_z) - 0.05f;
 
 	private static Texture2D Ring()
 	{
