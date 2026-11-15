@@ -35,7 +35,11 @@ internal sealed partial class SurfGame
 		m_blockPressed = spam ? -99f : m_runTime;
 	}
 
-	private void NoteParry() => m_lastParry = m_runTime;
+	private void NoteParry()
+	{
+		m_lastParry = m_runTime;
+		NoteJourneyParry();
+	}
 
 	// A thin ring (the area-fire marker and the totem cue use it).
 	private static Texture2D? s_cueRing;

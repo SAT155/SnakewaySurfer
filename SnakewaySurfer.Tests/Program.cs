@@ -237,6 +237,29 @@ internal static class Program
 			Check(Rec(heavy: true).CounterText() == "dodge/roll/parry", $"counter text: {Rec(heavy: true).CounterText()}");
 		}
 
+		// ---- Journey marks (JourneyGoals.cs)
+		{
+			for (int b = 0; b < 8; b++)
+			{
+				Check(JourneyGoals.For(b) != null, $"biome {b} has a challenge");
+			}
+			Challenge rolls = JourneyGoals.For(0)!;
+			Check(!JourneyGoals.Met(rolls, new JourneyTally { Rolls = 2 }, 0) && JourneyGoals.Met(rolls, new JourneyTally { Rolls = 3 }, 0), "Meadows: three rolls through");
+			Challenge dungeon = JourneyGoals.For(1)!;
+			Check(!JourneyGoals.Met(dungeon, new JourneyTally { FromStart = true, SawDungeon = true }, 0), "a clean dungeon only counts once the travel is behind you");
+			Check(JourneyGoals.Met(dungeon, new JourneyTally { FromStart = true, SawDungeon = true, HitsTravel = 1 }, 1), "hits outside the dungeon don't spoil it");
+			Check(!JourneyGoals.Met(dungeon, new JourneyTally { FromStart = true, HitsTravel = 1 }, 1), "no dungeon: the whole travel stage");
+			Check(!JourneyGoals.Met(JourneyGoals.For(4)!, new JourneyTally { FromStart = false }, 3), "a crossing picked up at an island doesn't count as clean");
+			Check(!JourneyGoals.Met(JourneyGoals.For(6)!, new JourneyTally(), 2) && JourneyGoals.Met(JourneyGoals.For(6)!, new JourneyTally(), 3), "a clean boss counts on the win");
+			Check(JourneyGoals.LivesNeeded(3, 3) == 2 && JourneyGoals.LivesNeeded(1, 1) == 1 && JourneyGoals.LivesNeeded(3, 2) == 2, "a life to spare: Lives - 1");
+			var marks = JourneyGoals.Parse("0:0:7,1:0:3,bad,2:9:1");
+			Check(JourneyGoals.Of(marks, 0, 0) == 7 && JourneyGoals.Of(marks, 1, 0) == 3 && marks.Count == 2, "marks parse, junk skipped");
+			Check(JourneyGoals.Add(marks, 1, 0, 6) == 4 && JourneyGoals.Of(marks, 1, 0) == 7, "marks are kept once earned, only new ones reported");
+			Check(JourneyGoals.Format(JourneyGoals.Parse(JourneyGoals.Format(marks))) == JourneyGoals.Format(marks), "marks round-trip");
+			Check(JourneyGoals.StarsOpened(marks, 0, 1) && !JourneyGoals.StarsOpened(marks, 2, 1) && JourneyGoals.StarsOpened(marks, 2, 0), "all three marks open the next star");
+			Check(!JourneyGoals.StarsOpened(JourneyGoals.Parse("0:3:7"), 0, 4), "never past 3 stars");
+		}
+
 		// ---- screen layout (SurfLayout.cs)
 		{
 			foreach ((int w, int h) in new[] { (1920, 1080), (2560, 1440), (3840, 2160), (1280, 720), (1440, 1080), (2560, 1080), (3440, 1440), (1280, 1024) })
@@ -257,7 +280,7 @@ internal static class Program
 					Check(b.X >= panel.X && b.Right <= panel.Right && b.Y >= panel.Y && b.Bottom <= panel.Bottom, $"{r} inside the crash panel at {w}x{h}");
 				}
 				Box win = Layout.Of(Region.WinPanel, w, h);
-				foreach (Region r in new[] { Region.WinTitle, Region.WinSummary, Region.WinKeys })
+				foreach (Region r in new[] { Region.WinTitle, Region.WinMarks, Region.WinSummary, Region.WinKeys })
 				{
 					Box b = Layout.Of(r, w, h);
 					Check(b.X >= win.X && b.Right <= win.Right && b.Y >= win.Y && b.Bottom <= win.Bottom, $"{r} inside the win panel at {w}x{h}");

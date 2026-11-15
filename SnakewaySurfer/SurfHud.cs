@@ -189,6 +189,7 @@ internal sealed partial class SurfGame
 		m_stamina -= cost;
 		t.Collidable = false;
 		m_blockXp += 1f;
+		NoteJourneyBlock();
 		PlayBlock(false);
 		Flash(new Color(1f, 0.85f, 0.4f), 0.25f);
 		m_shake = Mathf.Max(m_shake, 0.25f);

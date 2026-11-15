@@ -297,6 +297,50 @@ internal static class Progress
 
 	// Saved checkpoints, plus the start of each biome a won Journey has opened (1.17: a boss
 	// killed in the world, or beaten in the dream in another world, opens its next biome at once).
+	// ---------------------------------------------------------------- Journey marks (1.17)
+
+	public static Dictionary<(int biome, int stars), int> Marks(Player player) =>
+		JourneyGoals.Parse(player.m_customData.TryGetValue(JourneyGoals.MarksKey, out string value) ? value : null);
+
+	// Saves marks on a Journey (kept once earned); returns the ones that are new.
+	public static int AddMarks(Player player, int biome, int stars, int add)
+	{
+		Dictionary<(int, int), int> marks = Marks(player);
+		int fresh = JourneyGoals.Add(marks, biome, stars, add);
+		if (fresh != 0)
+		{
+			player.m_customData[JourneyGoals.MarksKey] = JourneyGoals.Format(marks);
+		}
+		return fresh;
+	}
+
+	// Whether a Journey can be picked: its biome is open, and its stars are reached (all three
+	// marks one star below, or a checkpoint already there from before marks).
+	public static bool JourneyOpen(Player player, int biome, int stars, int allowed)
+	{
+		if (Plugin.IgnoreBossGate.Value)
+		{
+			return true;
+		}
+		if (biome < 0 || biome >= allowed || stars < 0 || stars > JourneyGoals.MaxStars)
+		{
+			return false;
+		}
+		return JourneyGoals.StarsOpened(Marks(player), biome, stars) || SavedCheckpoints(player).Contains((biome, stars));
+	}
+
+	public static string MarksSummary(Player player)
+	{
+		Dictionary<(int, int), int> marks = Marks(player);
+		if (marks.Count == 0)
+		{
+			return "none yet";
+		}
+		List<(int, int)> keys = new(marks.Keys);
+		keys.Sort();
+		return string.Join(", ", keys.ConvertAll(k => $"{Describe(k.Item1, k.Item2)} {JourneyGoals.Count(marks[k])}/3"));
+	}
+
 	public static List<(int biome, int stars)> Checkpoints(Player player)
 	{
 		List<(int biome, int stars)> list = SavedCheckpoints(player);
@@ -514,6 +558,15 @@ internal static class Progress
 			error = $"You can't reach the {Biomes.Defaults[biome].Name} yet: defeat {(boss != null ? boss.Name : "its boss")} in the dream (or in the world) first.";
 			return null;
 		}
+		if (Plugin.Mode.Value == RunMode.Journey && JourneyOpen(player, biome, stars, allowed))
+		{
+			return (biome, stars);
+		}
+		if (Plugin.Mode.Value == RunMode.Journey)
+		{
+			error = $"The {Describe(biome, stars)} Journey isn't open yet: earn all three marks on the Journey one star below it first.";
+			return null;
+		}
 		if (!Checkpoints(player).Contains((biome, stars)))
 		{
 			error = $"No checkpoint at {Describe(biome, stars)} yet. Beat the boss before it in the minigame first. Yours: {ListCheckpoints(player, allowed)}.";
@@ -646,7 +699,7 @@ internal static class Progress
 		}
 		int all = AllowedBiomes(Lap());
 		string first = player.m_customData.ContainsKey(FirstRunKey) ? "done" : "still to come";
-		return $"surfprogress: bosses beaten: {DreamSummary()}. Checkpoints in this world: {ListCheckpoints(player, Lap())}. Runs reach the {Biomes.Defaults[all - 1].Name} and its boss. First-run dream: {first}.";
+		return $"surfprogress: bosses beaten: {DreamSummary()}. Checkpoints in this world: {ListCheckpoints(player, Lap())}. Runs reach the {Biomes.Defaults[all - 1].Name} and its boss. Journey marks: {MarksSummary(player)}. First-run dream: {first}.";
 	}
 
 	// The Plains (its ocean crossing comes before it).

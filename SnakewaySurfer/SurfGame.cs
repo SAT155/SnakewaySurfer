@@ -2112,6 +2112,10 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			t.Dodged = true;
 			m_dodgeXp += 1f;
+			if (m_slide > 0f)
+			{
+				NoteJourneyRoll();
+			}
 		}
 	}
 
@@ -2200,6 +2204,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		{
 			// Three strikes and you're out: a hit costs a life and a moment to recover.
 			m_lives--;
+			NoteJourneyHit();
 			m_hurtTime = 1.6f;
 			t.Collidable = false;
 			m_shake = Mathf.Max(m_shake, 0.35f);
