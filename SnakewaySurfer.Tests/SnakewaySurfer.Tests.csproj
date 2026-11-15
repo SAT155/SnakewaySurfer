@@ -13,5 +13,6 @@
         <Compile Include="../SnakewaySurfer/SurfPlacement.cs" Link="SurfPlacement.cs" />
         <Compile Include="../SnakewaySurfer/BiomeContent.cs" Link="BiomeContent.cs" />
         <Compile Include="../SnakewaySurfer/AttackRecords.cs" Link="AttackRecords.cs" />
+        <Compile Include="../SnakewaySurfer/SurfLayout.cs" Link="SurfLayout.cs" />
     </ItemGroup>
 </Project>
