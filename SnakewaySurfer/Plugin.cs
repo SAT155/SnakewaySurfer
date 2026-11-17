@@ -83,6 +83,14 @@ public class Plugin : BaseUnityPlugin
 	private static ConfigEntry<string>[] s_pickables = null!;
 	internal static ConfigEntry<bool> BossFights = null!;
 	internal static ConfigEntry<int> Lives = null!;
+	internal static ConfigEntry<int> Difficulty = null!;
+	internal static readonly string[] DifficultyNames = { "Gentle", "Normal", "Hard" };
+	// 1.16.94 (Sam: "Adjustable difficulty in the menu might be nice"): Gentle gives two extra
+	// lives and a slower run and monsters; Hard one life fewer and a faster run.
+	internal static int Level => Mathf.Clamp(Difficulty.Value, 0, 2);
+	internal static int StartLives => Mathf.Max(1, Lives.Value + (Level == 0 ? 2 : Level == 2 ? -1 : 0));
+	internal static float SpeedScale => Level == 0 ? 0.85f : Level == 2 ? 1.15f : 1f;
+	internal static float FoeScale => Level == 0 ? 0.7f : Level == 2 ? 1.25f : 1f;
 	internal static ConfigEntry<bool> IgnoreBossGate = null!;
 	internal static ConfigEntry<bool> BossLandmarks = null!;
 	internal static ConfigEntry<float> MonumentSize = null!;
@@ -432,6 +440,8 @@ public class Plugin : BaseUnityPlugin
 			"Each biome ends with its boss once you've beaten that boss in this world: some coins become its summoning item (the game's own amount, e.g. 2 deer trophies for Eikthyr), you stay in the biome until you have them all, then you face the boss. Beating it saves a checkpoint for the next biome (\"surfsup\" starts at your latest one; \"surfsup swamp\" or \"surfsup 3 1\" picks one). Off: no items or bosses, the run goes straight on.");
 		Lives = Config.Bind("1 - Run", "Lives", 3,
 			new ConfigDescription("Hits you can take before the run is over (three strikes and you're out). 1: the first hit ends it.", new AcceptableValueRange<int>(1, 9)));
+		Difficulty = Config.Bind("1 - Run", "Difficulty", 1,
+			new ConfigDescription("0 Gentle (two extra lives, slower run and monsters), 1 Normal, 2 Hard (one life fewer, faster run and monsters). Also picked at the bottom of the run menu (click it or press Tab).", new AcceptableValueRange<int>(0, 2)));
 		BossLandmarks = Config.Bind("1 - Run", "Boss Landmarks", true,
 			"Boss arenas show the boss's own place from the game (Eikthyr's altar, the Elder's stones, Moder's peak...) looming far ahead, with the land rising beside a flatter path and torches lining it. Off: arenas only take on the boss's colour.");
 		MonumentSize = Config.Bind("1 - Run", "Boss Landmark Size", 2f,

@@ -286,6 +286,16 @@ and for players without the mod.
 
 ## Changelog (spoilers)
 
+- **1.16.149**: a dodge roll now gets you through most attacks and monsters, as in the game. Low foes like leeches, logs, and walls of roots or vines still get you.
+- **1.16.140**: the camp rest menu now comes up as soon as you sit by the fire, while you eat and drink behind it, instead of after the whole meal. Your lives and the boss drop come when you sit.
+- **1.16.132**: the Strange Portal now saves as a plain wooden portal for players and servers without the mod, so they no longer flood their log with "Missing prefab hash". With the mod it is still the Strange Portal. Portals built before this switch over the first time a modded player comes near.
+- **1.16.128**: Yagluth's gimmick: as his beam charges, a Fuling totem follows your mouse. Hold it over him when the beam lands to bounce it back and burn him. Miss, and the beam comes down your lane. You have five totems.
+- **1.16.123**: no more smoky corner gust; a dead end turns you back to the split instead of hurting you; some wrong passages are flooded instead, and you swim through and come out Wet (30 s of slower stamina regen and dearer rolls and blocks).
+- **1.16.111**: shop: coins go into a bank kept on your character. Traders stop you in any lane and open a dreamy store with three of their abilities (12 so far, from honey to Valkyrie's wings). An ability lasts until that biome's boss falls, and a checkpoint retry keeps it.
+- **1.16.111**: dungeons: dungeons about twice as long, with halls of very different lengths; some halls split into three walled passages and only the one with light at its end goes on; sunken crypts have up to five chambers behind mud banks you dig through (attack: left mouse, Space or E), with draugr rising behind most; a biome's summoning items only turn up after its dungeon, and the dungeon's exit is the checkpoint.
+- **1.16.108**: a gold ring closes in over your head and flashes when it's time to parry a boss's blow; Yagluth's frost arrows go to the bow, and his meteors fall from the sky as in the game; Moder only claws and bites while she's down on the track; boss fights use the boss's own shockwaves and beams (the Elder's vines) instead of logs and bars; Hugin and Munin are a flat portrait with a speech bubble in a fixed spot.
+- **1.16.101**: attack timings now read the game's "Hit" animation event too (bear, Eikthyr, Yagluth, greydwarfs, seekers, lox and more were being guessed).
+- **1.16.95** (alpha, from Sam's playtest): you can't be hurt during a boss combo (plus a short blink after); a dreamy tombstone rises where you fall; Gentle / Normal / Hard picked in the run menu (Tab or click); the Elder's maze paths are full lanes on a wider track; attack wind-ups are learned by playing each creature's real animation at load, not guessed.
 - **1.16.56 to 1.16.93** (alpha, from Sam's playtests):
   1.16.93: the ripple copies the view at a safer moment (looking into a crash).
   1.16.92: the run's Hugin is small, flying and facing you too; every portal (the run's way in,

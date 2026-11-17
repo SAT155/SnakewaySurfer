@@ -70,7 +70,15 @@ internal sealed partial class SurfGame
 		bool here = s.Boss && Progress.BossOf(s.Biome) is BossDef cur && HasBranches(cur);
 		bool before = s.PrevBoss && Progress.BossOf(s.PrevBiome) is BossDef prev && HasBranches(prev);
 		float w = here ? (before ? 1f : ramp) : before ? 1f - ramp : 0f;
-		return w * (LaneWidth * 2f + 1f);
+		return w * (MazePaths * PathWidth * 0.5f - TrackHalf + LaneWidth + 1f);
+	}
+
+	// How much wider than usual the track itself is here: enough to pave all six maze paths.
+	private float ExtraTrack(float z)
+	{
+		float flat = ExtraFlat(z);
+		float full = MazePaths * PathWidth * 0.5f - TrackHalf + LaneWidth + 1f;
+		return flat <= 0f ? 0f : flat / full * (MazePaths * PathWidth * 0.5f + 0.4f - TrackHalf);
 	}
 
 	// ---------------------------------------------------------------- strikes

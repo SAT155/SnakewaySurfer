@@ -335,28 +335,16 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			t.Done = true;
-			if (m_lane == t.Lane)
-			{
-				Trade(t);
-			}
-			else
-			{
-				// Missed: they call after you.
-				if (t.Anim != null)
-				{
-					SetTrigger(t.Anim, "Greet");
-				}
-				PlayTraderSound(t, 2, 0.6f);
-			}
+			// 1.16.110 (Sam: the shop should work from all 3 lanes): passing them in any lane stops
+			// the run at their store.
+			Trade(t);
 		}
 	}
 
 	// Your lives back to full, or one more if you have them all.
 	private void Trade(TraderStop t)
 	{
-		int full = Plugin.Lives.Value;
-		m_lives = m_lives < full ? full : m_lives + 1;
-		m_livesFlash = 1.2f;
+		OpenShop(t);
 		if (t.Anim != null)
 		{
 			SetTrigger(t.Anim, "Talk");

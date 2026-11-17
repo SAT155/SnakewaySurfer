@@ -185,6 +185,10 @@ internal sealed partial class SurfGame
 				return true;
 			}
 		}
+		if (InForkOrDig(z))
+		{
+			return true;
+		}
 		// The lanes clear by an iron gate.
 		foreach (CryptIronGate g in m_crypt.Gates)
 		{
@@ -247,12 +251,14 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			float len = Plugin.BiomeLength.Value;
-			float length = Mathf.Clamp(Mathf.Round(len * 0.45f / GroundTile) * GroundTile, theme.MinLength, theme.MaxLength);
+			// 1.16.109 (Sam: dungeons too short): about twice as long; a biome with a boss waits for
+			// its dungeon (its items only come after it), so it may run past the biome's usual end.
+			float length = Mathf.Clamp(Mathf.Round(len * 0.9f / GroundTile) * GroundTile, theme.MinLength * 1.8f, theme.MaxLength * 1.8f);
 			float start = Mathf.Ceil((s.Start + Mathf.Max(120f, len * 0.25f)) / GroundTile) * GroundTile;
 			// Ground already laid stays as it is, so it starts past it (and the tile before eases down).
 			start = Mathf.Max(start, Mathf.Ceil((m_nextGroundZ + GroundTile) / GroundTile) * GroundTile);
 			// Well before the stretch ends (with its boss ahead, before the summoning items can end it).
-			float limit = (s.End < float.MaxValue ? s.End : s.Start + len) - 80f;
+			float limit = (s.End < float.MaxValue ? s.End : s.Start + len * (BossFor(s) != null ? 2.2f : 1f)) - 80f;
 			if (start + length > limit)
 			{
 				length = Mathf.Floor((limit - start) / GroundTile) * GroundTile;
@@ -262,6 +268,7 @@ internal sealed partial class SurfGame
 				}
 			}
 			MakeCrypt(start, start + length, theme);
+			PlanCryptExtras(m_crypt!, s);
 			if (theme.Biome == s_burialChamber.Biome)
 			{
 				// (The Black Forest's burial chambers and troll caves take turns.)
@@ -285,7 +292,7 @@ internal sealed partial class SurfGame
 		int net = 0;
 		while (true)
 		{
-			float side = Random.Range(14f, 26f);
+			float side = Mathf.Lerp(12f, 44f, Random.value * Random.value);
 			if (z + side + 30f > end)
 			{
 				break;
@@ -297,7 +304,8 @@ internal sealed partial class SurfGame
 			c.Dirs.Add(-d);
 			net += d;
 			z += side;
-			float north = Random.Range(16f, 30f);
+			// 1.16.109 (Sam: halls too alike, could be much longer): short and long ones mixed.
+			float north = Random.value < 0.3f ? Random.Range(14f, 24f) : Random.Range(30f, 80f);
 			if (z + north + 14f + 30f > end)
 			{
 				break;
@@ -697,6 +705,7 @@ internal sealed partial class SurfGame
 			Sconce(root, new Vector3(sconceSide * CryptHalf, y + 1.7f, sz), sconceSide < 0 ? 90f : -90f);
 			sconceSide = -sconceSide;
 		}
+		BuildCryptExtras(leg, root, y);
 
 		// Bones, remains and rubble along the walls.
 		foreach (int side in new[] { -1, 1 })
@@ -1188,7 +1197,8 @@ internal sealed partial class SurfGame
 			}
 			yaw += c.Dirs[i] * 90f * Mathf.SmoothStep(0f, 1f, c.CamTurn[i]);
 		}
-		UpdateGust(c);
+		// 1.16.112 (Sam: the smoke cue isn't working out): the corner gust is gone.
+		RemoveGust();
 		Vector3 focus = StagePoint(new Vector3(0f, c.Floor + 1f, m_z + 6f));
 		if (!m_cryptFocusSet)
 		{

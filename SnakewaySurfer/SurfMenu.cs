@@ -148,6 +148,11 @@ internal sealed partial class SurfGame
 				}
 			}
 		}
+		if (KeyDown(KeyCode.Tab))
+		{
+			Plugin.Difficulty.Value = (Plugin.Level + 1) % 3;
+			MenuHoverSound();
+		}
 		if (m_menuOpen > 0.4f && KeyDown(KeyCode.Space, KeyCode.Return, KeyCode.KeypadEnter))
 		{
 			PickMenu(m_menuCol, m_menuRow);
@@ -318,8 +323,25 @@ internal sealed partial class SurfGame
 			}
 		}
 		s_guiAlpha = baseAlpha * shown;
-		Shadowed(new Rect(0, Mathf.Min(h - 70 * k, y0 + gridH + 30 * k), w, 50 * k),
-			$"Arrows or mouse to pick, Space or click to run     {Plugin.ExitKey.Value}: back", m_small!);
+		// The difficulty: three words, the chosen one bright. Click one, or Tab to cycle.
+		float dy = Mathf.Min(h - 115 * k, y0 + gridH + 22 * k);
+		float dw = 150f * k;
+		for (int d = 0; d < 3; d++)
+		{
+			Rect dr = new Rect(w * 0.5f + (d - 1) * dw - dw * 0.5f, dy, dw, 40 * k);
+			bool chosen = Plugin.Level == d;
+			if (interactive && dr.Contains(e.mousePosition) && e.type == EventType.MouseDown && e.button == 0 && !chosen)
+			{
+				e.Use();
+				Plugin.Difficulty.Value = d;
+				MenuHoverSound();
+			}
+			s_guiAlpha = baseAlpha * shown * (chosen ? 0.85f + 0.15f * Mathf.Sin(t * 2f) : 0.35f);
+			Shadowed(dr, chosen ? $"~ {Plugin.DifficultyNames[d]} ~" : Plugin.DifficultyNames[d], m_mid!);
+		}
+		s_guiAlpha = baseAlpha * shown;
+		Shadowed(new Rect(0, Mathf.Min(h - 70 * k, dy + 48 * k), w, 50 * k),
+			$"Arrows or mouse to pick, Space or click to run     Tab: difficulty     {Plugin.ExitKey.Value}: back", m_small!);
 		s_guiAlpha = baseAlpha;
 	}
 

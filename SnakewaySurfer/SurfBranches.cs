@@ -113,6 +113,7 @@ internal sealed partial class SurfGame
 					Group = group,
 					Label = def.Name,
 					CrashText = $"{def.Name}'s roots closed that path! (Look ahead, or slide under a torch to burn them.)",
+					Wall = true,
 				});
 				if (Random.value < 0.6f)
 				{
@@ -296,7 +297,9 @@ internal sealed partial class SurfGame
 internal sealed partial class SurfGame
 {
 	private const int MazePaths = 6;
-	private const float PathWidth = LaneWidth * 0.5f;
+	// 1.16.94 (Sam: the split lanes were "incredibly thin since the play area doesn't increase"):
+	// each of the six paths is a full lane wide now, and the track widens to hold them (SurfChase.ExtraFlat).
+	private const float PathWidth = LaneWidth;
 	private readonly List<(float z0, float z1, int boundary)> m_mazeWalls = new();
 	private float m_mazeStart;
 	private float m_mazeEnd;
@@ -603,6 +606,7 @@ internal sealed partial class SurfGame
 			HalfLength = 0.6f,
 			Group = group,
 			CrashText = $"{def.Name}'s vines closed that path! (Look ahead for the way on, or roll under a torch to burn them.)",
+			Wall = true,
 		});
 	}
 }

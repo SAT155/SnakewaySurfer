@@ -84,7 +84,7 @@ internal sealed partial class SurfGame
 		if (m_bossGo != null && m_boss != null)
 		{
 			// She weaves about over the track while you aim (sidesteps, when she's down on it).
-			bool down = Flies(m_boss) && m_bossLanded;
+			bool down = !Flies(m_boss) || m_bossLanded;
 			float x = Mathf.Sin(m_aimClock * 1.7f) * (down ? 2.5f : 7f);
 			float y = down ? 0f : m_boss.Fly + 1.5f + Mathf.Sin(m_aimClock * 2.6f) * 2.2f;
 			m_bossZ = m_chase ? m_z - ChaseDistance(m_boss) - 6f : m_z + Mathf.Min(AimDistance, BossDistance(m_boss));

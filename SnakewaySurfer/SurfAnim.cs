@@ -11,6 +11,10 @@ namespace SnakewaySurfer;
 internal static class AnimTiming
 {
 	private const string HitEvent = "OnAttackTrigger";
+	// 1.16.96: CharacterAnimEvent.Hit() calls the same Character.OnAttackTrigger(). Many clips
+	// (the bear, Eikthyr, Yagluth, greydwarfs, seekers, lox...) mark their blow with "Hit"
+	// instead, so those were being guessed as "a little before the middle of the clip".
+	private const string HitEventShort = "Hit";
 	private static readonly Dictionary<string, float> s_delay = new();
 	private static readonly Dictionary<AnimationClip, float> s_hitTime = new();
 	private static readonly HashSet<string> s_reported = new();
@@ -33,12 +37,17 @@ internal static class AnimTiming
 			t = -1f;
 			foreach (AnimationEvent e in clip.events)
 			{
-				if (e.functionName == HitEvent && (t < 0f || e.time < t))
+				if ((e.functionName == HitEvent || e.functionName == HitEventShort) && (t < 0f || e.time < t))
 				{
 					t = e.time;
 				}
 			}
 			s_hitTime[clip] = t;
+			if (t < 0f && clip.events.Length > 0)
+			{
+				// 1.16.96: which events such a clip has instead, so the right one can be used.
+				Plugin.Log.LogInfo($"Clip '{clip.name}' ({clip.length:0.00} s) events: " + string.Join(", ", System.Array.ConvertAll(clip.events, e => $"{e.functionName}({e.stringParameter}{e.intParameter})@{e.time:0.00}")));
+			}
 		}
 		return t;
 	}
@@ -97,6 +106,58 @@ internal static class AnimTiming
 	}
 
 	private static string Normal(string s) => s.ToLowerInvariant().Replace("_", "").Replace(" ", "");
+
+	// 1.16.94 (Sam: "why do we have to seemingly guess at the animation timings?"): no more guessing
+	// from clip names on a creature's first attack. A hidden copy plays each of its attack triggers
+	// through the game's own animator, frame by frame, until the clip with the OnAttackTrigger event
+	// is playing; time so far plus time left to that event is the real wind-up, transitions and
+	// clip speeds included. Done once per creature kind, when its picture is first made.
+	public static void Prewarm(Animator anim, IEnumerable<string> triggers)
+	{
+		if (anim == null || anim.runtimeAnimatorController == null)
+		{
+			return;
+		}
+		HashSet<string> names = new();
+		foreach (AnimatorControllerParameter p in anim.parameters)
+		{
+			if (p.type == AnimatorControllerParameterType.Trigger)
+			{
+				names.Add(p.name);
+			}
+		}
+		bool any = false;
+		foreach (string trigger in triggers)
+		{
+			if (string.IsNullOrEmpty(trigger) || !names.Contains(trigger) || s_delay.ContainsKey(Key(anim, trigger)))
+			{
+				continue;
+			}
+			any = true;
+			anim.Rebind();
+			anim.Update(0f);
+			anim.SetTrigger(trigger);
+			const float step = 1f / 60f;
+			float t = 0f;
+			for (int i = 0; i < 240; i++)
+			{
+				anim.Update(step);
+				t += step;
+				float left = Remaining(anim);
+				if (left >= 0f)
+				{
+					s_delay[Key(anim, trigger)] = t + left;
+					Plugin.Log.LogInfo($"Attack timing {Key(anim, trigger)}: {t + left:0.00} s, played through the animator.");
+					break;
+				}
+			}
+		}
+		if (any)
+		{
+			anim.Rebind();
+			anim.Update(0f);
+		}
+	}
 
 	public static void Learn(Animator anim, string trigger, float delay)
 	{
@@ -285,6 +346,56 @@ internal sealed partial class SurfGame
 				}
 				m_animWatches.RemoveAt(i);
 			}
+		}
+	}
+}
+
+internal sealed partial class SurfGame
+{
+	// Learns each attack's real wind-up from a hidden, active copy of a new creature picture.
+	private static readonly HashSet<GameObject> s_warmed = new();
+
+	private void PrewarmTimings(GameObject prefab, GameObject picture)
+	{
+		if (!s_warmed.Add(prefab) || prefab.GetComponent<Character>() == null)
+		{
+			return;
+		}
+		CreatureInfo info = CreatureInfo.Of(prefab);
+		List<string> triggers = new();
+		foreach (CreatureAttack a in info.Melee)
+		{
+			triggers.Add(a.Animation);
+		}
+		foreach (CreatureAttack a in info.Ranged)
+		{
+			triggers.Add(a.Animation);
+		}
+		if (triggers.Count == 0)
+		{
+			return;
+		}
+		GameObject copy = Instantiate(picture, m_stage, false);
+		try
+		{
+			copy.transform.localPosition = new Vector3(0f, -500f, 0f);
+			foreach (Renderer r in copy.GetComponentsInChildren<Renderer>(true))
+			{
+				r.enabled = false;
+			}
+			Animator? anim = copy.GetComponentInChildren<Animator>(true);
+			if (anim != null)
+			{
+				AnimTiming.Prewarm(anim, triggers);
+			}
+		}
+		catch (System.Exception ex)
+		{
+			Plugin.Log.LogWarning($"Attack timing warm-up for {prefab.name} failed: {ex.Message}");
+		}
+		finally
+		{
+			DestroyImmediate(copy);
 		}
 	}
 }

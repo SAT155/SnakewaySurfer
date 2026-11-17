@@ -17,6 +17,13 @@ namespace SnakewaySurfer;
 internal static class SurfPortalPiece
 {
 	public const string PrefabName = "piece_surf_strangeportal";
+	// 1.16.x (Sam: "It needs to work for some players without any mods"): a built Strange Portal
+	// is saved as the vanilla wooden portal plus this ZDO flag. Players and servers without the
+	// mod see a plain wooden portal instead of logging "Missing prefab hash" every frame; modded
+	// players turn it back into the Strange Portal as it loads (TeleportWorldAwake below).
+	public static readonly int PrefabHash = PrefabName.GetStableHashCode();
+	public static readonly int VanillaHash = "portal_wood".GetStableHashCode();
+	public static readonly int FlagKey = "surf_strangeportal".GetStableHashCode();
 	private static GameObject? s_prefab;
 	private static GameObject? s_holder;
 
@@ -31,30 +38,71 @@ internal static class SurfPortalPiece
 		Object.DontDestroyOnLoad(s_holder);
 		GameObject copy = Object.Instantiate(portal, s_holder.transform, false);
 		copy.name = PrefabName;
-		TeleportWorld? tw = copy.GetComponent<TeleportWorld>();
-		StrangePortal marker = copy.AddComponent<StrangePortal>();
-		marker.Swirl = tw != null && tw.m_target_found != null ? tw.m_target_found.gameObject : null;
-		marker.Model = tw != null ? tw.m_model : null;
-		marker.Centre = tw != null ? tw.m_proximityRoot : null;
-		// No tag to type and no real teleport: everything of the portal's own goes.
-		foreach (MonoBehaviour mb in copy.GetComponentsInChildren<MonoBehaviour>(true))
-		{
-			if (mb != null && mb.GetType().Name.StartsWith("Teleport"))
-			{
-				Object.DestroyImmediate(mb);
-			}
-		}
+		Convert(copy, true);
 		Piece? piece = copy.GetComponent<Piece>();
 		if (piece != null)
 		{
-			piece.m_name = "Strange Portal";
-			piece.m_description = "It hums like a half-remembered dream. Use it to choose where it leads: one of your checkpoints, or back to the dream that only comes in your sleep.";
 			piece.m_category = Piece.PieceCategory.Misc;
 			piece.m_craftingStation = null;
 		}
 		s_prefab = copy;
 		Plugin.Log.LogInfo("Made the Strange Portal piece.");
 		return s_prefab;
+	}
+
+	// Turns a wooden portal (the prefab copy, or a loaded vanilla portal flagged as ours) into a
+	// Strange Portal: no tag to type and no real teleport, so everything of the portal's own goes.
+	private static void Convert(GameObject go, bool immediate)
+	{
+		TeleportWorld? tw = go.GetComponent<TeleportWorld>();
+		StrangePortal marker = go.AddComponent<StrangePortal>();
+		marker.Swirl = tw != null && tw.m_target_found != null ? tw.m_target_found.gameObject : null;
+		marker.Model = tw != null ? tw.m_model : null;
+		marker.Centre = tw != null ? tw.m_proximityRoot : null;
+		foreach (MonoBehaviour mb in go.GetComponentsInChildren<MonoBehaviour>(true))
+		{
+			if (mb != null && mb.GetType().Name.StartsWith("Teleport"))
+			{
+				mb.enabled = false;
+				if (immediate)
+				{
+					Object.DestroyImmediate(mb);
+				}
+				else
+				{
+					Object.Destroy(mb);
+				}
+			}
+		}
+		Piece? piece = go.GetComponent<Piece>();
+		if (piece != null)
+		{
+			piece.m_name = "Strange Portal";
+			piece.m_description = "It hums like a half-remembered dream. Use it to choose where it leads: one of your checkpoints, or back to the dream that only comes in your sleep.";
+			Piece? ours = s_prefab != null ? s_prefab.GetComponent<Piece>() : null;
+			if (ours != null && ours.m_resources != null && ours.m_resources.Length > 0)
+			{
+				piece.m_resources = ours.m_resources;
+			}
+		}
+	}
+
+	// A wooden portal loading in: if its save says it's a Strange Portal, make it one.
+	[HarmonyPatch(typeof(TeleportWorld), "Awake")]
+	private static class TeleportWorldAwake
+	{
+		private static void Postfix(TeleportWorld __instance)
+		{
+			if (__instance == null || __instance.GetComponent<StrangePortal>() != null)
+			{
+				return;
+			}
+			ZNetView? nview = __instance.GetComponent<ZNetView>();
+			if (nview != null && nview.IsValid() && nview.GetZDO().GetBool(FlagKey))
+			{
+				Convert(__instance.gameObject, false);
+			}
+		}
 	}
 
 	private static GameObject? PortalFrom(List<GameObject> prefabs) => prefabs.Find(g => g != null && g.name == "portal_wood");
@@ -135,6 +183,29 @@ internal sealed class StrangePortal : MonoBehaviour, Hoverable, Interactable
 	private ZNetView? m_nview;
 	private bool m_away = true;
 	private float m_cool;
+
+	// Runs after ZNetView.Awake (this component was added after it). A Strange Portal just built,
+	// or one saved by an older version under its own prefab hash, is saved from now on as the
+	// vanilla wooden portal plus our flag, so unmodded players and servers can load it.
+	private void Awake()
+	{
+		ZNetView? nview = GetComponent<ZNetView>();
+		if (nview == null || !nview.IsValid())
+		{
+			return;
+		}
+		ZDO zdo = nview.GetZDO();
+		if (zdo.GetPrefab() != SurfPortalPiece.PrefabHash)
+		{
+			return;
+		}
+		if (!nview.IsOwner())
+		{
+			nview.ClaimOwnership();
+		}
+		zdo.SetPrefab(SurfPortalPiece.VanillaHash);
+		zdo.Set(SurfPortalPiece.FlagKey, true);
+	}
 
 	private void Start()
 	{
