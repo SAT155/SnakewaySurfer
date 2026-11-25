@@ -98,6 +98,10 @@ internal sealed partial class SurfGame
 		m_nextItemZ = 0f;
 		// Its halfway stone is behind you already.
 		m_halfPlanned.Add(first);
+		// 1.18 (SAT: the boss fight seemed to happen in the dungeon): the stone stands at the
+		// dungeon's exit, so the dungeon is behind you too. Planned again from here, it was laid
+		// over the hunt, right up to the boss.
+		first.CryptChecked = true;
 		if (items > 0 && BossFor(first) is BossDef boss && items >= boss.Amount)
 		{
 			m_itemsPlanned = first;
