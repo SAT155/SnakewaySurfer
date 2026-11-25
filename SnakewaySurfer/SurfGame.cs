@@ -1348,6 +1348,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		ResetSegments();
 		ResetShop(m_resumeNext);
 		ApplyResume();
+		ResetGhost();
 		ApplyTourStage();
 		WarmRun();
 		SpawnAhead();
@@ -1589,6 +1590,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 					UpdateRun(dt, canInput);
 				}
 				UpdateJourney(dt);
+				UpdateGhost();
 				break;
 			case State.Won:
 				UpdateWon(canInput);
@@ -1636,6 +1638,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 		UpdateBolts(dt);
 		UpdateArrows(dt);
 		PlaceAvatar(dt);
+		PlaceGhost(dt);
 		PlaceCamera(dt);
 		CampCamera(dt);
 	}
@@ -2134,6 +2137,7 @@ internal sealed partial class SurfGame : MonoBehaviour
 	private void Roll()
 	{
 		m_audio.Play(Sfx.Slide);
+		NoteGhostRoll();
 		m_rollAnim = m_avatarAnim != null && m_avatarParams.Contains(Animator.StringToHash("dodge"));
 		if (m_rollAnim)
 		{

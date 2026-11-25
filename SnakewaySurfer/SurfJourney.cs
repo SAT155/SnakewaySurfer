@@ -175,6 +175,7 @@ internal sealed partial class SurfGame
 		m_state = State.Won;
 		m_stateTime = 0f;
 		m_wonTime = m_runTime;
+		GhostWon();
 		m_banner = "";
 		m_bannerTime = 0f;
 		m_hint = "";
@@ -363,7 +364,9 @@ internal sealed partial class SurfGame
 		m_stageStyle ??= new GUIStyle(m_small!) { alignment = TextAnchor.MiddleRight, wordWrap = false };
 		m_stageStyle.fontSize = m_small!.fontSize;
 		string stars = m_journeyStars > 0 ? $" {m_journeyStars}*" : "";
-		Shadowed(label, $"{JourneyName()}{stars} - {s_stageNames[m_journeyStage]}", m_stageStyle);
+		string stageText = $"{JourneyName()}{stars} - {s_stageNames[m_journeyStage]}";
+		Shadowed(label, stageText, m_stageStyle);
+		GhostRuneGui(label, stageText, m_stageStyle, k);
 		float x = label.xMax + 16f * k;
 		float y = box.y + (box.height - pip) * 0.5f;
 		for (int i = 0; i < 3; i++)
@@ -466,7 +469,8 @@ internal sealed partial class SurfGame
 			WinMarksGui();
 			WinHaulGui();
 			int secs = Mathf.RoundToInt(m_wonTime);
-			FitShadowed(Region.WinSummary, $"{secs / 60}:{secs % 60:00}     {m_coins} coins     {m_lives} {(m_lives == 1 ? "life" : "lives")} left\n\n{m_rewardText}", m_mid!);
+			string ghost = GhostWinLine();
+			FitShadowed(Region.WinSummary, $"{secs / 60}:{secs % 60:00}     {m_coins} coins     {m_lives} {(m_lives == 1 ? "life" : "lives")} left{(ghost.Length > 0 ? "\n" + ghost : "")}\n\n{m_rewardText}", m_mid!);
 		}
 		catch (System.Exception e)
 		{

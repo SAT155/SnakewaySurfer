@@ -20,7 +20,7 @@ public class Plugin : BaseUnityPlugin
 {
 	public const string PluginGUID = "com.snakesquad.snakewaysurfer";
 	public const string PluginName = "SnakewaySurfer";
-	public const string PluginVersion = "1.17.0";
+	public const string PluginVersion = "1.18.0";
 	// Filled in by the build with its run number, so logs and the self-test name the real release.
 	public static readonly int BuildNumber = 0;
 	public static string BuildVersion => BuildNumber > 0 ? PluginVersion.Substring(0, PluginVersion.LastIndexOf('.') + 1) + BuildNumber : PluginVersion + " (local build)";
@@ -32,6 +32,7 @@ public class Plugin : BaseUnityPlugin
 	internal static ConfigEntry<RunMode> Mode = null!;
 	internal static ConfigEntry<float> JourneyStageSeconds = null!;
 	internal static ConfigEntry<float> SprintCoinMultiplier = null!;
+	internal static ConfigEntry<bool> RaceGhost = null!;
 	internal static ConfigEntry<float> StartSpeed = null!;
 	internal static ConfigEntry<float> SpeedPerBiome = null!;
 	internal static ConfigEntry<float> MaxSpeed = null!;
@@ -183,6 +184,8 @@ public class Plugin : BaseUnityPlugin
 			new ConfigDescription("Journey mode: about how many seconds the travel stage and the hunt stage each last (their length follows your running speed in that biome). Endless runs use Biome Length.", new AcceptableValueRange<float>(20f, 600f)));
 		SprintCoinMultiplier = Config.Bind("1 - Run", "Sprint Coin Multiplier", 1.5f,
 			new ConfigDescription("Journey mode: coins picked up while sprinting count this many times (the coin count turns gold while it applies). 1: off.", new AcceptableValueRange<float>(1f, 3f)));
+		RaceGhost = Config.Bind("1 - Run", "Race Ghost", true,
+			"Journey mode: your fastest win of each Journey runs beside you as a see-through ghost, and a rune by the stage marker shows if you're ahead (green) or behind (red). Only you see it.");
 		StartSpeed = Config.Bind("1 - Run", "Start Speed", 9f,
 			new ConfigDescription("Running speed at the start, in metres per second (a vanilla sprint is about 7).", new AcceptableValueRange<float>(3f, 30f)));
 		SpeedPerBiome = Config.Bind("1 - Run", "Speed Per Biome", 1.5f,
