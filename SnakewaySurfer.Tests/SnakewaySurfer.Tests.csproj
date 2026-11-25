@@ -15,5 +15,6 @@
         <Compile Include="../SnakewaySurfer/AttackRecords.cs" Link="AttackRecords.cs" />
         <Compile Include="../SnakewaySurfer/SurfLayout.cs" Link="SurfLayout.cs" />
         <Compile Include="../SnakewaySurfer/JourneyGoals.cs" Link="JourneyGoals.cs" />
+        <Compile Include="../SnakewaySurfer/GhostTrack.cs" Link="GhostTrack.cs" />
     </ItemGroup>
 </Project>

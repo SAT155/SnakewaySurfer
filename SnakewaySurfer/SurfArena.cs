@@ -485,7 +485,7 @@ internal sealed partial class SurfGame
 			{
 				foreach (ZoneSystem.ZoneLocation loc in ZoneSystem.instance.m_locations)
 				{
-					if (loc == null || !loc.m_prefab.IsValid || loc.m_prefab.Name != name)
+					if (loc == null || !loc.m_prefab.IsValid || loc.m_prefabName != name)
 					{
 						continue;
 					}

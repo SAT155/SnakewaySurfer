@@ -260,6 +260,35 @@ internal static class Program
 			Check(!JourneyGoals.StarsOpened(JourneyGoals.Parse("0:3:7"), 0, 4), "never past 3 stars");
 		}
 
+		// ---- ghosts (GhostTrack.cs)
+		{
+			GhostTrack g = new GhostTrack { Biome = 2, Stars = 1 };
+			for (int f = 0; f <= 600; f++)
+			{
+				float t = f / 60f;
+				g.Record(t, f == 300 ? 2.6f : 0f, 0f, t * 10f, (byte)(f == 125 ? GhostTrack.Rolled : 0));
+			}
+			Check(g.Samples.Count >= 80 && g.Samples.Count <= 102, $"ten samples a second ({g.Samples.Count} in 10 s)");
+			int rolls = 0;
+			foreach (GhostSample s in g.Samples)
+			{
+				rolls += (s.Flags & GhostTrack.Rolled) != 0 ? 1 : 0;
+			}
+			Check(rolls == 1, "a roll between samples is kept for the next one");
+			Check(g.At(5.05f, out _, out _, out float z, out bool hidden) && Math.Abs(z - 50.5f) < 0.2f && !hidden, $"eased between samples (z {z:0.00})");
+			Check(!g.At(-1f, out _, out _, out _, out _) && !g.At(11f, out _, out _, out _, out _), "no ghost before the start or after the end");
+			Check(g.RolledBetween(g.IndexAt(2f), g.IndexAt(2.5f)) && !g.RolledBetween(g.IndexAt(3f), g.IndexAt(9f)), "rolls are found between frames");
+			g.Time = 123.4f;
+			var mem = new System.IO.MemoryStream();
+			g.Write(mem);
+			GhostTrack? back = GhostTrack.Read(new System.IO.MemoryStream(mem.ToArray()));
+			Check(back != null && back.Biome == 2 && back.Stars == 1 && back.Time == 123.4f && back.Samples.Count == g.Samples.Count && back.Samples[50].Z == g.Samples[50].Z, "ghost files round-trip");
+			Check(GhostTrack.Read(new System.IO.MemoryStream(new byte[] { 1, 2, 3 })) == null, "junk files are skipped");
+			byte[] cut = mem.ToArray();
+			Check(GhostTrack.Read(new System.IO.MemoryStream(cut, 0, cut.Length - 9)) == null, "a cut-off file is skipped");
+			Check(GhostTrack.Beats(100f, null) && GhostTrack.Beats(100f, g) && !GhostTrack.Beats(130f, g) && !GhostTrack.Beats(0f, null), "only a faster win replaces the ghost");
+		}
+
 		// ---- screen layout (SurfLayout.cs)
 		{
 			foreach ((int w, int h) in new[] { (1920, 1080), (2560, 1440), (3840, 2160), (1280, 720), (1440, 1080), (2560, 1080), (3440, 1440), (1280, 1024) })
