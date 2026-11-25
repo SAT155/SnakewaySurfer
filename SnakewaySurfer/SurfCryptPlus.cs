@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.109 (Sam's dungeon notes):
+// 1.16.109 (SAT's dungeon notes):
 // - Forks: in some long halls the way splits into three walled passages, one per lane, and only
 //   one goes on. The other two end in a wall in the dark. Pick your lane before the split, by
 //   the warm light at the far end of the open passage.
@@ -14,7 +14,7 @@ namespace SnakewaySurfer;
 //   and its exit is the biome's checkpoint.
 internal sealed partial class SurfGame
 {
-	// 1.16.150 (Sam's sketch: "a 3 branch type maze with only one of the branches having the
+	// 1.16.150 (SAT's sketch: "a 3 branch type maze with only one of the branches having the
 	// correct way out"): at a junction the hall opens three ways, left, ahead and right. Your
 	// lane picks the branch (left lane left, middle ahead, right lane right; at a corner a press
 	// toward the opening still turns). Two of them are dark dead ends: you come back out at the
@@ -66,7 +66,7 @@ internal sealed partial class SurfGame
 			if (sunken && digs < 5 && leg.Index > 0 && to - from > 14f)
 			{
 				// A chamber behind a mud bank; draugr rise behind most of them, well past it
-				// (1.16.150, Sam: they rose right behind the bank, where you couldn't get by).
+				// (1.16.150, SAT: they rose right behind the bank, where you couldn't get by).
 				DigWall d = new DigWall { Z = from + 2f, Burst = Random.value < 0.65f };
 				m_digs.Add(d);
 				digs++;
@@ -187,10 +187,36 @@ internal sealed partial class SurfGame
 		}
 	}
 
+	// The roof over a stretch of hall or a dead end, x0 < x1, z0 < z1: slabs laid on the wall tops.
+	private void CryptRoof(Transform root, float x0, float x1, float z0, float z1, float y)
+	{
+		CryptTheme theme = m_crypt!.Theme;
+		if (!theme.Roofed || !RoofsOn || x1 - x0 < 0.5f || z1 - z0 < 0.5f)
+		{
+			return;
+		}
+		int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) / 4.2f));
+		int nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 4.2f));
+		float tx = (x1 - x0) / nx;
+		float tz = (z1 - z0) / nz;
+		float overlap = theme.Rocky ? 0.8f : 0.05f;
+		string names = theme.Roofs.Length > 0 ? theme.Roofs + "|" + theme.Floors : theme.Floors;
+		for (int i = 0; i < nx; i++)
+		{
+			for (int j = 0; j < nz; j++)
+			{
+				Quaternion turned = theme.Rocky ? Quaternion.Euler(0f, 90f * Random.Range(0, 4), 0f) : Quaternion.identity;
+				CryptPiece(root, names, turned, new Vector3(tx + overlap, theme.Rocky ? 1.2f : 0.5f, tz + overlap),
+					new Vector3(x0 + tx * (i + 0.5f), y + WallH + theme.RoofLift, z0 + tz * (j + 0.5f)));
+			}
+		}
+	}
+
 	// The floor of a dead end, x0 < x1, z0 < z1.
 	private void PocketFloor(Transform root, float x0, float x1, float z0, float z1, float y)
 	{
 		CryptTheme theme = m_crypt!.Theme;
+		CryptRoof(root, x0, x1, z0, z1, y);
 		int nx = Mathf.Max(1, Mathf.CeilToInt((x1 - x0) / 3.7f));
 		int nz = Mathf.Max(1, Mathf.CeilToInt((z1 - z0) / 3.7f));
 		float tx = (x1 - x0) / nx;
@@ -206,16 +232,7 @@ internal sealed partial class SurfGame
 					new Vector3(x0 + tx * (i + 0.5f), y - 0.25f, z0 + tz * (j + 0.5f))) != null;
 			}
 		}
-		if (!any)
-		{
-			GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
-			Destroy(slab.GetComponent<Collider>());
-			slab.layer = m_layer;
-			slab.transform.SetParent(root, false);
-			slab.transform.localPosition = new Vector3((x0 + x1) * 0.5f, y - 0.1f, (z0 + z1) * 0.5f);
-			slab.transform.localScale = new Vector3(x1 - x0, 0.2f, z1 - z0);
-			slab.GetComponent<Renderer>().sharedMaterial = BorrowMaterial("stone_floor_2x2") ?? m_biomes[Mathf.Min(1, m_biomes.Count - 1)].Ground;
-		}
+		FloorUnderlay(root, (x0 + x1) * 0.5f, (z0 + z1) * 0.5f, x1 - x0, z1 - z0, y, any);
 	}
 
 	// A dead end out to one side (s = -1 left, +1 right) of the hall, `width` wide round zc.
@@ -381,7 +398,7 @@ internal sealed partial class SurfGame
 			m_digWielded = Wield("PickaxeAntler|PickaxeBronze|PickaxeIron|PickaxeBlackMetal");
 		}
 		m_z = Mathf.Min(m_z, at.Z - 2.2f);
-		bool press = canInput && (Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(Plugin.ThrowKey.Value));
+		bool press = canInput && (Input.GetKeyDown(KeyCode.Mouse0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.E) || BotKey(KeyCode.E) || Input.GetKeyDown(Plugin.ThrowKey.Value));
 		if (press && m_digCooldown <= 0f)
 		{
 			m_digCooldown = 0.35f;

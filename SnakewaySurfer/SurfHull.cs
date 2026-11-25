@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.3 (Sam: "There isn't much you can do when an attack is inbound. Maybe the ship should have
+// 1.16.3 (SAT: "There isn't much you can do when an attack is inbound. Maybe the ship should have
 // a separate health from the lives of the player"; "there could be little islands with a
 // workbench on them you can stop at to repair your boat"). At sea a blow cracks the hull, not
 // you: the planks by the wind rose show what's left, the ship sits lower and lists as it fails,
@@ -53,7 +53,7 @@ internal sealed partial class SurfGame
 	// Called from Hit: at sea the ship takes the blow. True when it's dealt with.
 	private bool HullTakes(Thing t, string why)
 	{
-		if (!m_atSea || m_seaPhase != 2)
+		if (!m_sea.AtSea || m_sea.Phase != 2)
 		{
 			return false;
 		}
@@ -63,6 +63,8 @@ internal sealed partial class SurfGame
 		}
 		t.Collidable = false;
 		m_hullGrace = 1.1f;
+		// (A blow to the ship counts as a hit for a Journey's challenge.)
+		NoteJourneyHit();
 		m_hullFlash = 1f;
 		m_hull = Mathf.Max(0f, m_hull - (t.Heavy ? 2f : 1f));
 		m_shake = Mathf.Max(m_shake, 0.35f);
@@ -97,11 +99,11 @@ internal sealed partial class SurfGame
 	}
 
 	// How much lower she sits, and her list, as the hull fails.
-	private float HullSink => m_atSea ? (1f - m_hull / HullMax) * 0.45f + WreckSink : 0f;
+	private float HullSink => m_sea.AtSea ? (1f - m_hull / HullMax) * 0.45f + WreckSink : 0f;
 
-	private float HullList => m_atSea ? (1f - m_hull / HullMax) * 5f + (m_wreck >= 0f ? 28f * Mathf.SmoothStep(0f, 1f, m_wreck / 3.5f) : 0f) : 0f;
+	private float HullList => m_sea.AtSea ? (1f - m_hull / HullMax) * 5f + (m_wreck >= 0f ? 28f * Mathf.SmoothStep(0f, 1f, m_wreck / 3.5f) : 0f) : 0f;
 
-	// 1.16.78 (Sam: "When your ship dies, it should sink and a couple of those weird crates
+	// 1.16.78 (SAT: "When your ship dies, it should sink and a couple of those weird crates
 	// float up"): wrecked, she lists and goes down by the bow, and the game's cargo crates (what
 	// a broken ship or cart leaves) bob up where she went.
 	private float m_wreck = -1f;
@@ -346,7 +348,7 @@ internal sealed partial class SurfGame
 			if (d < shore && d > 0.01f)
 			{
 				// Aground: she's pushed back off the sand.
-				// 1.16.74 (Sam: "If you get too close to the island you get stuck"): she slides off
+				// 1.16.74 (SAT: "If you get too close to the island you get stuck"): she slides off
 				// sideways round the island and her bow swings clear, instead of being held
 				// against it (she can't be pushed back down the course).
 				Vector2 away = (c - i.C) / d;
@@ -355,22 +357,22 @@ internal sealed partial class SurfGame
 				float aside = Mathf.Sign(c.x - i.C.x + 0.01f);
 				m_x += away.x * over + (away.y < 0f ? aside * -away.y * over : 0f);
 				m_z += Mathf.Max(0f, away.y * over);
-				m_heading = Mathf.MoveTowards(m_heading, aside * MaxHeading * 0.7f, 140f * dt);
-				if (m_scrape <= 0f)
+				m_sea.Heading = Mathf.MoveTowards(m_sea.Heading, aside * MaxHeading * 0.7f, 140f * dt);
+				if (m_sea.Scrape <= 0f)
 				{
 					m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.6f, 0.75f);
 					SpawnSplash(c - push.normalized * m_shipBeam, 0.9f);
-					m_lurchV += Mathf.Sign(push.x + 0.01f) * 30f;
-					m_boatSpeed *= 0.5f;
+					m_sea.LurchV += Mathf.Sign(push.x + 0.01f) * 30f;
+					m_sea.BoatSpeed *= 0.5f;
 				}
-				m_scrape = 0.6f;
+				m_sea.Scrape = 0.6f;
 			}
 			if (d < i.R * IslandShore + MooringReach)
 			{
 				near = i;
 			}
 		}
-		// 1.16.79 (Sam: "It isn't clear I need to stow my sails to repair at an island"): pulling
+		// 1.16.79 (SAT: "It isn't clear I need to stow my sails to repair at an island"): pulling
 		// into the golden ring with a damaged hull furls the sail by itself and she drifts in to
 		// moor. Setting sail again (W) takes her out; she won't furl again until she's left the ring.
 		foreach (Island i in m_islands)
@@ -380,12 +382,12 @@ internal sealed partial class SurfGame
 				i.SetSail = false;
 			}
 		}
-		if (near != null && m_sail != Sail.Oars && m_moored != near && !near.SetSail && m_hull < HullMax)
+		if (near != null && m_sea.SailSet != Sail.Oars && m_moored != near && !near.SetSail && m_hull < HullMax)
 		{
-			m_sail = Sail.Oars;
+			m_sea.SailSet = Sail.Oars;
 			SailSound();
 		}
-		if (near != null && m_moored == near && m_sail != Sail.Oars)
+		if (near != null && m_moored == near && m_sea.SailSet != Sail.Oars)
 		{
 			near.SetSail = true;
 		}
@@ -393,7 +395,7 @@ internal sealed partial class SurfGame
 		{
 			IslandCheckpoint(near);
 		}
-		if (near == null || m_sail != Sail.Oars)
+		if (near == null || m_sea.SailSet != Sail.Oars)
 		{
 			m_moored = null;
 			RepairHammer(false);
@@ -405,12 +407,12 @@ internal sealed partial class SurfGame
 			m_repairTick = 0.6f;
 			m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.4f, 1.2f);
 		}
-		if (m_hull >= HullMax || m_boatSpeed > 1.5f)
+		if (m_hull >= HullMax || m_sea.BoatSpeed > 1.5f)
 		{
 			RepairHammer(false);
 			return;
 		}
-		// 1.16.75 (Sam: the sounds, animations and effects of a repair): the hammer comes out
+		// 1.16.75 (SAT: the sounds, animations and effects of a repair): the hammer comes out
 		// and you mend her the game's way, a swing for each plank, with the hammer's knock and
 		// the sawdust of a placed piece where it lands.
 		RepairHammer(true);
@@ -440,7 +442,7 @@ internal sealed partial class SurfGame
 		{
 			PlayFx(dust, at + Vector3.up * 0.3f, Quaternion.identity, 2f);
 		}
-		m_lurchV += Random.Range(-6f, 6f);
+		m_sea.LurchV += Random.Range(-6f, 6f);
 		if (m_hull >= HullMax)
 		{
 			// Whole again: the game's own "repaired" chime.
@@ -511,7 +513,7 @@ internal sealed partial class SurfGame
 			{
 				continue;
 			}
-			// 1.16.72 (Sam: the island was hard to see, the trees were so big): a small tree on
+			// 1.16.72 (SAT: the island was hard to see, the trees were so big): a small tree on
 			// the far side of the island, away from the bench, so it doesn't hide it from above.
 			Vector2 at = i.C + new Vector2(i.Side * i.R * 0.45f, Random.Range(-2f, 2f));
 			GameObject t = Instantiate(Picture(tree), m_stage, false);
@@ -553,13 +555,59 @@ internal sealed partial class SurfGame
 
 	// The hull's planks in a row above the wind rose: lost ones dark, the next one mended
 	// glowing while you're moored.
+	// 1.16.x (SAT: floating yellow text over the first few islands saying it's a repair hub
+	// and to raise sail): over the first three harbours, until you're past each.
+	private void HarbourLabels(float k)
+	{
+		if (m_mid == null || m_camera == null)
+		{
+			return;
+		}
+		int shown = 0;
+		foreach (Island i in m_islands)
+		{
+			if (shown >= 3)
+			{
+				break;
+			}
+			shown++;
+			if (!i.Built || i.C.y < m_z - 6f)
+			{
+				continue;
+			}
+			Vector3 sp = m_camera.WorldToScreenPoint(m_stage.TransformPoint(new Vector3(i.C.x, SeaY + i.Top + 5f, i.C.y)));
+			if (sp.z <= 0f)
+			{
+				continue;
+			}
+			float near = Mathf.Clamp01((Vector2.Distance(ShipCenter(), i.C) - 8f) / 10f);
+			float far = Mathf.Clamp01((AheadDistance * 0.8f - (i.C.y - m_z)) / 40f);
+			float a = near * far * s_guiAlpha;
+			if (a <= 0.01f)
+			{
+				continue;
+			}
+			Color old = m_mid.normal.textColor;
+			FontStyle fs = m_mid.fontStyle;
+			m_mid.fontStyle = FontStyle.Bold;
+			Rect r = new Rect(sp.x - 300f * k, Screen.height - sp.y - 60f * k, 600f * k, 120f * k);
+			m_mid.normal.textColor = new Color(0f, 0f, 0f, 0.8f * a);
+			const string label = "REPAIR HARBOUR\nsail into the gold ring to mend\nW: raise sail to leave";
+			GUI.Label(new Rect(r.x + 2f, r.y + 2f, r.width, r.height), label, m_mid);
+			m_mid.normal.textColor = new Color(1f, 0.85f, 0.3f, a);
+			GUI.Label(r, label, m_mid);
+			m_mid.normal.textColor = old;
+			m_mid.fontStyle = fs;
+		}
+	}
+
 	private void HullHud(float k, Rect rose)
 	{
 		if (ItemIcon("Wood") is not Sprite plank)
 		{
 			return;
 		}
-		// 1.16.76 (Sam): bigger planks.
+		// 1.16.76 (SAT): bigger planks.
 		float s = 44f * k * (1f + 0.25f * m_hullFlash);
 		float gap = 5f * k;
 		float total = HullMax * s + (HullMax - 1) * gap;

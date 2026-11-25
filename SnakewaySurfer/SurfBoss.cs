@@ -37,6 +37,12 @@ internal sealed partial class SurfGame
 		// 1.16.10: whether this stretch has had its chance of a trader (SurfTraders.cs).
 		public bool TraderChecked;
 
+		// 1.17: metres of the stretch (Endless: Biome Length), and of its Journey stages: travel to
+		// the halfway stone, then the hunt for the summoning items (SurfJourney.cs).
+		public float Length = Plugin.BiomeLength.Value;
+		public float Travel = Plugin.BiomeLength.Value * 0.5f;
+		public float Hunt = Plugin.BiomeLength.Value * 0.5f;
+
 		public float Level => Biome + 1.5f * Stars;
 	}
 
@@ -73,7 +79,6 @@ internal sealed partial class SurfGame
 	private const int BossHitsNeeded = 3;
 
 	private float m_lastLandmarkZ = -999f;
-	private int m_furthestBoss = -1;
 	private readonly Dictionary<string, bool> m_bossFound = new();
 	// 1 = just moved on and still under the ground, rising to 0.
 	private float m_bossRise;
@@ -83,15 +88,22 @@ internal sealed partial class SurfGame
 	private void ResetSegments()
 	{
 		m_segments.Clear();
-		// Read once per run: the world's keys don't change while you surf.
-		m_furthestBoss = Plugin.IgnoreBossGate.Value ? Progress.Bosses.Length - 1 : Progress.FurthestBoss();
-		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
-		m_lapBiomes = Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
+		// Read at the start of a run, and again when a boss is beaten in the dream.
+		m_lapBiomes = LapBiomesNow();
+		Plugin.Log.LogInfo($"Dream progress: bosses beaten {Progress.DreamSummary()}; this run reaches the {Biomes.Defaults[Mathf.Clamp(m_lapBiomes - 1, 0, Biomes.Defaults.Length - 1)].Name}{(Plugin.IgnoreBossGate.Value ? " (Ignore Boss Gate on)" : "")}.");
 		int biome = Mathf.Clamp(m_startBiome, 0, m_lapBiomes - 1);
 		int stars = Plugin.LoopBiomes.Value <= 0 ? 0 : m_startStars;
 		// A start past the Mountains begins with the crossing, until you've made it this lap
 		// (or picked the Ocean).
-		bool sea = Crossing && biome == SeaTo && (m_startSea || m_player == null || !Progress.Landed(m_player, stars, SeaTo));
+		// The self-test picks its stops itself: only its crossing stop starts at sea.
+		bool sea = Crossing && biome == SeaTo && (m_startSea || (!Touring && (m_player == null || !Progress.Landed(m_player, stars, SeaTo))));
+		// 1.17: a Plains Journey always starts with its crossing (the travel stage), unless it picks
+		// up from a stone on land.
+		ResetJourney(biome, stars);
+		if (m_journey && Crossing && biome == SeaTo && !(m_resumeNext && m_player != null && Progress.Resume(m_player, out int rb, out _, out bool rsea, out _, out _) && rb == SeaTo && !rsea))
+		{
+			sea = true;
+		}
 		Segment first = sea ? ShoreSegment(stars) : NewSegment(0f, biome, stars, false, false);
 		first.PrevBiome = first.Biome;
 		first.PrevLevel = first.Level;
@@ -104,11 +116,22 @@ internal sealed partial class SurfGame
 		EndBoss();
 	}
 
+	private int LapBiomesNow()
+	{
+		int lap = Plugin.LoopBiomes.Value <= 0 ? m_biomes.Count : Mathf.Clamp(Plugin.LoopBiomes.Value, 1, m_biomes.Count);
+		return Mathf.Clamp(Progress.AllowedBiomes(lap), 1, m_biomes.Count);
+	}
+
 	private Segment NewSegment(float start, int biome, int stars, bool boss, bool repeat)
 	{
 		Segment s = new Segment { Start = start, Biome = biome, Stars = stars, Boss = boss, Repeat = repeat };
+		if (m_journey && !boss)
+		{
+			s.Travel = s.Hunt = JourneyStageLength(biome, stars);
+			s.Length = s.Travel + s.Hunt;
+		}
 		// A biome with a boss ahead stays open until you have the summoning items.
-		s.End = boss || BossFor(s) != null ? float.MaxValue : start + Plugin.BiomeLength.Value;
+		s.End = boss || BossFor(s) != null ? float.MaxValue : start + s.Length;
 		return s;
 	}
 
@@ -119,7 +142,9 @@ internal sealed partial class SurfGame
 			return null;
 		}
 		BossDef? boss = Progress.BossOf(s.Biome);
-		if (boss == null || s.Biome > m_furthestBoss)
+		// 1.17: every biome you can reach ends with its boss, the last one included: beating it
+		// in the dream is what opens the next biome.
+		if (boss == null || s.Biome >= m_lapBiomes)
 		{
 			return null;
 		}
@@ -131,8 +156,19 @@ internal sealed partial class SurfGame
 		return found ? boss : null;
 	}
 
-	// Pure: also used to look ahead (the checkpoint after a boss), so it must not change state.
+	// What the track lays after a stretch. In a Journey, after its boss (or, with no boss, after
+	// the hunt) comes a quiet stretch of the same biome to breathe in before the win screen.
 	private Segment Following(Segment s)
+	{
+		if (m_journey && !s.Rush && !s.Sea && !s.Shore && (s.Boss || s.Repeat || BossFor(s) == null))
+		{
+			return NewSegment(s.End, s.Biome, s.Stars, false, true);
+		}
+		return FollowingRun(s);
+	}
+
+	// Pure: also used to look ahead (the checkpoint after a boss), so it must not change state.
+	private Segment FollowingRun(Segment s)
 	{
 		if (s.Rush)
 		{
@@ -219,6 +255,16 @@ internal sealed partial class SurfGame
 				// A new land over the water: no blend with the one left behind.
 				next.PrevBiome = next.Biome;
 				next.PrevLevel = next.Level;
+				if (m_journey)
+				{
+					// The crossing was the Journey's travel: landfall starts the hunt.
+					next.Travel = 0f;
+					next.Length = next.Hunt;
+					if (next.End != float.MaxValue)
+					{
+						next.End = next.Start + next.Length;
+					}
+				}
 			}
 			m_segments.Add(next);
 		}
@@ -238,7 +284,7 @@ internal sealed partial class SurfGame
 		Segment s = SegAt(z);
 		// The rush counts as past the whole 3-star lap.
 		float ordinal = s.Rush ? (s.Stars + 1) * Mathf.Max(1, m_lapBiomes) : s.Stars * Mathf.Max(1, m_lapBiomes) + s.Biome;
-		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / Plugin.BiomeLength.Value);
+		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / s.Length);
 		return ordinal + frac;
 	}
 
@@ -247,7 +293,7 @@ internal sealed partial class SurfGame
 	private float SpeedProgressAt(float z)
 	{
 		Segment s = SegAt(z);
-		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / Plugin.BiomeLength.Value);
+		float frac = s.Boss ? 1f : Mathf.Clamp01((z - s.Start) / s.Length);
 		return s.Rush ? Mathf.Max(1, m_lapBiomes) + 3f : s.Biome + frac + s.Stars;
 	}
 
@@ -302,17 +348,18 @@ internal sealed partial class SurfGame
 				m_itemSeg = here;
 				m_items = 0;
 				// A good stretch of the biome first, then the items start turning up.
-				m_nextItemZ = Mathf.Max(m_nextItemZ, Mathf.Max(m_z + 30f, here.Start + Plugin.BiomeLength.Value * 0.45f));
+				// (A Journey: from the halfway stone on, the hunt.)
+				m_nextItemZ = Mathf.Max(m_nextItemZ, Mathf.Max(m_z + 30f, m_journey ? HalfZ(here) : here.Start + Plugin.BiomeLength.Value * 0.45f));
 			}
 			if (m_items >= boss.Amount)
 			{
 				// 1.16.19: far enough on that the track already built doesn't vanish in plain view.
-				CloseSegment(here, Mathf.Max(here.Start + Plugin.BiomeLength.Value, m_z + Mathf.Max(55f, AheadDistance * 0.5f)));
+				CloseSegment(here, Mathf.Max(m_journey ? HalfZ(here) : here.Start + Plugin.BiomeLength.Value, m_z + Mathf.Max(55f, AheadDistance * 0.5f)));
 				m_banner = $"{boss.Name} approaches!";
 				m_bannerTime = 2.5f;
 				m_audio.Play(Sfx.Biome, 1f, 0.7f);
 			}
-			else if (m_z > here.Start + Plugin.BiomeLength.Value && !(m_z < CryptExitFor(here) + 10f))
+			else if (m_z > HuntEnd(here) && !(m_z < CryptExitFor(here) + 10f))
 			{
 				m_itemNagTime -= dt;
 				if (m_itemNagTime <= 0f)
@@ -333,7 +380,7 @@ internal sealed partial class SurfGame
 		UpdateBoss(dt);
 	}
 
-	// 1.16.1 (Sam): where the first summoning item of a stretch may come up: 30 to 50 seconds
+	// 1.16.1 (SAT): where the first summoning item of a stretch may come up: 30 to 50 seconds
 	// into it, never right as the biome begins.
 	private Segment? m_itemStartSeg;
 	private float m_itemStartZ;
@@ -346,9 +393,9 @@ internal sealed partial class SurfGame
 		if (boss != null && m_itemStartSeg != s)
 		{
 			m_itemStartSeg = s;
-			m_itemStartZ = s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
+			m_itemStartZ = m_journey ? HalfZ(s) : s.Start + Mathf.Max(Plugin.BiomeLength.Value * 0.45f, Mathf.Max(8f, m_speed) * Random.Range(30f, 50f));
 		}
-		// 1.16.109 (Sam): with a dungeon in the biome, not before you're out the far end of it.
+		// 1.16.109 (SAT): with a dungeon in the biome, not before you're out the far end of it.
 		if (boss != null && !float.IsNaN(CryptExitFor(s)) && z < CryptExitFor(s) + 10f)
 		{
 			return false;
@@ -363,10 +410,15 @@ internal sealed partial class SurfGame
 		{
 			return false;
 		}
-		// 1.16.1 (Sam): the fewer a boss needs, the rarer each one is (two deer trophies are far
+		// 1.16.1 (SAT): the fewer a boss needs, the rarer each one is (two deer trophies are far
 		// apart; ten withered bones come as before).
 		float spacing = Mathf.Max(16f, Plugin.BiomeLength.Value / (boss.Amount * 1.7f)) * Mathf.Clamp(6f / Mathf.Max(1, boss.Amount), 1f, 3f);
-		if (z > s.Start + Plugin.BiomeLength.Value)
+		if (m_journey)
+		{
+			// A Journey's items all come within its hunt (with some left over for misses).
+			spacing = Mathf.Max(16f, s.Hunt * 0.7f / Mathf.Max(1, boss.Amount));
+		}
+		if (z > HuntEnd(s))
 		{
 			spacing *= 0.5f;
 		}
@@ -417,7 +469,7 @@ internal sealed partial class SurfGame
 	private Thing SpawnPickup(GameObject template, int lane, float z, Kind kind)
 	{
 		bool weapon = kind == Kind.BossHit;
-		// 1.16.150 (Sam: hard to see in the Eikthyr fight): what you hurt a boss with is bigger,
+		// 1.16.150 (SAT: hard to see in the Eikthyr fight): what you hurt a boss with is bigger,
 		// stands in a pillar of light, and glows brighter.
 		GameObject go = Fitted(template, weapon ? Quaternion.Euler(0f, 0f, 35f) : Quaternion.identity, Vector3.one * (weapon ? 1.5f : 0.9f), true, 3f);
 		const float y = 1.0f;
@@ -451,22 +503,12 @@ internal sealed partial class SurfGame
 			{
 				return;
 			}
-			s_beamMaterial = new Material(shader) { name = "SurfPickupBeam", color = new Color(0.55f, 0.85f, 1f, 0.28f), renderQueue = 3110 };
+			s_beamMaterial = new Material(shader) { name = "SurfPickupBeam", color = new Color(0.55f, 0.85f, 1f, 0.18f), renderQueue = 3110 };
 		}
-		GameObject beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-		Destroy(beam.GetComponent<Collider>());
-		beam.name = "PickupBeam";
-		beam.layer = m_layer;
+		// 1.16.x (SAT: the pillar looked like a UFO's light beam): no pillar any more, only the
+		// faint glow on the lane under it and the pickup's own light.
 		// (The fitted wrapper is upright and scaled evenly; undo its scale.)
 		float k = Mathf.Max(0.01f, parent.localScale.x);
-		beam.transform.SetParent(parent, false);
-		beam.transform.localRotation = Quaternion.identity;
-		beam.transform.localScale = new Vector3(0.5f / k, 3f / k, 0.5f / k);
-		beam.transform.localPosition = new Vector3(0f, (3f - y) / k, 0f);
-		Renderer r = beam.GetComponent<Renderer>();
-		r.sharedMaterial = s_beamMaterial;
-		r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-		r.receiveShadows = false;
 		GameObject patch = MakeMarker(1, 0f, 1.6f, s_beamMaterial);
 		patch.transform.SetParent(parent, false);
 		patch.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
@@ -584,8 +626,34 @@ internal sealed partial class SurfGame
 
 	private static string Localize(string text) => Localization.instance != null ? Localization.instance.Localize(text) : text;
 
-	// 1.16.150 (Sam: little difference between star levels): from 2 stars a boss sometimes
+	// 1.16.150 (SAT: little difference between star levels): from 2 stars a boss sometimes
 	// follows one move straight up with another (unless the move held the next one back).
+	private float m_bossLock;
+	private float m_bossSlideX;
+	private float m_bossHeld;
+
+	private bool BossAttackInFlight()
+	{
+		if (m_boss == null)
+		{
+			return false;
+		}
+		if (m_chaseStrikes.Count > 0)
+		{
+			return true;
+		}
+		string label = m_bossThing?.Label ?? m_boss.Name;
+		foreach (Thing t in m_things)
+		{
+			if (t != m_bossThing && t.Collidable && t.Z > m_z - 1f && (t.Label == m_boss.Name || t.Label == label)
+				&& t.Kind != Kind.Item && t.Kind != Kind.BossHit && t.Kind != Kind.Coin && t.Kind != Kind.Scenery && t.Kind != Kind.Ground)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private void StarFollowUp(int stars, float interval)
 	{
 		if (stars >= 2 && m_bossAttackTimer <= interval + 0.01f && Random.value < 0.22f * (stars - 1))
@@ -698,13 +766,26 @@ internal sealed partial class SurfGame
 			// It keeps its distance ahead (1.13: a stander no longer sinks and rises on every
 			// move); 1.16.2: when that distance changes (Moder landing or taking off) it gets
 			// there smoothly instead of jumping.
-			m_bossZ = m_z + Mathf.MoveTowards(m_bossZ - m_z, want - m_z, dt * 14f);
+			// 1.16.x (SAT: bosses drift mid-animation): while an attack plays it holds its
+			// distance exactly, and only then eases to the new one.
+			m_bossLock = Mathf.Max(0f, m_bossLock - dt);
+			m_bossZ = m_z + (m_bossLock > 0f ? m_bossZ - m_z : Mathf.MoveTowards(m_bossZ - m_z, want - m_z, dt * 14f));
 		}
 		float x = def.Mode == "side" ? m_bossSide * (TrackHalf + 6f) : Flies(def) ? FlightSway() : 0f;
 		float lift = Flies(def) ? FlightHeight(def, dt) : def.Fly;
 		// After moving on it comes up out of the ground.
 		m_bossRise = Mathf.Max(0f, m_bossRise - dt * 1.4f);
-		Vector3 pos = new Vector3(Mathf.MoveTowards(m_bossGo.transform.localPosition.x, x, dt * 6f), RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
+		// 1.16.x (SAT: the Queen spazzed all over the road): the attack lock froze it part way
+		// back to its place after a duel, so it lurched across the road in stops and starts. Now
+		// the lock only holds it once it's nearly there; on the way it glides smoothly.
+		float nowX = m_bossGo.transform.localPosition.x;
+		bool holdX = m_bossLock > 0f && Mathf.Abs(nowX - x) < 1f;
+		if (holdX)
+		{
+			m_bossSlideX = 0f;
+		}
+		float newX = holdX ? nowX : Mathf.SmoothDamp(nowX, x, ref m_bossSlideX, 0.5f, 6f, dt);
+		Vector3 pos = new Vector3(newX, RoadY(m_bossZ) + lift - def.MaxHeight * 1.1f * m_bossRise, m_bossZ);
 		m_bossGo.transform.localPosition = pos;
 		m_bossThing.Z = m_bossZ;
 
@@ -732,8 +813,18 @@ internal sealed partial class SurfGame
 		}
 		int phase = Mathf.Clamp(m_bossHits, 0, def.Moves.Length - 1);
 		m_bossAttackTimer -= dt;
-		if (m_bossAttackTimer <= 0f)
+		// 1.16.x (SAT: attacks should wait for the last pattern to finish): not while any of its
+		// attacks is still on the track ahead of you.
+		// (At most 3 s, in case something of its stays on the track.)
+		if (m_bossAttackTimer <= 0f && m_bossHeld < 3f && BossAttackInFlight())
 		{
+			m_bossHeld += 0.15f - m_bossAttackTimer;
+			m_bossAttackTimer = 0.15f;
+		}
+		else if (m_bossAttackTimer <= 0f)
+		{
+			m_bossHeld = 0f;
+			m_bossLock = 1.2f;
 			BossMove(def, Flies(def) && m_bossLanded ? LandedMove() : NextMove(def, phase));
 			int bossStars = m_bossSeg?.Stars ?? 0;
 			float interval = (phase == 0 ? 2.3f : phase == 1 ? 1.8f : 1.4f) / (1f + 0.2f * bossStars);
@@ -792,7 +883,7 @@ internal sealed partial class SurfGame
 	}
 
 	// Where a move lands: this far ahead of you, so you see the marks for about `seconds`.
-	// 1.16.2 (Sam: boss attacks popped into existence too close): BossLead metres further down
+	// 1.16.2 (SAT: boss attacks popped into existence too close): BossLead metres further down
 	// the track, so they show well before you reach them. A boss standing on the track still
 	// lands its blows between you and it.
 	private const float BossLead = 10f;
@@ -1029,7 +1120,7 @@ internal sealed partial class SurfGame
 				break;
 			}
 			case "branches":
-				// 1.16.1 (Sam): the Elder's maze of six paths, longer as the fight goes on.
+				// 1.16.1 (SAT): the Elder's maze of six paths, longer as the fight goes on.
 				SpawnMaze(def, b, m_bossHits >= 2 ? 8 : 6);
 				break;
 			case "grab":
@@ -1088,7 +1179,7 @@ internal sealed partial class SurfGame
 			}
 			else if (look == "meteor")
 			{
-				// 1.16.102 (Sam: meteors didn't look like the game's): the game's own meteor falls
+				// 1.16.102 (SAT: meteors didn't look like the game's): the game's own meteor falls
 				// out of the sky onto the marked spot and bursts with its own impact.
 				strike = new GameObject("MeteorStrike");
 				strike.layer = m_layer;
@@ -1138,7 +1229,7 @@ internal sealed partial class SurfGame
 				Label = def.Name,
 				CrashText = $"{def.Name} got you in the {biome}! (Watch the marked lanes.)",
 				Life = arrive + 1.5f + (length > 3f ? length / Mathf.Max(1f, m_speed) : 0f),
-				// 1.16.1 (Sam: Bonemass's gas clouds appeared much too close): gas billows up
+				// 1.16.1 (SAT: Bonemass's gas clouds appeared much too close): gas billows up
 				// where it's marked, well down the track, and hangs there as you come; other
 				// strikes still show as you arrive.
 				FireIn = look == "gas" ? 0.05f : Mathf.Max(0.05f, arrive - 0.5f),
@@ -1258,7 +1349,7 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	// Something low across a lane to jump. 1.16.102 (Sam: no unnatural cut logs in boss fights):
+	// Something low across a lane to jump. 1.16.102 (SAT: no unnatural cut logs in boss fights):
 	// the boss's own shockwave rolling along the ground, glowing in its colour with its attack's
 	// impact effect. The Elder, a tree, still sends a root across.
 	private Thing BossLow(BiomeRuntime b, int lane, float z, BossDef def)
@@ -1292,7 +1383,7 @@ internal sealed partial class SurfGame
 		root.transform.SetParent(m_stage, false);
 		if (def.Prefab == "Eikthyr")
 		{
-			// 1.16.150 (Sam: the yellow-marked bars looked like odd logs): Eikthyr's is a crackle
+			// 1.16.150 (SAT: the yellow-marked bars looked like odd logs): Eikthyr's is a crackle
 			// of his lightning running along the ground across the lane.
 			Crackle crackle = root.AddComponent<Crackle>();
 			crackle.Glow = BoltLine(root, false, "Glow");
@@ -1478,10 +1569,8 @@ internal sealed partial class SurfGame
 		{
 			SetTrigger(m_bossAnim, "stagger");
 		}
-		if (m_boss.Mode == "side")
-		{
-			m_bossSide = -m_bossSide;
-		}
+		// 1.16.x (SAT: Bonemass shouldn't cross the road; his slime trail over the lanes looked
+		// like a damage zone): a side boss stays on its side when hit.
 		if (m_bossHits < BossHitsNeeded)
 		{
 			int left = BossHitsNeeded - m_bossHits;
@@ -1494,7 +1583,15 @@ internal sealed partial class SurfGame
 		// Beaten: a checkpoint for what comes next, and a breather.
 		Segment seg = m_bossSeg!;
 		seg.Beaten = true;
-		Segment next = Following(seg);
+		// 1.17: the dream remembers: the next biome opens for this character in every world.
+		int bossIndex = System.Array.IndexOf(Progress.Bosses, def);
+		if (!seg.Rush && bossIndex >= 0 && m_player != null && Progress.SaveDreamBoss(m_player, bossIndex))
+		{
+			int before = m_lapBiomes;
+			m_lapBiomes = Mathf.Max(m_lapBiomes, LapBiomesNow());
+			Plugin.Log.LogInfo($"Dream progress: first win over {def.Name}; runs now reach the {Biomes.Defaults[Mathf.Clamp(m_lapBiomes - 1, 0, Biomes.Defaults.Length - 1)].Name} (was {before} biome(s)).");
+		}
+		Segment next = FollowingRun(seg);
 		m_bonusDistance += Plugin.BiomeLength.Value * 0.5f;
 		if (seg.Rush)
 		{
@@ -1516,9 +1613,17 @@ internal sealed partial class SurfGame
 			// Beating Moder saves the crossing: a start there begins on the coast.
 			Progress.SaveCheckpoint(m_player, next.Sea ? SeaTo : next.Biome, next.Stars);
 			ClearResumePoint();
-			CampAfterBoss(seg, next, def);
+			if (m_journey)
+			{
+				// The Journey is won: a breather on the same ground, then the win screen.
+				JourneyBossBeaten();
+			}
+			else
+			{
+				CampAfterBoss(seg, next, def);
+			}
 			m_banner = $"{def.Name} defeated!\nCheckpoint: {Progress.Describe(next.Sea ? SeaTo : next.Biome, next.Stars, next.Sea)}";
-			if (next.Rush)
+			if (next.Rush && !m_journey)
 			{
 				m_banner += "\nBut first... the boss rush!";
 			}
@@ -1537,7 +1642,7 @@ internal sealed partial class SurfGame
 		}
 		DestroySchemaLobs();
 		ClearChase();
-		if (next.Sea)
+		if (next.Sea && !m_journey)
 		{
 			// The coast: far enough on for the beach to slope down to the ship.
 			CloseSegment(seg, m_z + Mathf.Max(110f, AheadDistance * 0.6f));
@@ -1556,7 +1661,7 @@ internal sealed partial class SurfGame
 	private Quaternion m_bossDeathRot;
 	private float m_bossDeathSide = 1f;
 
-	// 1.14.2 (Sam: bosses just sank away): its own death, from the game: the death effects and
+	// 1.14.2 (SAT: bosses just sank away): its own death, from the game: the death effects and
 	// sounds (Character.m_deathEffects, minus the ragdoll, which needs physics), a last stagger,
 	// and it topples over before the ground takes it.
 	private void BossDeath(BossDef def)

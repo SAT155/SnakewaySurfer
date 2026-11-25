@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 namespace SnakewaySurfer;
 
-// 1.16.3 (Sam: a wind gauge like the game's): a ring round the ship's wheel with a dark arc on
+// 1.16.3 (SAT: a wind gauge like the game's): a ring round the ship's wheel with a dark arc on
 // the side the wind comes from: the no-go zone, the headings a sail can't drive on
 // (Ship.GetWindAngleFactor gives no drive once the bow is within about 37 to 41 degrees of the
 // wind; WindAngleFactor here is the same). The wind's icon rides the ring in the middle of it,
@@ -62,22 +62,22 @@ internal sealed partial class SurfGame
 		GUI.DrawTexture(rose, s_gaugeRing);
 		// The no-go arc, centred on where the wind comes from (ahead is up on screen).
 		Matrix4x4 m = GUI.matrix;
-		GUIUtility.RotateAroundPivot(m_windAngle + 180f, rose.center);
+		GUIUtility.RotateAroundPivot(m_sea.WindAngle + 180f, rose.center);
 		GUI.color = new Color(0.07f, 0.06f, 0.06f, 0.92f);
 		GUI.DrawTexture(rose, s_gaugeArc);
 		GUI.matrix = m;
 		// The bow's tick: red while it's in the arc.
-		GUIUtility.RotateAroundPivot(m_heading, rose.center);
+		GUIUtility.RotateAroundPivot(m_sea.Heading, rose.center);
 		GUI.color = Color.Lerp(new Color(1f, 0.35f, 0.25f, 1f), new Color(1f, 0.97f, 0.88f, 1f), WindAngleFactor() > 0.05f ? 1f : 0f);
 		GUI.DrawTexture(rose, s_gaugeTick);
 		GUI.matrix = m;
 
 		// The wind on the ring, on the side it comes from.
 		float factor = WindAngleFactor();
-		float pulse = 1f + 0.25f * m_windShift * Mathf.Abs(Mathf.Sin(Time.time * 10f));
+		float pulse = 1f + 0.25f * m_sea.WindShift * Mathf.Abs(Mathf.Sin(Time.time * 10f));
 		Color tint = Color.Lerp(new Color(0.25f, 0.25f, 0.25f), Color.white, factor);
-		float from = (m_windAngle + 180f) * Mathf.Deg2Rad;
-		// 1.16.80 (Sam): it circles just outside the ring, not on it.
+		float from = (m_sea.WindAngle + 180f) * Mathf.Deg2Rad;
+		// 1.16.80 (SAT): it circles just outside the ring, not on it.
 		Vector2 at = rose.center + new Vector2(Mathf.Sin(from), -Mathf.Cos(from)) * (rose.width * 0.5f * 1.22f);
 		float ws = rose.width * 0.27f * pulse;
 		Rect icon = new Rect(at.x - ws * 0.5f, at.y - ws * 0.5f, ws, ws);
@@ -88,11 +88,11 @@ internal sealed partial class SurfGame
 		if (m_hudWind != null)
 		{
 			// The game's icon points the way the wind blows when unturned.
-			DrawRotated(icon, m_hudWind, m_windAngle, tint);
+			DrawRotated(icon, m_hudWind, m_sea.WindAngle, tint);
 		}
 		else
 		{
-			GUIUtility.RotateAroundPivot(m_windAngle, at);
+			GUIUtility.RotateAroundPivot(m_sea.WindAngle, at);
 			Fill(new Rect(at.x - 3f * k, at.y - ws * 0.4f, 6f * k, ws * 0.8f), tint);
 			Star(new Vector2(at.x, at.y - ws * 0.4f), 12f * k, tint);
 			GUI.matrix = m;

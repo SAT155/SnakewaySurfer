@@ -147,6 +147,8 @@ internal sealed partial class SurfGame
 		m_stowed.Clear();
 		RestoreStance();
 		AvatarBool("bow_aim", false);
+		m_bowEquip = 0f;
+		AvatarBool("equipping", false);
 	}
 
 	// The animator's weapon stance (Humanoid sets "statef" and "statei" from the item).

@@ -159,6 +159,19 @@ internal sealed partial class SurfGame
 		return true;
 	}
 
+	// Still up in the roof (the placement service judges it as fallen, SurfGate.cs).
+	private bool Hanging(Thing t)
+	{
+		foreach (Icicle ic in m_icicles)
+		{
+			if (ic.T == t)
+			{
+				return !ic.Dropped || ic.Fall < 1f;
+			}
+		}
+		return false;
+	}
+
 	private void UpdateIcicles(float dt)
 	{
 		for (int i = m_icicles.Count - 1; i >= 0; i--)
@@ -175,7 +188,7 @@ internal sealed partial class SurfGame
 				if (t.Z > m_z && t.Z - m_z < m_speed * 1.25f + 5f && !CornerBetween(m_z + 1f, t.Z))
 				{
 					ic.Dropped = true;
-					if (m_lane != t.Lane && LaneClear(m_lane, t.Z, t))
+					if (m_lane != t.Lane && LaneClear(m_lane, t.Z, t) && MayMoveTo(t, m_lane))
 					{
 						t.Lane = m_lane;
 						Vector3 p = t.Go.transform.localPosition;

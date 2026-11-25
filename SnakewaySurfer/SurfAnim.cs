@@ -107,7 +107,7 @@ internal static class AnimTiming
 
 	private static string Normal(string s) => s.ToLowerInvariant().Replace("_", "").Replace(" ", "");
 
-	// 1.16.94 (Sam: "why do we have to seemingly guess at the animation timings?"): no more guessing
+	// 1.16.94 (SAT: "why do we have to seemingly guess at the animation timings?"): no more guessing
 	// from clip names on a creature's first attack. A hidden copy plays each of its attack triggers
 	// through the game's own animator, frame by frame, until the clip with the OnAttackTrigger event
 	// is playing; time so far plus time left to that event is the real wind-up, transitions and
@@ -189,7 +189,7 @@ internal static class AnimTiming
 	}
 
 	// Once the clip after a trigger is playing: seconds until its blow, or -1 if none yet.
-	// 1.16.1 (Sam: abomination and troll log swings landed late): every layer is looked at, not
+	// 1.16.1 (SAT: abomination and troll log swings landed late): every layer is looked at, not
 	// only the base one, since some attacks play on a layer of their own.
 	public static float Remaining(Animator anim)
 	{

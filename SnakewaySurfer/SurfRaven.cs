@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.15 (Sam): the run's messages come from Hugin, the tutorial raven. He flies in at the top
+// 1.16.15 (SAT): the run's messages come from Hugin, the tutorial raven. He flies in at the top
 // right of the screen, out of the way, with the game's own animation, says it in the game's own
 // speech popup (the one he uses in the world), and flies off the game's way once it's said. A
 // new message while he's there just replaces what he's saying.
@@ -47,6 +47,32 @@ internal sealed partial class SurfGame
 			if (hugin != null)
 			{
 				m_ravenTemplate = Pictures.MakePicture(hugin.m_visual, m_templates, m_layer);
+				// 1.16.183: Hugin waits hidden in the world, so the copy came with its model
+				// switched off: nothing to see on the track and nothing to take a picture of.
+				int woken = 0;
+				int meshes = 0;
+				foreach (Renderer r in m_ravenTemplate.GetComponentsInChildren<Renderer>(true))
+				{
+					if (!(r is SkinnedMeshRenderer) && !(r is MeshRenderer))
+					{
+						continue;
+					}
+					meshes++;
+					if (!r.enabled)
+					{
+						r.enabled = true;
+						woken++;
+					}
+					for (Transform up = r.transform; up != null && up != m_ravenTemplate.transform; up = up.parent)
+					{
+						if (!up.gameObject.activeSelf)
+						{
+							up.gameObject.SetActive(true);
+							woken++;
+						}
+					}
+				}
+				Plugin.Log.LogInfo($"Hugin's model: {meshes} meshes, {woken} parts were switched off and are now on.");
 				// Not the "!" he wears over a tutorial.
 				string mark = hugin.m_exclamation != null ? hugin.m_exclamation.name : "";
 				foreach (Transform child in m_ravenTemplate.GetComponentsInChildren<Transform>(true))

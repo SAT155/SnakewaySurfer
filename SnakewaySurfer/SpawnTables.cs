@@ -84,6 +84,8 @@ internal static class SpawnTables
 			return result;
 		}
 		Heightmap.Biome biome = s_order[index];
+		BiomeContent? content = index < Biomes.Defaults.Length ? BiomeContents.For(Biomes.Defaults[index].Name) : null;
+		SortedSet<string> refused = new();
 		Dictionary<GameObject, SpawnEntry> byPrefab = new();
 		HashSet<SpawnSystem.SpawnData> seen = new();
 		foreach (SpawnSystemList list in Resources.FindObjectsOfTypeAll<SpawnSystemList>())
@@ -109,11 +111,12 @@ internal static class SpawnTables
 				{
 					continue;
 				}
-				// 1.16.150 (Sam: a greydwarf shaman's poison in the 0-star Meadows): forest folk that
-				// stray to the Meadows' edge in the game don't belong to the Meadows here.
-				if (biome == Heightmap.Biome.Meadows
-					&& (d.m_prefab.name.StartsWith("Greydwarf") || d.m_prefab.name.StartsWith("Skeleton") || d.m_prefab.name.StartsWith("Troll")))
+				// 1.16.x (architecture step 2): only what the biome's content table lists
+				// (BiomeContent.cs). It replaces 1.16.150's Meadows rule (SAT: a greydwarf
+				// shaman's poison in the 0-star Meadows), which is now that table's list.
+				if (content != null && !content.IsNative(d.m_prefab.name))
 				{
+					refused.Add(d.m_prefab.name);
 					continue;
 				}
 				// How many of it are around on average: the cap times the chance per try,
@@ -163,6 +166,10 @@ internal static class SpawnTables
 		if (log)
 		{
 			Plugin.Log.LogInfo($"{s_order[index]} spawn entries: {string.Join(", ", raw)}");
+			if (refused.Count > 0)
+			{
+				Plugin.Log.LogInfo($"{s_order[index]}: not in its content table, left out: {string.Join(", ", refused)}");
+			}
 		}
 		return result;
 	}

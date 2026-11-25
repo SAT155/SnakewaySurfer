@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.71 (Sam's idea for the way in): a strange portal turns up near you. Step in and you come
+// 1.16.71 (SAT's idea for the way in): a strange portal turns up near you. Step in and you come
 // out right where you were... but now Hugin sits at the top right of your view, as in the
 // minigame, nudging you to go to sleep. The longer you stay up, the more often he's back and
 // the less polite he gets. After a day awake, his brother Munin joins him and the two of them
@@ -42,7 +42,7 @@ internal sealed class SurfStory : MonoBehaviour
 	private Transform? m_portalCentre;
 	private float m_portalTime = -1f;
 	private float m_portalLooked;
-	// 1.16.92 (Sam: the dream ripple and its sound instead of the portal loading screen): the
+	// 1.16.92 (SAT: the dream ripple and its sound instead of the portal loading screen): the
 	// view ripples into the warm haze, holds, and ripples back out.
 	private const float PortalBlack = 1.0f;
 	private const float PortalIn = 0.6f;
@@ -80,7 +80,7 @@ internal sealed class SurfStory : MonoBehaviour
 	private Camera? m_birdCam;
 	private Light? m_birdLight;
 	private const float Depth = 9f;
-	// 1.16.83 (Sam: "He is too big still"): about half the size (was 0.34).
+	// 1.16.83 (SAT: "He is too big still"): about half the size (was 0.34).
 	private const float ScreenHeight = 0.16f;
 
 	private void Awake()
@@ -131,7 +131,7 @@ internal sealed class SurfStory : MonoBehaviour
 
 	private Player? m_checked;
 
-	// 1.16.84 (Sam: Hugin came back after logging in although he'd slept and dreamt the run):
+	// 1.16.84 (SAT: Hugin came back after logging in although he'd slept and dreamt the run):
 	// whoever has already been through a run is past the ravens' story.
 	public static void MarkDreamed(Player p)
 	{
@@ -152,6 +152,7 @@ internal sealed class SurfStory : MonoBehaviour
 
 	private void Update()
 	{
+		SurfPortalPiece.Sweep();
 		Player? p = Player.m_localPlayer;
 		if (p != m_checked)
 		{
@@ -327,7 +328,7 @@ internal sealed class SurfStory : MonoBehaviour
 			return;
 		}
 		RemovePortal();
-		// 1.16.90 (Sam: "I would expect the surfstory to reset every time the strange portal set
+		// 1.16.90 (SAT: "I would expect the surfstory to reset every time the strange portal set
 		// to surfstory is entered ... except if the user hasn't slept yet"): after a sleep the
 		// story starts over (Hugin arrives fresh, Munin's episodes from the top); before one, he
 		// just reminds you.
@@ -766,7 +767,7 @@ internal sealed class SurfStory : MonoBehaviour
 		return b;
 	}
 
-	// 1.16.89 (Sam: "He should be in the top right corner, flying, facing the screen"): the
+	// 1.16.89 (SAT: "He should be in the top right corner, flying, facing the screen"): the
 	// raven's own flight, from its animations: a hover or flap loop if it has one, else its fly-in.
 	internal static string? FlyClip(Animator anim)
 	{
@@ -984,7 +985,7 @@ internal sealed class SurfStory : MonoBehaviour
 	{
 		float half = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * Depth;
 		float aspect = cam.aspect > 0.1f ? cam.aspect : 16f / 9f;
-		// 1.16.82 (Sam: his words sat over the buff icons at the top right): lower down the
+		// 1.16.82 (SAT: his words sat over the buff icons at the top right): lower down the
 		// right side, so the speech above him clears the HUD.
 		// 1.16.89: up in the top right corner (just under the buff icons), his words below him.
 		Vector3 local = new Vector3((b.Munin ? 0.6f : 0.82f) * half * aspect, (b.Munin ? 0.58f : 0.62f) * half, Depth);
@@ -998,7 +999,7 @@ internal sealed class SurfStory : MonoBehaviour
 			b.Go.transform.rotation = Quaternion.LookRotation(back) * Quaternion.Euler(0f, b.Yaw + (b.Munin ? 15f : -15f), 0f);
 		}
 		b.Go.transform.position = at - b.Go.transform.rotation * (b.Centre * b.Size);
-		// 1.16.85 (Sam: only Munin's talons showed, big, in the corner, the rest of him off the
+		// 1.16.85 (SAT: only Munin's talons showed, big, in the corner, the rest of him off the
 		// top of the view): the size and middle measured when he arrives aren't where his
 		// animation actually puts him. Each frame, his real outline is centred on his perch and
 		// eased to the size he should be.
@@ -1050,7 +1051,7 @@ internal sealed class SurfStory : MonoBehaviour
 		m_birdLight.color = new Color(1f, 0.96f, 0.88f);
 		m_birdLight.cullingMask = 1 << Plugin.RenderLayer.Value;
 		m_birdLight.shadows = LightShadows.None;
-		// 1.16.82 (Sam: Hugin couldn't be seen at night): a black bird on a night sky needs his
+		// 1.16.82 (SAT: Hugin couldn't be seen at night): a black bird on a night sky needs his
 		// own light: a cool rim from behind, and the world's dark and fog left out of his camera.
 		GameObject rimGo = new GameObject("StoryRavenRim");
 		rimGo.transform.SetParent(lightGo.transform, false);
@@ -1061,7 +1062,7 @@ internal sealed class SurfStory : MonoBehaviour
 		rim.color = new Color(0.7f, 0.82f, 1f);
 		rim.cullingMask = 1 << Plugin.RenderLayer.Value;
 		rim.shadows = LightShadows.None;
-		// 1.16.84 (Sam: terrain lighting flickered while Hugin was up): no more swapping the
+		// 1.16.84 (SAT: terrain lighting flickered while Hugin was up): no more swapping the
 		// world's fog and ambient around his camera; a soft fill from the front instead.
 		GameObject fillGo = new GameObject("StoryRavenFill");
 		fillGo.transform.SetParent(go.transform, false);
@@ -1131,7 +1132,7 @@ internal sealed class SurfStory : MonoBehaviour
 				Set(p, StageKey, StageNone);
 				if (s != null)
 				{
-					// 1.16.84 (Sam: a debug to spawn the portal now): right away, in front of you.
+					// 1.16.84 (SAT: a debug to spawn the portal now): right away, in front of you.
 					s.RemovePortal();
 					s.m_playTime = 99999f;
 					s.m_portalLooked = Time.time + 20f;

@@ -4,7 +4,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16.10 (Sam's notes in the gap doc): the game's traders as rare stops along the track. Haldor
+// 1.16.10 (SAT's notes in the gap doc): the game's traders as rare stops along the track. Haldor
 // in the Black Forest, the Bog Witch in the Swamp, and Hildir in the Meadows once you're on the
 // 1-star lap or later. One stands at the edge of the track in front of their camp, lit by a
 // lantern, with a line of coins and a gold mark along the lane on their side. They greet you as
@@ -12,17 +12,16 @@ namespace SnakewaySurfer;
 // you already have them all. The lanes around them stay clear, so it's a breather too.
 internal sealed partial class SurfGame
 {
+	// How each trader looks and sounds. Where and when they keep a stall is in the biome content
+	// tables (BiomeContent.cs, architecture step 2).
 	private sealed class TraderDef
 	{
-		public string Biome = "";
 		public string Prefab = "";
 		public string Camp = "";
 		// The game's own lines for them (used if their effect lists come up empty).
 		public string Greet = "";
 		public string Trade = "";
 		public string Bye = "";
-		public int MinStars;
-		public int MaxStars = 99;
 		public Color Lamp = new Color(1f, 0.75f, 0.4f);
 	}
 
@@ -30,27 +29,19 @@ internal sealed partial class SurfGame
 	{
 		new TraderDef
 		{
-			Biome = "Meadows", Prefab = "Hildir", Camp = "Hildir_camp", MinStars = 1,
+			Prefab = "Hildir", Camp = "Hildir_camp",
 			Greet = "sfx_hildir_hello", Trade = "sfx_hildir_trade|sfx_hildir_talk", Bye = "sfx_hildir_bye",
 			Lamp = new Color(1f, 0.72f, 0.5f),
 		},
-		// 1.16.150 (Sam never met a trader to try the shop): Haldor also keeps a stall in the
-		// 0-star Meadows, until Hildir takes over from 1 star.
 		new TraderDef
 		{
-			Biome = "Meadows", Prefab = "Haldor", Camp = "Vendor_BlackForest", MaxStars = 0,
+			Prefab = "Haldor", Camp = "Vendor_BlackForest",
 			Greet = "sfx_haldor_greet", Trade = "sfx_haldor_yea|sfx_haldor_laugh", Bye = "sfx_haldor_laugh",
 			Lamp = new Color(1f, 0.7f, 0.35f),
 		},
 		new TraderDef
 		{
-			Biome = "Black Forest", Prefab = "Haldor", Camp = "Vendor_BlackForest",
-			Greet = "sfx_haldor_greet", Trade = "sfx_haldor_yea|sfx_haldor_laugh", Bye = "sfx_haldor_laugh",
-			Lamp = new Color(1f, 0.7f, 0.35f),
-		},
-		new TraderDef
-		{
-			Biome = "Swamp", Prefab = "BogWitch", Camp = "BogWitch_Camp",
+			Prefab = "BogWitch", Camp = "BogWitch_Camp",
 			Greet = "sfx_bogwitch_greet", Trade = "sfx_bogwitch_trade", Bye = "sfx_bogwitch_random",
 			Lamp = new Color(0.65f, 1f, 0.55f),
 		},
@@ -126,20 +117,23 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			string biome = s.Biome < m_biomes.Count ? m_biomes[s.Biome].Def.Name : "";
-			bool open = !(s.Boss || s.Sea || s.Shore || s.Rush);
+			bool open = !(s.Boss || s.Sea || s.Shore || s.Rush || (m_journey && s.Repeat));
 			if (open && !s.CryptChecked && Plugin.Dungeons.Value && m_biomes.Count >= 2 && ThemeFor(biome) != null)
 			{
 				// (Its dungeon isn't planned yet.)
 				return;
 			}
 			s.TraderChecked = true;
-			TraderDef? def = System.Array.Find(s_traders, d => d.Biome == biome && s.Stars >= d.MinStars && s.Stars <= d.MaxStars);
+			// Who keeps a stall here comes from the biome's content table (BiomeContent.cs); how
+			// they look and sound from s_traders.
+			TraderStall? stall = BiomeContents.For(biome)?.TraderAt(s.Stars);
+			TraderDef? def = stall == null ? null : System.Array.Find(s_traders, d => d.Prefab == stall.Prefab);
 			if (def == null || !open || Random.value > TraderChance)
 			{
 				continue;
 			}
 			// In the first half of the stretch, so a short run still meets them.
-			float end = s.End < float.MaxValue ? s.End : s.Start + Plugin.BiomeLength.Value;
+			float end = s.End < float.MaxValue ? s.End : s.Start + s.Length;
 			float lo = Mathf.Max(s.Start + 40f, horizon + 50f);
 			float hi = Mathf.Min(end - 60f, Mathf.Max(lo + 60f, s.Start + (end - s.Start) * 0.5f));
 			// Not in or near its dungeon.
@@ -346,7 +340,7 @@ internal sealed partial class SurfGame
 				continue;
 			}
 			t.Done = true;
-			// 1.16.110 (Sam: the shop should work from all 3 lanes): passing them in any lane stops
+			// 1.16.110 (SAT: the shop should work from all 3 lanes): passing them in any lane stops
 			// the run at their store.
 			Trade(t);
 		}

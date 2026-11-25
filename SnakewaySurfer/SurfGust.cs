@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.25 (Sam's sketch): at a dungeon corner a gust of wind waits just ahead of you, drawn as
+// 1.16.25 (SAT's sketch): at a dungeon corner a gust of wind waits just ahead of you, drawn as
 // flat cut-out shapes with a dark inked edge (a hand-drawn, storybook look): a billowy cloud on
 // the side away from the turn, spiky gusts leaning the way you should go, and puffs curling off
 // toward the opening. The nearer you come to missing the turn, the more the cloud shrinks and
@@ -205,7 +205,7 @@ internal sealed partial class SurfGame
 		float u = Mathf.Clamp01(Mathf.InverseLerp(zc - TurnWindow - 14f, zc - TurnPoint, m_z));
 		float gone = m_gustGone >= 0f ? Mathf.Clamp01(m_gustGone / GustGoneTime) : 0f;
 
-		// 1.16.70 (Sam: it read as a little sticker far up the hall, and sat on you mid-turn):
+		// 1.16.70 (SAT: it read as a little sticker far up the hall, and sat on you mid-turn):
 		// big, filling the corner itself where the hall turns, high over the floor, so it is
 		// the corner that beckons; it puffs away as soon as you've turned.
 		if (m_gustGone < 0f)

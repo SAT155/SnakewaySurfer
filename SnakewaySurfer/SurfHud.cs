@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.14 (Sam): the run speaks through sounds, flashes and the HUD instead of pop-up text.
+// 1.14 (SAT): the run speaks through sounds, flashes and the HUD instead of pop-up text.
 // Stamina for sprinting and blocking, parries, the red hit flash, the summoning item's icon with
 // its count, and the boss's health bar.
 internal sealed partial class SurfGame
@@ -16,7 +16,7 @@ internal sealed partial class SurfGame
 	private bool m_blocking;
 	private float m_blockPressed = -99f;
 	private float m_sprintLook;
-	// 1.16.1 (Sam): a bat in the face knocks the guard down for this long.
+	// 1.16.1 (SAT): a bat in the face knocks the guard down for this long.
 	private float m_guardDown;
 	// How far the block's slow-down has eased in (0..1).
 	private float m_blockSlow;
@@ -30,11 +30,17 @@ internal sealed partial class SurfGame
 	// When a roll was refused for want of stamina (the bar flashes red a moment).
 	private float m_staminaShort = -99f;
 
-	// 1.16.69 (Sam: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
+	// 1.16.69 (SAT: "Roll should cost stamina"): false, with a tired grunt and the bar flashing,
 	// when there isn't enough left.
-	private bool SpendRollStamina()
+	private bool SpendRollStamina() => SpendMoveStamina(Plugin.RollStamina.Value);
+
+	// 1.16.x (playtest: jumping was free while rolling cost stamina): a jump costs stamina too,
+	// as in the game, and is refused the same way when there isn't enough.
+	private bool SpendJumpStamina() => SpendMoveStamina(Plugin.JumpStamina.Value);
+
+	private bool SpendMoveStamina(float baseCost)
 	{
-		float cost = Plugin.RollStamina.Value * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
+		float cost = baseCost * (Has("meadstam") ? 0.5f : 1f) * WetStaminaCost;
 		if (cost <= 0f)
 		{
 			return true;
@@ -54,9 +60,11 @@ internal sealed partial class SurfGame
 	{
 		m_stamina = MaxStamina;
 		m_staminaIdle = 0f;
+		m_duelHints = 0;
 		m_sprinting = false;
 		m_blocking = false;
 		m_blockPressed = -99f;
+		ClearTileCue();
 		m_guardDown = 0f;
 		m_blockSlow = 0f;
 		m_blockXp = 0f;
@@ -70,15 +78,15 @@ internal sealed partial class SurfGame
 	private float UpdateMoves(float dt, bool canInput)
 	{
 		m_guardDown = Mathf.Max(0f, m_guardDown - dt);
-		bool block = canInput && Input.GetKey(Plugin.BlockKey.Value) && m_guardDown <= 0f;
+		bool block = canInput && (Input.GetKey(Plugin.BlockKey.Value) || m_botBlock) && m_guardDown <= 0f;
 		if (block && !m_blocking)
 		{
-			m_blockPressed = m_runTime;
+			OnBlockPressed();
 		}
 		m_blocking = block;
 		if (m_blocking)
 		{
-			// 1.16.1 (Sam): holding the shield up tires you.
+			// 1.16.1 (SAT): holding the shield up tires you.
 			m_stamina = Mathf.Max(0f, m_stamina - Plugin.BlockHoldStamina.Value * dt);
 		}
 		bool sprint = canInput && !block && Input.GetKey(Plugin.SprintKey.Value);
@@ -102,7 +110,7 @@ internal sealed partial class SurfGame
 		}
 		AvatarBool("blocking", m_blocking);
 		m_sprintLook = Mathf.MoveTowards(m_sprintLook, m_sprinting ? 1f : 0f, dt * 4f);
-		// Slower behind the shield (1.16.1, Sam: it helps to pick a way through), easing in and
+		// Slower behind the shield (1.16.1, SAT: it helps to pick a way through), easing in and
 		// out over a quarter of a second.
 		m_blockSlow = Mathf.MoveTowards(m_blockSlow, m_blocking ? 1f : 0f, dt * 4f);
 		return m_sprinting ? Plugin.SprintSpeed.Value : Mathf.Lerp(1f, Plugin.BlockSpeed.Value, m_blockSlow);
@@ -110,14 +118,38 @@ internal sealed partial class SurfGame
 
 	// A creature's hit while you hold block: a parry if block went up just before it, else
 	// a block that costs stamina. Logs, gas and the like can't be blocked. True: no harm done.
+	private bool IsGiant(string label)
+	{
+		if (label.IndexOf("Troll", System.StringComparison.OrdinalIgnoreCase) >= 0)
+		{
+			return true;
+		}
+		foreach (BiomeRuntime b in m_biomes)
+		{
+			foreach ((GameObject _, string l) in b.Giants)
+			{
+				if (l == label)
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private bool TryBlock(Thing t)
 	{
-		if (!m_blocking || t.Label.Length == 0 || t.JumpOrSlide)
+		// (Architecture step 3: what a shield can meet is the attack record's Parry and Block
+		// counters, AttackRecords.cs.)
+		AttackRecord rec = RecordOf(t);
+		if (!m_blocking || !rec.Has(Counter.Parry))
 		{
 			return false;
 		}
 		// Heavy blows (trolls, abominations, smashes, shockwaves) can't be blocked, only parried.
-		bool heavy = t.Heavy || t.Smashes > 0 || t.Rise;
+		// 1.16.x (playtest: trolls were blocked straight through): a giant from the biome's list
+		// (trolls, abominations...) is heavy wherever it turns up, ordinary rows included.
+		bool heavy = !rec.Has(Counter.Block);
 		if (m_runTime - m_blockPressed <= ParryWindowNow)
 		{
 			t.Collidable = false;
@@ -129,6 +161,7 @@ internal sealed partial class SurfGame
 			{
 				SetTrigger(m_bossAnim, "stagger");
 			}
+			NoteParry();
 			PlayBlock(true);
 			Flash(new Color(1f, 0.95f, 0.75f), 0.55f);
 			m_shake = Mathf.Max(m_shake, 0.15f);
@@ -156,6 +189,7 @@ internal sealed partial class SurfGame
 		m_stamina -= cost;
 		t.Collidable = false;
 		m_blockXp += 1f;
+		NoteJourneyBlock();
 		PlayBlock(false);
 		Flash(new Color(1f, 0.85f, 0.4f), 0.25f);
 		m_shake = Mathf.Max(m_shake, 0.25f);
@@ -323,7 +357,7 @@ internal sealed partial class SurfGame
 		{
 			float bw = 520f * k;
 			Rect bar = new Rect((w - bw) * 0.5f, 62f * k, bw, 14f * k);
-			Shadowed(new Rect(0, 22f * k, w, 40f * k), m_seaBoss.Label, m_mid!);
+			FitShadowed(Region.BossName, m_seaBoss.Label, m_mid!);
 			Bar(bar, (float)m_seaBoss.Hp / Mathf.Max(1, m_seaBoss.MaxHp), Color.Lerp(new Color(0.75f, 0.08f, 0.05f), Color.white, m_seaBossFlash * 0.6f));
 			if (ItemIcon("TurretBoltWood|TurretBolt") is Sprite bolt)
 			{
@@ -336,7 +370,7 @@ internal sealed partial class SurfGame
 		{
 			float bw = 520f * k;
 			Rect bar = new Rect((w - bw) * 0.5f, 62f * k, bw, 14f * k);
-			Shadowed(new Rect(0, 22f * k, w, 40f * k), m_boss.Name, m_mid!);
+			FitShadowed(Region.BossName, m_boss.Name, m_mid!);
 			float health = 1f - (float)m_bossHits / Mathf.Max(1, BossHitsNeeded);
 			Bar(bar, health, Color.Lerp(new Color(0.75f, 0.08f, 0.05f), Color.white, m_iconPulse * 0.6f));
 			Sprite? hit = ItemIcon(m_boss.HitItem);
@@ -391,7 +425,7 @@ internal sealed partial class SurfGame
 		}
 
 		// At sea: the wind, the ship and its sail (SurfSea.cs).
-		if (m_atSea && m_seaPhase == 2)
+		if (m_sea.AtSea && m_sea.Phase == 2)
 		{
 			SeaHud(k, w, h);
 		}
@@ -404,6 +438,17 @@ internal sealed partial class SurfGame
 			bool low = m_stamina < Plugin.BlockStamina.Value || shortNow;
 			Color c = low && Mathf.FloorToInt(Time.time * 6f) % 2 == 0 ? new Color(1f, 0.35f, 0.2f) : new Color(1f, 0.78f, 0.15f);
 			Bar(new Rect((w - sw) * 0.5f, h - 70f * k, sw, 12f * k), m_stamina / MaxStamina, c);
+		}
+		// The roll's cooldown: a thin pale bar under the stamina bar while it refills, which
+		// flashes white for a moment when the roll is ready again.
+		float rollMax = Plugin.SlideTime.Value + 0.45f;
+		float sinceReady = Time.time - m_rollReadyAt;
+		if (m_rollCooldown > 0f || sinceReady < 0.35f)
+		{
+			float rw = 120f * k;
+			float fill = m_rollCooldown > 0f ? 1f - m_rollCooldown / Mathf.Max(0.05f, rollMax) : 1f;
+			Color rc = m_rollCooldown > 0f ? new Color(0.65f, 0.8f, 1f, 0.7f) : new Color(1f, 1f, 1f, 1f - sinceReady / 0.35f);
+			Bar(new Rect((w - rw) * 0.5f, h - 54f * k, rw, 6f * k), fill, rc);
 		}
 	}
 }

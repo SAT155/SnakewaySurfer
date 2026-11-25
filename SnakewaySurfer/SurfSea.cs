@@ -5,7 +5,7 @@ using Random = UnityEngine.Random;
 
 namespace SnakewaySurfer;
 
-// 1.16 (Sam): before the Plains you cross the ocean. The track runs down a beach to a longship;
+// 1.16 (SAT): before the Plains you cross the ocean. The track runs down a beach to a longship;
 // you leap aboard and the camera rises above it. Steer with the rudder (A/D), set the sail
 // (W/S: oars, half or full, as in the game) and fire the bow ballista (Throw Key) at what comes
 // out of the sea. The wind never stops and turns now and then; the ship's speed follows the
@@ -24,46 +24,19 @@ internal sealed partial class SurfGame
 
 	// The biome the crossing leads to.
 	private const int SeaTo = 4;
-	// 1.16.79 (Sam: "The ocean play area should be much bigger"): twice as wide (was 24).
+	// 1.16.79 (SAT: "The ocean play area should be much bigger"): twice as wide (was 24).
 	private const float SeaHalfWidth = 48f;
 	private const float ShoreRamp = 70f;
 	private const float MaxHeading = 75f;
 
 	// 0: running; 1: leaping aboard; 2: sailing; 3: leaping ashore.
-	private int m_seaPhase;
-	private float m_seaPhaseT;
-	private Vector3 m_leapFrom;
-	private float m_leapToZ;
-	private bool m_atSea;
 	private bool m_startSea;
 	private Segment? m_shipSeg;
 	private float m_seaBlend;
-	private float m_heading;
-	private float m_turnRate;
-	private Sail m_sail = Sail.Half;
-	private float m_sailPos = 0.5f;
-	private float m_boatSpeed;
-	private float m_windAngle;
-	private float m_windTarget;
-	private float m_windStrength = 0.7f;
-	private float m_windStrengthTarget = 0.7f;
-	private float m_windTimer = 18f;
-	private float m_windShift;
-	private float m_surf;
-	private float m_seaTime;
-	private float m_storm;
-	private float m_scrape;
-	private float m_boatY;
-	private float m_pitch;
-	private float m_roll;
-	private float m_lurch;
-	private float m_lurchV;
-	private float m_reload;
 	private float m_shipSternZ;
 	private float m_groundZ = float.MaxValue;
 	private Vector2 m_shipHelm;
 	private Vector3 m_bowLocal;
-	private float m_deckRun = 1f;
 	private const float LeapAshore = 0.7f;
 
 	private GameObject? m_ship;
@@ -136,7 +109,7 @@ internal sealed partial class SurfGame
 
 	// The land near a shore sinks toward the sea floor: a sandy bay where the track runs down,
 	// the land beside it holding up longer and dropping steeply, like headlands either side.
-	// 1.16.3 (Sam: open water around the beached ship): the land beside the track goes under
+	// 1.16.3 (SAT: open water around the beached ship): the land beside the track goes under
 	// sooner than the track, so the beach runs out as a spit with the sea on both sides of the
 	// ship (it used to hold up longer, like headlands). At sea the islands rise from the floor.
 	private float ShoreLand(float y, float x, float z, ref float veg)
@@ -288,7 +261,7 @@ internal sealed partial class SurfGame
 		}
 		Transform? helm = ship != null && ship.m_shipControlls != null ? Find(ship.m_shipControlls.m_attachPoint) : null;
 		m_helmLocal = helm != null ? go.transform.InverseTransformPoint(helm.position) : new Vector3(0f, m_keelLocalY + 1.6f, m_centerLocalZ - m_shipLength * 0.36f);
-		// Once a crossing, for tuning from Sam's logs.
+		// Once a crossing, for tuning from SAT's logs.
 		Plugin.Log.LogInfo($"Ship: {prefab?.name} length {m_shipLength:0.0}, beam {m_shipBeam:0.0}, keel {m_keelLocalY:0.0}, helm {m_helmLocal}, mast {m_mast != null}, sail {m_sailBottom != null}, rudder {m_rudderObj != null}, attach '{m_attachAnim}'.");
 		m_ship = go;
 		m_shipSeg = sea;
@@ -303,9 +276,9 @@ internal sealed partial class SurfGame
 			}
 		}
 		m_groundZ = float.MaxValue;
-		m_heading = 0f;
-		m_sail = Sail.Half;
-		m_sailPos = 0f;
+		m_sea.Heading = 0f;
+		m_sea.SailSet = Sail.Half;
+		m_sea.SailPos = 0f;
 		PlaceShip(0f, 0f, BeachedHelmZ(), true);
 	}
 
@@ -328,9 +301,9 @@ internal sealed partial class SurfGame
 		}
 	}
 
-	private Vector2 HeadingVector() => new Vector2(Mathf.Sin(m_heading * Mathf.Deg2Rad), Mathf.Cos(m_heading * Mathf.Deg2Rad));
+	private Vector2 HeadingVector() => new Vector2(Mathf.Sin(m_sea.Heading * Mathf.Deg2Rad), Mathf.Cos(m_sea.Heading * Mathf.Deg2Rad));
 
-	private Vector2 WindVector() => new Vector2(Mathf.Sin(m_windAngle * Mathf.Deg2Rad), Mathf.Cos(m_windAngle * Mathf.Deg2Rad));
+	private Vector2 WindVector() => new Vector2(Mathf.Sin(m_sea.WindAngle * Mathf.Deg2Rad), Mathf.Cos(m_sea.WindAngle * Mathf.Deg2Rad));
 
 	// The ship's middle (flat), from the helm point we steer by.
 	private Vector2 ShipCenter() => new Vector2(m_x, m_z) + HeadingVector() * (m_centerLocalZ - m_helmLocal.z);
@@ -357,16 +330,16 @@ internal sealed partial class SurfGame
 		float pitch = -Mathf.Atan2(hb - hs, half * 2f) * Mathf.Rad2Deg;
 		float roll = Mathf.Atan2(hr - hp, m_shipBeam * 2f) * Mathf.Rad2Deg;
 		float k = snap ? 1f : 1f - Mathf.Exp(-5f * dt);
-		m_boatY = Mathf.Lerp(m_boatY, y, k);
-		m_pitch = Mathf.Lerp(m_pitch, pitch, k);
-		m_roll = Mathf.Lerp(m_roll, roll, k);
+		m_sea.BoatY = Mathf.Lerp(m_sea.BoatY, y, k);
+		m_sea.Pitch = Mathf.Lerp(m_sea.Pitch, pitch, k);
+		m_sea.Roll = Mathf.Lerp(m_sea.Roll, roll, k);
 		// A sprung lurch, for wave hits and rams.
-		m_lurchV += (-m_lurch * 30f - m_lurchV * 4f) * dt;
-		m_lurch += m_lurchV * dt;
-		float lean = -m_turnRate * 0.06f;
+		m_sea.LurchV += (-m_sea.Lurch * 30f - m_sea.LurchV * 4f) * dt;
+		m_sea.Lurch += m_sea.LurchV * dt;
+		float lean = -m_sea.TurnRate * 0.06f;
 		// A damaged hull sits lower and lists (SurfHull.cs).
-		Quaternion rot = Quaternion.Euler(m_pitch, m_heading, m_roll + lean + m_lurch + HullList);
-		Vector3 centre = new Vector3(c.x, m_boatY - 0.9f - m_keelLocalY - HullSink, c.y);
+		Quaternion rot = Quaternion.Euler(m_sea.Pitch, m_sea.Heading, m_sea.Roll + lean + m_sea.Lurch + HullList);
+		Vector3 centre = new Vector3(c.x, m_sea.BoatY - 0.9f - m_keelLocalY - HullSink, c.y);
 		m_ship.transform.localRotation = rot;
 		m_ship.transform.localPosition = centre - rot * new Vector3(0f, 0f, m_centerLocalZ);
 		ApplySail(dt, snap);
@@ -375,21 +348,21 @@ internal sealed partial class SurfGame
 	// The sail furls and unfurls between the game's own marks, and the yard turns to the wind.
 	private void ApplySail(float dt, bool snap)
 	{
-		float want = m_seaPhase == 2 ? (m_sail == Sail.Full ? 1f : m_sail == Sail.Half ? 0.5f : 0f) : 0f;
-		m_sailPos = snap ? want : Mathf.MoveTowards(m_sailPos, want, dt);
+		float want = m_sea.Phase == 2 ? (m_sea.SailSet == Sail.Full ? 1f : m_sea.SailSet == Sail.Half ? 0.5f : 0f) : 0f;
+		m_sea.SailPos = snap ? want : Mathf.MoveTowards(m_sea.SailPos, want, dt);
 		if (m_sailBottom != null && m_sailFurled != null && m_sailMid != null && m_sailUnfurled != null)
 		{
 			Vector3 a = m_sailFurled.position;
 			Vector3 b = m_sailMid.position;
-			if (m_sailPos >= 0.5f)
+			if (m_sea.SailPos >= 0.5f)
 			{
 				a = m_sailMid.position;
 				b = m_sailUnfurled.position;
 			}
-			float t = Mathf.Repeat(Mathf.Clamp(m_sailPos, 0f, 0.999f) * 2f, 1f);
+			float t = Mathf.Repeat(Mathf.Clamp(m_sea.SailPos, 0f, 0.999f) * 2f, 1f);
 			m_sailBottom.position = Vector3.Lerp(a, b, t);
 		}
-		if (m_mast != null && m_ship != null && m_sailPos > 0.05f)
+		if (m_mast != null && m_ship != null && m_sea.SailPos > 0.05f)
 		{
 			Vector3 up = m_ship.transform.up;
 			Vector3 fwd = m_ship.transform.forward;
@@ -405,8 +378,8 @@ internal sealed partial class SurfGame
 		}
 		if (m_rudderObj != null)
 		{
-			Quaternion want2 = Quaternion.Euler(0f, 30f * Mathf.Clamp(-m_turnRate / 70f, -1f, 1f), 0f);
-			if (m_sail == Sail.Oars && m_seaPhase == 2)
+			Quaternion want2 = Quaternion.Euler(0f, 30f * Mathf.Clamp(-m_sea.TurnRate / 70f, -1f, 1f), 0f);
+			if (m_sea.SailSet == Sail.Oars && m_sea.Phase == 2)
 			{
 				want2 *= Quaternion.Euler(0f, Mathf.Sin(m_seaClock * 6f) * 20f, 0f);
 			}
@@ -425,7 +398,7 @@ internal sealed partial class SurfGame
 		return side * into;
 	}
 
-	private float TurnRate => m_sail switch
+	private float TurnRate => m_sea.SailSet switch
 	{
 		Sail.Oars => 95f,
 		Sail.Half => 70f,
@@ -446,7 +419,7 @@ internal sealed partial class SurfGame
 		{
 			MakeShip(sea);
 		}
-		if (m_ship != null && m_shipSeg != null && m_seaPhase == 0 && !m_atSea)
+		if (m_ship != null && m_shipSeg != null && m_sea.Phase == 0 && !m_sea.AtSea)
 		{
 			if (m_shipSeg.Start > m_z)
 			{
@@ -467,22 +440,22 @@ internal sealed partial class SurfGame
 
 	private void Board()
 	{
-		m_seaPhase = 1;
-		m_seaPhaseT = 0f;
-		m_atSea = true;
-		m_leapFrom = m_avatar != null ? m_avatar.transform.localPosition : new Vector3(m_x, RoadY(m_z) + m_y, m_z);
-		m_boatSpeed = Mathf.Min(m_speed * 0.4f, 5f);
-		m_heading = 0f;
-		m_turnRate = 0f;
-		m_sail = Sail.Half;
+		m_sea.Phase = 1;
+		m_sea.PhaseT = 0f;
+		m_sea.AtSea = true;
+		m_sea.LeapFrom = m_avatar != null ? m_avatar.transform.localPosition : new Vector3(m_x, RoadY(m_z) + m_y, m_z);
+		m_sea.BoatSpeed = Mathf.Min(m_speed * 0.4f, 5f);
+		m_sea.Heading = 0f;
+		m_sea.TurnRate = 0f;
+		m_sea.SailSet = Sail.Half;
 		m_slide = 0f;
 		m_y = 0f;
 		m_vy = 0f;
 		ResetHull();
 		// A fair wind to start with, from astern or abeam.
-		m_windAngle = m_windTarget = (Random.value < 0.5f ? -1f : 1f) * Random.Range(20f, 100f);
-		m_windStrength = m_windStrengthTarget = Random.Range(0.6f, 0.85f);
-		m_windTimer = Random.Range(14f, 20f);
+		m_sea.WindAngle = m_sea.WindTarget = (Random.value < 0.5f ? -1f : 1f) * Random.Range(20f, 100f);
+		m_sea.WindStrength = m_sea.WindStrengthTarget = Random.Range(0.6f, 0.85f);
+		m_sea.WindTimer = Random.Range(14f, 20f);
 		SetTrigger("jump");
 		m_audio.Play(Sfx.Jump);
 		Plugin.Log.LogInfo($"Boarding the longship at {m_z:0} m; the crossing starts at {m_shipSeg?.Start ?? 0f:0} m.");
@@ -490,22 +463,22 @@ internal sealed partial class SurfGame
 
 	private void Land()
 	{
-		m_seaPhase = 3;
-		m_seaPhaseT = 0f;
+		m_sea.Phase = 3;
+		m_sea.PhaseT = 0f;
 		m_shipHelm = new Vector2(m_x, m_z);
-		m_sail = Sail.Oars;
+		m_sea.SailSet = Sail.Oars;
 		// Up the deck from the helm to the bow, then over it onto the sand.
 		m_bowLocal = new Vector3(0f, m_helmLocal.y, m_centerLocalZ + m_shipLength * 0.4f);
-		m_deckRun = Mathf.Clamp((m_bowLocal.z - m_helmLocal.z) / 11f, 0.5f, 1.8f);
+		m_sea.DeckRun = Mathf.Clamp((m_bowLocal.z - m_helmLocal.z) / 11f, 0.5f, 1.8f);
 		if (m_towed != null)
 		{
 			// Worn out after the serpent: a slow trudge up the deck.
-			m_deckRun *= 3f;
+			m_sea.DeckRun *= 3f;
 		}
-		m_leapToZ = m_groundZ + 6f;
+		m_sea.LeapToZ = m_groundZ + 6f;
 		m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.8f, 0.8f);
 		m_shake = Mathf.Max(m_shake, 0.3f);
-		m_lurchV += Random.Range(-20f, 20f);
+		m_sea.LurchV += Random.Range(-20f, 20f);
 		SpawnSplash(ShipCenter() + HeadingVector() * (m_shipLength * 0.45f), 1.2f);
 		if (m_shipSeg != null)
 		{
@@ -519,28 +492,28 @@ internal sealed partial class SurfGame
 	private void UpdateSea(float dt, bool canInput)
 	{
 		m_runTime += dt;
-		m_seaTime += dt;
-		m_seaPhaseT += dt;
+		m_sea.SeaTime += dt;
+		m_sea.PhaseT += dt;
 		m_hurtTime = Mathf.Max(0f, m_hurtTime - dt);
-		m_reload -= dt;
-		m_surf = Mathf.Max(0f, m_surf - dt);
-		m_scrape = Mathf.Max(0f, m_scrape - dt);
-		m_windShift = Mathf.Max(0f, m_windShift - dt * 0.5f);
+		m_sea.Reload -= dt;
+		m_sea.Surf = Mathf.Max(0f, m_sea.Surf - dt);
+		m_sea.Scrape = Mathf.Max(0f, m_sea.Scrape - dt);
+		m_sea.WindShift = Mathf.Max(0f, m_sea.WindShift - dt * 0.5f);
 		Segment? sea = m_shipSeg;
-		bool steering = m_seaPhase == 2;
+		bool steering = m_sea.Phase == 2;
 		float moves = UpdateMoves(dt, canInput && steering);
 
-		if (m_seaPhase == 1)
+		if (m_sea.Phase == 1)
 		{
 			// The leap aboard: an arc onto the helm while the ship pushes off.
-			float p = Mathf.Clamp01(m_seaPhaseT / 0.75f);
-			float helmZ = BeachedHelmZ() + m_seaPhaseT * 1.5f;
-			m_x = Mathf.Lerp(m_leapFrom.x, 0f, p);
-			m_z = Mathf.Lerp(m_leapFrom.z, helmZ, p);
+			float p = Mathf.Clamp01(m_sea.PhaseT / 0.75f);
+			float helmZ = BeachedHelmZ() + m_sea.PhaseT * 1.5f;
+			m_x = Mathf.Lerp(m_sea.LeapFrom.x, 0f, p);
+			m_z = Mathf.Lerp(m_sea.LeapFrom.z, helmZ, p);
 			if (p >= 1f)
 			{
-				m_seaPhase = 2;
-				m_seaPhaseT = 0f;
+				m_sea.Phase = 2;
+				m_sea.PhaseT = 0f;
 				m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.5f, 1.1f);
 				m_audio.PlayEffects(m_sailEffect, 0.8f);
 				StartSeaLoops();
@@ -548,27 +521,27 @@ internal sealed partial class SurfGame
 		}
 
 		// The wind turns now and then; in the storm it blows harder and more often.
-		m_windTimer -= dt;
-		if (m_windTimer <= 0f && m_seaPhase == 2)
+		m_sea.WindTimer -= dt;
+		if (m_sea.WindTimer <= 0f && m_sea.Phase == 2)
 		{
 			ShiftWind();
 		}
-		m_windAngle = Mathf.MoveTowardsAngle(m_windAngle, m_windTarget, 28f * dt);
-		m_windStrength = Mathf.MoveTowards(m_windStrength, m_windStrengthTarget, 0.15f * dt);
+		m_sea.WindAngle = Mathf.MoveTowardsAngle(m_sea.WindAngle, m_sea.WindTarget, 28f * dt);
+		m_sea.WindStrength = Mathf.MoveTowards(m_sea.WindStrength, m_sea.WindStrengthTarget, 0.15f * dt);
 
 		if (steering && canInput)
 		{
-			if (KeyDown(KeyCode.W, KeyCode.UpArrow) && m_sail != Sail.Full)
+			if (KeyDown(KeyCode.W, KeyCode.UpArrow) && m_sea.SailSet != Sail.Full)
 			{
-				m_sail++;
+				m_sea.SailSet++;
 				SailSound();
 			}
-			else if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C) && m_sail != Sail.Oars)
+			else if (KeyDown(KeyCode.S, KeyCode.DownArrow, KeyCode.LeftControl, KeyCode.C) && m_sea.SailSet != Sail.Oars)
 			{
-				m_sail--;
+				m_sea.SailSet--;
 				SailSound();
 			}
-			if (Input.GetKey(Plugin.ThrowKey.Value) && m_reload <= 0f)
+			if (Input.GetKey(Plugin.ThrowKey.Value) && m_sea.Reload <= 0f)
 			{
 				FireSeaBallista();
 			}
@@ -586,66 +559,67 @@ internal sealed partial class SurfGame
 		{
 			// Bring her in straight up the beach.
 			float wantX = Mathf.Clamp(-m_x * 2.5f, -40f, 40f);
-			steer = Mathf.Clamp((wantX - m_heading) / 25f, -1f, 1f);
-			if (m_sail == Sail.Full)
+			steer = Mathf.Clamp((wantX - m_sea.Heading) / 25f, -1f, 1f);
+			if (m_sea.SailSet == Sail.Full)
 			{
-				m_sail = Sail.Half;
+				m_sea.SailSet = Sail.Half;
 			}
 		}
-		m_turnRate = Mathf.MoveTowards(m_turnRate, steer * TurnRate, 360f * dt);
-		m_heading = Mathf.Clamp(m_heading + m_turnRate * dt, -MaxHeading, MaxHeading);
+		m_sea.TurnRate = Mathf.MoveTowards(m_sea.TurnRate, steer * TurnRate, 360f * dt);
+		m_sea.Heading = Mathf.Clamp(m_sea.Heading + m_sea.TurnRate * dt, -MaxHeading, MaxHeading);
 
 		// Speed: the sail by the wind, or the oars; rowing hard (sprint) and riding a wave add to it.
 		float target;
-		if (m_seaPhase == 2)
+		if (m_sea.Phase == 2)
 		{
-			float gust = Mathf.Lerp(0.25f, 1f, m_windStrength) * (1f + 0.4f * m_storm);
-			float sail = Plugin.SailSpeed.Value * WindAngleFactor() * gust * (m_sail == Sail.Full ? 1f : 0.62f);
-			// 1.16.79 (Sam: "Paddle boat speed can be much slower"): 3 under oars (was 6).
-			target = m_sail == Sail.Oars ? 3f : Mathf.Max(3.5f, sail);
+			float gust = Mathf.Lerp(0.25f, 1f, m_sea.WindStrength) * (1f + 0.4f * m_sea.Storm);
+			float sail = Plugin.SailSpeed.Value * WindAngleFactor() * gust * (m_sea.SailSet == Sail.Full ? 1f : 0.62f);
+			// 1.16.79 (SAT: "Paddle boat speed can be much slower"): 3 under oars (was 6).
+			target = m_sea.SailSet == Sail.Oars ? 3f : Mathf.Max(3.5f, sail);
 			target *= moves;
 			if (m_moored != null && m_hull < HullMax)
 			{
 				// Moored at an island's workbench while the hull is mended.
 				target = 0f;
 			}
-			if (m_surf > 0f)
+			if (m_sea.Surf > 0f)
 			{
 				target *= 1.35f;
 			}
-			if (m_scrape > 0f)
+			if (m_sea.Scrape > 0f)
 			{
 				target *= 0.6f;
 			}
 		}
 		else
 		{
-			target = m_seaPhase == 1 ? 4f : 0f;
+			target = m_sea.Phase == 1 ? 4f : 0f;
 		}
-		float accel = target > m_boatSpeed ? 3.2f : 5f;
-		m_boatSpeed = Mathf.MoveTowards(m_boatSpeed, target, accel * dt);
-		m_speed = m_boatSpeed;
+		float accel = target > m_sea.BoatSpeed ? 3.2f : 5f;
+		m_sea.BoatSpeed = Mathf.MoveTowards(m_sea.BoatSpeed, target, accel * dt);
+		m_speed = m_sea.BoatSpeed;
 
-		if (m_seaPhase == 2)
+		if (m_sea.Phase == 2)
 		{
 			Vector2 f = HeadingVector();
-			m_x += f.x * m_boatSpeed * dt;
-			m_z += f.y * m_boatSpeed * dt;
+			m_x += f.x * m_sea.BoatSpeed * dt;
+			m_z += f.y * m_sea.BoatSpeed * dt;
+			SeaLookout(dt, f);
 			// The channel's edges: reefs that scrape and turn you back, no harm done.
 			if (Mathf.Abs(m_x) > SeaHalfWidth)
 			{
 				m_x = Mathf.Sign(m_x) * SeaHalfWidth;
-				m_heading = Mathf.MoveTowards(m_heading, 0f, 90f * dt);
-				if (m_scrape <= 0f)
+				m_sea.Heading = Mathf.MoveTowards(m_sea.Heading, 0f, 90f * dt);
+				if (m_sea.Scrape <= 0f)
 				{
 					m_audio.Play("sfx_ship_impact|sfx_wood_hit", 0.5f, 0.7f);
 					SpawnSplash(new Vector2(m_x + Mathf.Sign(m_x) * 2f, m_z), 0.8f);
-					m_lurchV += -Mathf.Sign(m_x) * 25f;
+					m_sea.LurchV += -Mathf.Sign(m_x) * 25f;
 				}
-				m_scrape = 0.6f;
+				m_sea.Scrape = 0.6f;
 			}
 			// Wake: foam off both quarters, more the faster she goes.
-			if (Random.value < dt * (6f + m_boatSpeed * 1.2f))
+			if (Random.value < dt * (6f + m_sea.BoatSpeed * 1.2f))
 			{
 				Vector2 c = ShipCenter();
 				Vector2 r = new Vector2(f.y, -f.x);
@@ -653,7 +627,7 @@ internal sealed partial class SurfGame
 				Vector2 at = c - f * (m_shipLength * 0.42f) + r * (side * m_shipBeam * 0.8f);
 				AddFoam(at, Random.Range(0.9f, 1.5f), Random.Range(1.4f, 2.2f), 0.55f, 2.2f, r * side * 1.2f);
 			}
-			if (m_boatSpeed > 7f && Random.value < dt * m_boatSpeed * 0.6f)
+			if (m_sea.BoatSpeed > 7f && Random.value < dt * m_sea.BoatSpeed * 0.6f)
 			{
 				// Spray at the bow.
 				Vector2 bow = ShipCenter() + f * (m_shipLength * 0.47f);
@@ -681,21 +655,21 @@ internal sealed partial class SurfGame
 				}
 			}
 		}
-		else if (m_seaPhase == 3)
+		else if (m_sea.Phase == 3)
 		{
 			// She grinds a few metres up the sand and stops; you run up the deck and leap off.
-			m_boatSpeed *= Mathf.Exp(-5f * dt);
+			m_sea.BoatSpeed *= Mathf.Exp(-5f * dt);
 			m_speed = Mathf.Max(m_speed, 9f);
-			m_shipHelm += HeadingVector() * (m_boatSpeed * dt);
-			m_heading = Mathf.MoveTowards(m_heading, 0f, 20f * dt);
-			m_turnRate = 0f;
+			m_shipHelm += HeadingVector() * (m_sea.BoatSpeed * dt);
+			m_sea.Heading = Mathf.MoveTowards(m_sea.Heading, 0f, 20f * dt);
+			m_sea.TurnRate = 0f;
 			PlaceShip(dt, m_shipHelm.x, m_shipHelm.y);
-			if (m_seaPhaseT >= m_deckRun && m_seaPhaseT - dt < m_deckRun)
+			if (m_sea.PhaseT >= m_sea.DeckRun && m_sea.PhaseT - dt < m_sea.DeckRun)
 			{
 				SetTrigger("jump");
 				m_audio.Play(Sfx.Jump);
 			}
-			else if (m_seaPhaseT < m_deckRun)
+			else if (m_sea.PhaseT < m_sea.DeckRun)
 			{
 				// Footsteps on the planks.
 				m_stepTimer -= dt;
@@ -709,26 +683,26 @@ internal sealed partial class SurfGame
 			m_x = at.x;
 			m_z = at.z;
 			m_y = Mathf.Max(0f, at.y - RoadY(m_z));
-			if (m_seaPhaseT >= m_deckRun + LeapAshore)
+			if (m_sea.PhaseT >= m_sea.DeckRun + LeapAshore)
 			{
 				EndSailing();
 				return;
 			}
 		}
 
-		if (m_seaPhase == 2)
+		if (m_sea.Phase == 2)
 		{
 			PlaceShip(dt, m_x, m_z);
 		}
-		else if (m_seaPhase == 1)
+		else if (m_sea.Phase == 1)
 		{
 			// Pushing off from the beach.
-			PlaceShip(dt, 0f, BeachedHelmZ() + m_seaPhaseT * 1.5f);
+			PlaceShip(dt, 0f, BeachedHelmZ() + m_sea.PhaseT * 1.5f);
 		}
 
 		UpdateSeaLoops(dt);
 		UpdateSafeLine();
-		if (m_seaPhase == 2)
+		if (m_sea.Phase == 2)
 		{
 			UpdateHarbours(dt);
 			UpdateRollersHit();
@@ -747,24 +721,24 @@ internal sealed partial class SurfGame
 	private void EndSailing()
 	{
 		m_seaSkip = 0f;
-		m_seaPhase = 0;
-		m_atSea = false;
+		m_sea.Phase = 0;
+		m_sea.AtSea = false;
 		m_lane = 1;
 		m_x = 0f;
-		m_z = m_leapToZ;
+		m_z = m_sea.LeapToZ;
 		m_y = 0f;
 		m_vy = 0f;
 		m_slide = 0f;
 		AvatarBool(m_attachAnim, false);
 		m_audio.Play(Sfx.Land, 0.8f);
 		StopSeaLoops();
-		m_storm = 0f;
+		m_sea.Storm = 0f;
 		// A clear stretch of beach before anything comes at you.
 		m_nextRowZ = Mathf.Max(m_nextRowZ, m_z + 45f);
 		bool towed = m_towed != null;
 		BeachCarcass();
 		ClearSeaFoes();
-		Plugin.Log.LogInfo($"Landed on the {m_biomes[Mathf.Min(SeaTo, m_biomes.Count - 1)].Def.Name} at {m_z:0} m after {m_seaTime:0} s at sea.");
+		Plugin.Log.LogInfo($"Landed on the {m_biomes[Mathf.Min(SeaTo, m_biomes.Count - 1)].Def.Name} at {m_z:0} m after {m_sea.SeaTime:0} s at sea.");
 		if (m_seaBossBeaten || towed)
 		{
 			// The serpent's scales, and Moder's tears if she was beaten this run.
@@ -775,18 +749,18 @@ internal sealed partial class SurfGame
 
 	private void ShiftWind()
 	{
-		bool storm = m_storm > 0.3f;
-		m_windTimer = storm ? Random.Range(9f, 14f) : Random.Range(14f, 24f);
+		bool storm = m_sea.Storm > 0.3f;
+		m_sea.WindTimer = storm ? Random.Range(9f, 14f) : Random.Range(14f, 24f);
 		float turn = Random.Range(60f, 150f) * (Random.value < 0.5f ? -1f : 1f);
-		float to = Mathf.Repeat(m_windAngle + turn + 180f, 360f) - 180f;
+		float to = Mathf.Repeat(m_sea.WindAngle + turn + 180f, 360f) - 180f;
 		if (storm)
 		{
 			// Storm winds blow up or down the crossing, so its waves can always be met head on.
 			to = (Random.value < 0.5f ? 180f : 0f) + Random.Range(-40f, 40f);
 		}
-		m_windTarget = to;
-		m_windStrengthTarget = storm ? Random.Range(0.85f, 1f) : Random.Range(0.45f, 1f);
-		m_windShift = 1f;
+		m_sea.WindTarget = to;
+		m_sea.WindStrengthTarget = storm ? Random.Range(0.85f, 1f) : Random.Range(0.45f, 1f);
+		m_sea.WindShift = 1f;
 		// A gust as it turns.
 		m_audio.Play("sfx_frozenking_frozentwirl_wind|sfx_wind", 0.35f, 1.2f);
 	}
@@ -818,23 +792,23 @@ internal sealed partial class SurfGame
 	// Who is at the helm: the avatar stands at the steering oar, holding on as in the game.
 	private bool PlaceSeaAvatar()
 	{
-		if (m_avatar == null || (m_seaPhase == 0 && !m_atSea) || m_ship == null)
+		if (m_avatar == null || (m_sea.Phase == 0 && !m_sea.AtSea) || m_ship == null)
 		{
 			return false;
 		}
 		Vector3 helm = m_ship.transform.localPosition + m_ship.transform.localRotation * m_helmLocal;
 		Quaternion rot = m_ship.transform.localRotation;
-		if (m_seaPhase == 1)
+		if (m_sea.Phase == 1)
 		{
-			float p = Mathf.Clamp01(m_seaPhaseT / 0.75f);
-			Vector3 pos = Vector3.Lerp(m_leapFrom, helm, p) + Vector3.up * Mathf.Sin(p * Mathf.PI) * 1.6f;
+			float p = Mathf.Clamp01(m_sea.PhaseT / 0.75f);
+			Vector3 pos = Vector3.Lerp(m_sea.LeapFrom, helm, p) + Vector3.up * Mathf.Sin(p * Mathf.PI) * 1.6f;
 			m_avatar.transform.localPosition = pos;
 			m_avatar.transform.localRotation = Quaternion.Slerp(Quaternion.identity, rot, p);
 		}
-		else if (m_seaPhase == 3)
+		else if (m_sea.Phase == 3)
 		{
 			m_avatar.transform.localPosition = SeaAvatarSpot();
-			float p = Mathf.Clamp01((m_seaPhaseT - m_deckRun) / LeapAshore);
+			float p = Mathf.Clamp01((m_sea.PhaseT - m_sea.DeckRun) / LeapAshore);
 			m_avatar.transform.localRotation = Quaternion.Slerp(rot, Quaternion.identity, p);
 		}
 		else
@@ -850,13 +824,13 @@ internal sealed partial class SurfGame
 				r.enabled = show;
 			}
 		}
-		bool deckRun = m_seaPhase == 3 && m_seaPhaseT < m_deckRun;
+		bool deckRun = m_sea.Phase == 3 && m_sea.PhaseT < m_sea.DeckRun;
 		AvatarFloat("forward_speed", deckRun ? (m_towed != null ? 1.2f : m_runAnimSpeed) : 0f);
 		AvatarFloat("sideway_speed", 0f);
-		AvatarBool("onGround", m_seaPhase == 2 || deckRun);
+		AvatarBool("onGround", m_sea.Phase == 2 || deckRun);
 		AvatarBool("crouching", false);
 		AvatarBool("inWater", false);
-		AvatarBool(m_attachAnim, m_seaPhase == 2);
+		AvatarBool(m_attachAnim, m_sea.Phase == 2);
 		if (m_avatarAnim != null)
 		{
 			m_avatarAnim.speed = 1f;
@@ -873,28 +847,28 @@ internal sealed partial class SurfGame
 			return new Vector3(m_x, RoadY(m_z) + m_y, m_z);
 		}
 		Transform t = m_ship.transform;
-		if (m_seaPhaseT < m_deckRun)
+		if (m_sea.PhaseT < m_sea.DeckRun)
 		{
-			float p = Mathf.SmoothStep(0f, 1f, m_seaPhaseT / m_deckRun);
+			float p = Mathf.SmoothStep(0f, 1f, m_sea.PhaseT / m_sea.DeckRun);
 			return t.localPosition + t.localRotation * Vector3.Lerp(m_helmLocal, m_bowLocal, p);
 		}
 		Vector3 bow = t.localPosition + t.localRotation * m_bowLocal;
-		Vector3 to = new Vector3(0f, RoadY(m_leapToZ), m_leapToZ);
-		float q = Mathf.Clamp01((m_seaPhaseT - m_deckRun) / LeapAshore);
+		Vector3 to = new Vector3(0f, RoadY(m_sea.LeapToZ), m_sea.LeapToZ);
+		float q = Mathf.Clamp01((m_sea.PhaseT - m_sea.DeckRun) / LeapAshore);
 		return Vector3.Lerp(bow, to, q) + Vector3.up * (Mathf.Sin(q * Mathf.PI) * 2.4f);
 	}
 
 	// The view from high over the ship, ahead up the screen, blended with the runner's.
 	private void PlaceSeaCamera(float dt)
 	{
-		bool up = m_atSea && m_seaPhase != 3 && m_state != State.Menu;
+		bool up = m_sea.AtSea && m_sea.Phase != 3 && m_state != State.Menu;
 		m_seaBlend = Mathf.MoveTowards(m_seaBlend, up ? 1f : 0f, dt / 1.8f);
 		if (m_seaBlend <= 0f || m_ship == null)
 		{
 			return;
 		}
 		Vector2 c = ShipCenter();
-		// 1.16.3 (Sam: a shallower, lower camera, so the rolling waves read): about 42 degrees
+		// 1.16.3 (SAT: a shallower, lower camera, so the rolling waves read): about 42 degrees
 		// down instead of 66, and closer, looking a little further ahead of the bow.
 		float height = 13f + 0.75f * m_shipLength;
 		Vector3 focus = new Vector3(m_x * 0.9f, SeaY, c.y + 13f);
@@ -918,11 +892,11 @@ internal sealed partial class SurfGame
 		{
 			return;
 		}
-		Color seaSky = Color.Lerp(new Color(0.62f, 0.76f, 0.9f), new Color(0.3f, 0.34f, 0.4f), m_storm);
-		sky = Color.Lerp(sky, seaSky, w * (1f - 0.5f * m_storm));
+		Color seaSky = Color.Lerp(new Color(0.62f, 0.76f, 0.9f), new Color(0.3f, 0.34f, 0.4f), m_sea.Storm);
+		sky = Color.Lerp(sky, seaSky, w * (1f - 0.5f * m_sea.Storm));
 		fogColor = Color.Lerp(fogColor, seaSky, w * 0.7f);
-		fog = Mathf.Lerp(fog, Mathf.Min(fog, 0.0025f + 0.003f * m_storm), w);
-		ambient = Color.Lerp(ambient, ambient * (1f - 0.35f * m_storm), w);
+		fog = Mathf.Lerp(fog, Mathf.Min(fog, 0.0025f + 0.003f * m_sea.Storm), w);
+		ambient = Color.Lerp(ambient, ambient * (1f - 0.35f * m_sea.Storm), w);
 	}
 
 	// While a rolling wave nears, a band on the water shows which way to meet it: along it is
@@ -941,10 +915,10 @@ internal sealed partial class SurfGame
 				next = r;
 			}
 		}
-		// 1.16.73 (Sam: "it follows the ship perfectly ... I don't understand how it is supposed to
+		// 1.16.73 (SAT: "it follows the ship perfectly ... I don't understand how it is supposed to
 		// help"): only shown while you're side on to the wave, when it matters; lined up with it
 		// (bow or stern to the wave) it goes away.
-		if (next == null || m_seaPhase != 2 || !Plugin.WaveGuide.Value || !SideOn(next.Dir))
+		if (next == null || m_sea.Phase != 2 || !Plugin.WaveGuide.Value || !SideOn(next.Dir))
 		{
 			if (m_safeLine != null)
 			{
@@ -1005,20 +979,20 @@ internal sealed partial class SurfGame
 			}
 			if (SideOn(r.Dir) && r.Height > 1.2f)
 			{
-				m_lurchV += 140f * (Vector2.Dot(new Vector2(HeadingVector().y, -HeadingVector().x), r.Dir) > 0f ? -1f : 1f);
+				m_sea.LurchV += 140f * (Vector2.Dot(new Vector2(HeadingVector().y, -HeadingVector().x), r.Dir) > 0f ? -1f : 1f);
 				SpawnSplash(boat, 2f);
 				m_audio.Play("sfx_ship_impact|sfx_wood_hit", 1f, 0.75f);
 				m_shake = Mathf.Max(m_shake, 0.5f);
-				// 1.16.74 (Sam: "we don't need to worry about wave damage ... too confusing"):
+				// 1.16.74 (SAT: "we don't need to worry about wave damage ... too confusing"):
 				// side on, a wave only rocks her.
 			}
 			else
 			{
 				// Down its back like a sled: speed for a moment.
-				m_surf = 2.2f;
+				m_sea.Surf = 2.2f;
 				m_audio.Play("sfx_ship_waterimpact|sfx_land_water", 0.7f, 1f);
 				SpawnSplash(boat + HeadingVector() * (m_shipLength * 0.4f), 0.9f);
-				m_lurchV += Random.Range(-15f, 15f);
+				m_sea.LurchV += Random.Range(-15f, 15f);
 				m_flash2 = Mathf.Max(m_flash2, 0.15f);
 				m_flashColor = new Color(0.8f, 0.95f, 1f);
 			}
@@ -1059,11 +1033,11 @@ internal sealed partial class SurfGame
 		float master = Plugin.SoundVolume.Value * (m_paused ? 0f : 1f);
 		if (m_oceanLoop != null)
 		{
-			m_oceanLoop.volume = Mathf.MoveTowards(m_oceanLoop.volume, master * (0.45f + 0.35f * m_windStrength + 0.2f * m_storm), dt * 0.5f);
+			m_oceanLoop.volume = Mathf.MoveTowards(m_oceanLoop.volume, master * (0.45f + 0.35f * m_sea.WindStrength + 0.2f * m_sea.Storm), dt * 0.5f);
 		}
 		if (m_windLoop != null)
 		{
-			float w = Mathf.Pow(Mathf.Clamp01(m_windStrength * (0.75f + 0.5f * m_storm)), 1.5f);
+			float w = Mathf.Pow(Mathf.Clamp01(m_sea.WindStrength * (0.75f + 0.5f * m_sea.Storm)), 1.5f);
 			m_windLoop.volume = Mathf.MoveTowards(m_windLoop.volume, master * Mathf.Lerp(0.1f, 0.7f, w), dt * 0.5f);
 			m_windLoop.pitch = Mathf.Lerp(0.6f, 1.4f, w);
 		}
@@ -1086,16 +1060,16 @@ internal sealed partial class SurfGame
 
 	private void ResetSea()
 	{
-		m_seaPhase = 0;
-		m_atSea = false;
+		m_sea.Phase = 0;
+		m_sea.AtSea = false;
 		m_seaBlend = 0f;
-		m_heading = 0f;
-		m_turnRate = 0f;
-		m_boatSpeed = 0f;
-		m_seaTime = 0f;
-		m_storm = 0f;
-		m_surf = 0f;
-		m_lurch = m_lurchV = 0f;
+		m_sea.Heading = 0f;
+		m_sea.TurnRate = 0f;
+		m_sea.BoatSpeed = 0f;
+		m_sea.SeaTime = 0f;
+		m_sea.Storm = 0f;
+		m_sea.Surf = 0f;
+		m_sea.Lurch = m_sea.LurchV = 0f;
 		m_groundZ = float.MaxValue;
 		AvatarBool(m_attachAnim, false);
 		StopSeaLoops();
@@ -1154,6 +1128,40 @@ internal sealed partial class SurfGame
 		GUI.matrix = m;
 	}
 
+	// 1.16.x (playtest: rammed islands under full sail; the gold rings weren't understood):
+	// Hugin calls out an island dead ahead in time to turn or ease the sail, and explains a
+	// harbour ring the first time one comes near.
+	private float m_lookoutWait;
+	private bool m_harbourTold;
+
+	private void SeaLookout(float dt, Vector2 f)
+	{
+		m_lookoutWait = Mathf.Max(0f, m_lookoutWait - dt);
+		Vector2 ship = ShipCenter();
+		foreach (Island i in m_islands)
+		{
+			Vector2 to = i.C - ship;
+			float ahead = Vector2.Dot(to, f);
+			if (!m_harbourTold && ahead > 0f && to.magnitude < 70f)
+			{
+				m_harbourTold = true;
+				m_banner = "The gold ring by an island is a harbour: ease off the sail (S) inside it to moor, mend the hull and save a checkpoint.";
+				m_bannerTime = 6f;
+				return;
+			}
+			// In the way: within reach in the next 3 seconds, and the course passes over it.
+			float side = Mathf.Abs(f.x * to.y - f.y * to.x);
+			if (m_lookoutWait <= 0f && m_sea.BoatSpeed > 4f && ahead > 0f && ahead < m_sea.BoatSpeed * 3f + i.R && side < i.R * IslandShore + 3f)
+			{
+				m_lookoutWait = 8f;
+				m_audio.Play("sfx_raven_kaw|sfx_gui_select", 0.8f);
+				m_banner = "Land ahead! Steer round it or ease the sail (S).";
+				m_bannerTime = 3f;
+				return;
+			}
+		}
+	}
+
 	// A wind rose by the stamina bar, like the game's ship HUD: the wind's arrow (brighter the
 	// better it fills the sail), the ship's heading, and the sail setting.
 	private void SeaHud(float k, float w, float h)
@@ -1169,16 +1177,16 @@ internal sealed partial class SurfGame
 		if (m_hudShip != null)
 		{
 			float ss = size * 0.34f;
-			DrawRotated(new Rect(rose.center.x - ss * 0.5f, rose.center.y - ss * 0.5f, ss, ss), m_hudShip, m_heading, Color.white);
+			DrawRotated(new Rect(rose.center.x - ss * 0.5f, rose.center.y - ss * 0.5f, ss, ss), m_hudShip, m_sea.Heading, Color.white);
 		}
 		else
 		{
 			Matrix4x4 m = GUI.matrix;
-			GUIUtility.RotateAroundPivot(m_heading, rose.center);
+			GUIUtility.RotateAroundPivot(m_sea.Heading, rose.center);
 			Fill(new Rect(rose.center.x - 5f * k, rose.center.y - size * 0.2f, 10f * k, size * 0.4f), new Color(0.9f, 0.75f, 0.45f));
 			GUI.matrix = m;
 		}
-		Sprite? sail = m_sail == Sail.Full ? m_hudFull : m_sail == Sail.Half ? m_hudHalf : m_hudOars;
+		Sprite? sail = m_sea.SailSet == Sail.Full ? m_hudFull : m_sea.SailSet == Sail.Half ? m_hudHalf : m_hudOars;
 		Rect sailRect = new Rect(rose.x - 70f * k, rose.yMax - 64f * k, 56f * k, 56f * k);
 		if (sail != null)
 		{
@@ -1186,20 +1194,24 @@ internal sealed partial class SurfGame
 		}
 		else
 		{
-			for (int i = 0; i <= (int)m_sail; i++)
+			for (int i = 0; i <= (int)m_sea.SailSet; i++)
 			{
 				Fill(new Rect(sailRect.x + i * 18f * k, sailRect.yMax - (i + 1) * 16f * k, 14f * k, (i + 1) * 16f * k), new Color(0.95f, 0.9f, 0.8f, 0.85f));
 			}
 		}
+		// 1.16.x (playtest: sailed off toward the edge first): a gold mark on the rose's top, the
+		// way to the far shore (straight up the screen).
+		Fill(new Rect(rose.center.x - 4f * k, rose.y - 14f * k, 8f * k, 18f * k), new Color(1f, 0.82f, 0.3f, 0.9f));
 		// The ballista's reload.
-		if (m_reload > 0f)
+		if (m_sea.Reload > 0f)
 		{
-			Bar(new Rect(rose.x - 70f * k, rose.yMax - 4f * k, 56f * k, 6f * k), 1f - m_reload / BallistaReload, new Color(0.9f, 0.85f, 0.7f));
+			Bar(new Rect(rose.x - 70f * k, rose.yMax - 4f * k, 56f * k, 6f * k), 1f - m_sea.Reload / BallistaReload, new Color(0.9f, 0.85f, 0.7f));
 		}
 		// The hull's planks over the gauge (SurfHull.cs).
 		HullHud(k, rose);
+		HarbourLabels(k);
 		// The keys, small above the rose like the game's key hints, for the first moments aboard.
-		float hint = Mathf.Clamp01((16f - m_seaTime) / 3f);
+		float hint = Mathf.Clamp01((16f - m_sea.SeaTime) / 3f);
 		if (hint > 0f && m_small != null)
 		{
 			TextAnchor anchor = m_small.alignment;
@@ -1208,7 +1220,7 @@ internal sealed partial class SurfGame
 			Color old = GUI.color;
 			GUI.color = new Color(1f, 1f, 1f, hint);
 			Shadowed(new Rect(w - 760f * k, rose.y - 150f * k, 720f * k, 100f * k),
-				$"A / D: steer     W / S: sail\nMouse: aim     {KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
+				$"Sail up the screen to the far shore (the gold mark)\nA / D: steer     W / S: sail\nMouse: aim     {KeyName(Plugin.ThrowKey.Value)}: ballista     {KeyName(Plugin.BlockKey.Value)}: block", m_small);
 			GUI.color = old;
 			m_small.alignment = anchor;
 			m_small.normal.textColor = text;

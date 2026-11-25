@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SnakewaySurfer;
 
-// 1.16.2 (Sam: Moder didn't fly, and her logs and slide bars were placeholders). As in the game,
+// 1.16.2 (SAT: Moder didn't fly, and her logs and slide bars were placeholders). As in the game,
 // Moder flies (the animator's "flying" with its take-off and landing), and from the air she fires
 // her ice volley: a shotgun spread of shards that land on marked spots ahead, grow into ice
 // crystals and burst a moment later. Every row of a volley leaves a lane free, next to the free
@@ -46,7 +46,7 @@ internal sealed partial class SurfGame
 
 	private static bool Flies(BossDef def) => def.Mode == "fly";
 
-	// Sam's favourite weapon for her landed phase. The game has no silver atgeir, so the iron
+	// SAT's favourite weapon for her landed phase. The game has no silver atgeir, so the iron
 	// one is given a silver sheen (a mod's silver atgeir is used if there is one).
 	private const string ModerWeapon = "AtgeirSilver|AtgeirIron|AtgeirBronze";
 	private static readonly Color SilverSheen = new Color(0.86f, 0.92f, 1.08f);
@@ -182,7 +182,7 @@ internal sealed partial class SurfGame
 		if (m_landBreaths > 0)
 		{
 			m_landBreaths--;
-			// 1.16.102 (Sam: melee shouldn't mix with ranged): down on the track she only claws and bites.
+			// 1.16.102 (SAT: melee shouldn't mix with ranged): down on the track she only claws and bites.
 			return "claws";
 		}
 		foreach (Thing t in m_things)
